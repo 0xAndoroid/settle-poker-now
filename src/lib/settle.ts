@@ -18,6 +18,13 @@
  * are broken by lexicographic playerId for full determinism.
  */
 
+import {
+  type AliasRule,
+  buildCanonicalMap,
+  collapseAdjustments,
+  collapseIsolations,
+  collapseRows,
+} from './aliases';
 import type {
   Adjustment,
   EffectiveBalance,
@@ -520,12 +527,30 @@ export function buildSettlementPlan(
   };
 }
 
+/**
+ * End-to-end pipeline used by both the ephemeral and persistent views.
+ *
+ * Optional `aliases` collapse the player roster first: each `playerId →
+ * aliasToPlayerId` rule folds the source player's net into the target
+ * and rewrites adjustments + isolation rules to use canonical ids. This
+ * matches the server's `rederivePlan` so both modes settle identically.
+ */
 export function computePlan(
   rows: LedgerRow[],
   adjustments: Adjustment[],
-  isolations: IsolationRule[]
+  isolations: IsolationRule[],
+  aliases: ReadonlyArray<AliasRule> = []
 ): { balances: EffectiveBalance[]; plan: SettlementPlan } {
-  const balances = applyAdjustments(rows, adjustments);
-  const plan = buildSettlementPlan(balances, isolations);
+  if (aliases.length === 0) {
+    const balances = applyAdjustments(rows, adjustments);
+    const plan = buildSettlementPlan(balances, isolations);
+    return { balances, plan };
+  }
+  const canonical = buildCanonicalMap(aliases);
+  const collapsedRows = collapseRows(rows, canonical);
+  const collapsedAdjustments = collapseAdjustments(adjustments, canonical);
+  const { rules: collapsedIsolations } = collapseIsolations(isolations, canonical);
+  const balances = applyAdjustments(collapsedRows, collapsedAdjustments);
+  const plan = buildSettlementPlan(balances, collapsedIsolations);
   return { balances, plan };
 }

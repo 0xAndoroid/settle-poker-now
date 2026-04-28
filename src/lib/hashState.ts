@@ -4,17 +4,21 @@
  *   - gameId
  *   - adjustments (already-paid transfers)
  *   - isolations (per-player "settle only with X" rules)
+ *   - aliases (fold one player_id into another — "andrew2 → andrew")
+ *   - unitOverride (cents/dollars override)
  *
  * The encoded payload is a base64url-encoded JSON blob (no compression — the
  * payload is small for typical 2–10-player games).
  */
 
 import type { Adjustment, IsolationRule, LedgerUnit } from './types';
+import type { AliasRule } from './aliases';
 
 export interface HashState {
   gameId: string | null;
   adjustments: Adjustment[];
   isolations: IsolationRule[];
+  aliases: AliasRule[];
   /** User-specified unit override. `null` = no override (use worker hint / heuristic). */
   unitOverride: LedgerUnit | null;
 }
@@ -23,6 +27,7 @@ const EMPTY: HashState = {
   gameId: null,
   adjustments: [],
   isolations: [],
+  aliases: [],
   unitOverride: null,
 };
 
@@ -48,6 +53,7 @@ export function encodeHash(state: HashState): string {
     !state.gameId &&
     state.adjustments.length === 0 &&
     state.isolations.length === 0 &&
+    state.aliases.length === 0 &&
     state.unitOverride === null
   ) {
     return '';
@@ -61,6 +67,7 @@ export function encodeHash(state: HashState): string {
       c: a.amountCents,
     })),
     iso: state.isolations.map((r) => ({ p: r.playerId, c: r.counterpartId })),
+    al: state.aliases.map((r) => ({ p: r.playerId, t: r.aliasToPlayerId })),
     u: state.unitOverride ?? null,
   };
   return toBase64Url(JSON.stringify(payload));
@@ -76,6 +83,7 @@ export function decodeHash(hash: string): HashState {
       g?: string | null;
       a?: { i: string; f: string; t: string; c: number }[];
       iso?: { p: string; c: string }[];
+      al?: { p: string; t: string }[];
       u?: LedgerUnit | null;
     };
 
@@ -98,6 +106,15 @@ export function decodeHash(hash: string): HashState {
       .filter((row) => typeof row.p === 'string' && typeof row.c === 'string')
       .map((row) => ({ playerId: row.p, counterpartId: row.c }));
 
+    const aliases: AliasRule[] = (parsed.al ?? [])
+      .filter(
+        (row) =>
+          typeof row.p === 'string' &&
+          typeof row.t === 'string' &&
+          row.p !== row.t
+      )
+      .map((row) => ({ playerId: row.p, aliasToPlayerId: row.t }));
+
     const unitOverride: LedgerUnit | null =
       parsed.u === 'cents' || parsed.u === 'dollars' ? parsed.u : null;
 
@@ -105,6 +122,7 @@ export function decodeHash(hash: string): HashState {
       gameId: typeof parsed.g === 'string' ? parsed.g : null,
       adjustments,
       isolations,
+      aliases,
       unitOverride,
     };
   } catch {

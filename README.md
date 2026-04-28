@@ -22,14 +22,22 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
    into the counterpart's net. Chains collapse transitively (A → B → C
    processes A first, then B carrying A's net into C). Cycles
    (A → B, B → A) are detected and rejected with a clear UI flag.
-4. The greedy max-creditor↔max-debtor heuristic settles the remaining
-   players. **At most N − 1** transactions for N participants — usually
-   fewer.
-5. Already-paid transfers are recorded as **adjustments** that re-balance
+4. **Optimal subset-sum partitioning** settles the remaining players for
+   tables of ≤ 15 — bitmask DP partitions the residual roster into the
+   maximum number of disjoint zero-sum subsets, each settling in
+   k − 1 internal payments. **Provably minimum, not a heuristic.** The
+   greedy max-creditor↔max-debtor fallback kicks in for tables larger
+   than 15 (where the 2^N partition would blow up in latency).
+5. **Aliases** fold a duplicate `player_id` into another (someone
+   reconnected, rebought, or showed up under a fresh nickname). The
+   aliased player disappears from the active roster; their net is added
+   to the canonical target. Settlement, isolation rules, and adjustments
+   all run on the COLLAPSED roster.
+6. Already-paid transfers are recorded as **adjustments** that re-balance
    nets before settlement. All local state — game id, adjustments,
-   isolations — is base64url-encoded into the URL hash so links are
-   shareable.
-6. The settlement plan exports as a 4:5 receipt-style PNG via
+   isolations, aliases — is base64url-encoded into the URL hash so
+   links are shareable.
+7. The settlement plan exports as a 4:5 receipt-style PNG via
    `html-to-image` — uses the Web Share API on mobile, clipboard on
    desktop, falls back to download.
 
@@ -46,10 +54,18 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
 ## Algorithm notes
 
 Minimum-transactions debt simplification is NP-hard in general
-(subset-sum reduction). The greedy heuristic implemented here is the
-standard approximation — provably optimal for the common cases at a poker
-table (≤ 10 participants) and fully deterministic (ties broken by
-`player_id` lexicographic ordering).
+(subset-sum reduction). For tables ≤ 15 players we run the **exact
+optimum** via a bitmask DP: enumerate all `2^N` subsets, mark every
+zero-sum subset, then `f[mask] = max disjoint zero-sum subsets in mask`
+via the standard anchor-on-lowest-bit recurrence (`O(3^N)` worst case ≈
+14M ops at N=15, well under 100 ms). Min txns = `N − k` where `k` is the
+partition count. Above the threshold we fall back to the greedy
+max-creditor↔max-debtor heuristic.
+
+Determinism: balances are sorted by `player_id` before bit assignment,
+so the same logical pool always maps to the same partition. Ties between
+equal-magnitude balances inside greedy break by `player_id`
+lexicographic ordering.
 
 Isolation is resolved as a topological reduction on a directed graph
 (child → counterpart). Leaves are processed first; each leaf settles

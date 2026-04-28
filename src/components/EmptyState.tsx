@@ -169,8 +169,8 @@ export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptySt
 const RULES: { tag: string; title: string; body: string }[] = [
   {
     tag: 'algo',
-    title: 'min-transaction settlement',
-    body: 'Greedy max-creditor↔max-debtor. ≤ N−1 payments for N players. Integer cents only — no float drift.',
+    title: 'provably-min transactions',
+    body: 'Subset-sum partitioning via bitmask DP — exact minimum for tables ≤ 15 players. Greedy max-creditor↔max-debtor fallback above that. Integer cents only.',
   },
   {
     tag: 'persist',
