@@ -1,8 +1,12 @@
-import { useState } from 'react';
 import { formatDollars } from '@/lib/money';
-import type { EffectiveBalance, SettlementPlan } from '@/lib/types';
+import type {
+  EffectiveBalance,
+  PersistedPaymentMethod,
+  SettlementPlan,
+} from '@/lib/types';
 import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
+import { composeVenmoPayUrl, formatZelleHandle } from '@/lib/paymentLinks';
 
 export interface PaymentCompletion {
   completedAt: number | null;
@@ -23,10 +27,18 @@ interface SettlementPanelProps {
    */
   completionByPaymentId?: ReadonlyMap<string, PaymentCompletion>;
   onTogglePayment?: (paymentId: string, next: boolean) => void | Promise<void>;
-  /** Persistent flow: copy the link instead of an image. */
+  /** Persistent flow: copy the canonical /g/<id> link to clipboard. */
   onCopyLink?: () => void | Promise<void>;
-  /** Either flow: render a PNG share. Hidden if undefined. */
-  onShareAsImage?: () => void | Promise<void>;
+  /** Persistent flow: trigger native Web Share API (mobile) or fall back to copy. */
+  onShare?: () => void | Promise<void>;
+  /** Ephemeral flow: mint a finalized persistent game from the current state. */
+  onFinalize?: () => void | Promise<void>;
+  /** Ephemeral flow: spinner state on the finalize button. */
+  finalizing?: boolean;
+  /** Persistent flow: per-player Venmo / Zelle handles. Drives row icons. */
+  paymentMethodsByPlayerId?: ReadonlyMap<string, PersistedPaymentMethod>;
+  /** Toast hook so row icon clicks can surface confirmations. */
+  pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
 }
 
@@ -37,27 +49,14 @@ export function SettlementPanel({
   completionByPaymentId,
   onTogglePayment,
   onCopyLink,
-  onShareAsImage,
+  onShare,
+  onFinalize,
+  finalizing = false,
+  paymentMethodsByPlayerId,
+  pushToast,
   onHighlight,
 }: SettlementPanelProps) {
   const nameById = new Map(balances.map((b) => [b.playerId, b.nickname]));
-
-  const txnLine = (fromId: string, toId: string, cents: number) =>
-    `${nameById.get(fromId) ?? fromId} → ${nameById.get(toId) ?? toId}: ${formatDollars(cents)}`;
-
-  const allLines = plan.txns
-    .map((t) => txnLine(t.fromId, t.toId, t.amountCents))
-    .join('\n');
-
-  const [copyAllState, setCopyAllState] = useState<'idle' | 'copied'>('idle');
-  const handleCopyAll = async () => {
-    if (!allLines) return;
-    const ok = await copyText(allLines);
-    if (ok) {
-      setCopyAllState('copied');
-      setTimeout(() => setCopyAllState('idle'), 1500);
-    }
-  };
 
   const hasCycle = plan.cyclePlayerIds.length > 0;
   const cycleNames = plan.cyclePlayerIds.map(
@@ -99,45 +98,35 @@ export function SettlementPanel({
           </span>
         </span>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleCopyAll}
-            disabled={plan.txns.length === 0}
-            className="btn btn-ghost btn-sm"
-            aria-label="Copy all settlement instructions to clipboard"
-          >
-            {copyAllState === 'copied' ? '✓ copied' : 'copy all'}
-          </button>
+          {onFinalize && (
+            <button
+              type="button"
+              onClick={onFinalize}
+              disabled={finalizing || plan.txns.length === 0 || hasCycle}
+              className="btn btn-fill btn-sm"
+              aria-label="Finalize the plan and mint a shareable link"
+            >
+              {finalizing ? 'finalizing…' : 'finalize ›'}
+            </button>
+          )}
           {onCopyLink && (
             <button
               type="button"
               onClick={onCopyLink}
-              className="btn btn-fill btn-sm"
-              aria-label="Copy a shareable link to this settlement plan"
+              className="btn btn-ghost btn-sm"
+              aria-label="Copy this game's URL to clipboard"
             >
-              copy link ›
+              copy link
             </button>
           )}
-          {onShareAsImage && !onCopyLink && (
+          {onShare && (
             <button
               type="button"
-              onClick={onShareAsImage}
-              disabled={plan.txns.length === 0}
+              onClick={onShare}
               className="btn btn-fill btn-sm"
-              aria-label="Share settlement plan as image"
+              aria-label="Share this game's URL"
             >
               share ›
-            </button>
-          )}
-          {onShareAsImage && onCopyLink && (
-            <button
-              type="button"
-              onClick={onShareAsImage}
-              disabled={plan.txns.length === 0}
-              className="btn btn-ghost btn-sm"
-              aria-label="Share settlement plan as image"
-            >
-              as image
             </button>
           )}
         </div>
@@ -177,6 +166,8 @@ export function SettlementPanel({
             const completion = paymentId
               ? completionByPaymentId?.get(paymentId)
               : undefined;
+            const recipientMethod =
+              paymentMethodsByPlayerId?.get(t.toId) ?? null;
             return (
               <SettlementRow
                 key={paymentId ?? `${t.fromId}-${t.toId}-${i}`}
@@ -189,6 +180,8 @@ export function SettlementPanel({
                 completedAt={completion?.completedAt ?? null}
                 completedBy={completion?.completedBy ?? null}
                 onTogglePayment={onTogglePayment}
+                recipientMethod={recipientMethod}
+                pushToast={pushToast}
                 onHover={(hover) => onHighlight?.(hover ? t.fromId : null)}
               />
             );
@@ -199,7 +192,7 @@ export function SettlementPanel({
       {plan.txns.length > 0 && (
         <div className="border-t border-line-strong bg-surface-2 px-4 py-2.5 flex items-baseline justify-between gap-3">
           <span className="ticker-label-strong">
-            {persistent ? `outstanding · ${outstandingCount}` : 'total moved'}
+            {persistent ? `outstanding · ${outstandingCount}` : 'total'}
           </span>
           <span className="font-mono num font-bold text-[15px] text-fg">
             {persistent
@@ -222,6 +215,8 @@ interface SettlementRowProps {
   completedAt: number | null;
   completedBy: string | null;
   onTogglePayment?: (paymentId: string, next: boolean) => void | Promise<void>;
+  recipientMethod: PersistedPaymentMethod | null;
+  pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHover?: (hovering: boolean) => void;
 }
 
@@ -235,25 +230,52 @@ function SettlementRow({
   completedAt,
   completedBy,
   onTogglePayment,
+  recipientMethod,
+  pushToast,
   onHover,
 }: SettlementRowProps) {
-  const [copied, setCopied] = useState(false);
-  const text = `${fromName} → ${toName}: ${formatDollars(amountCents)}`;
   const isCompleted = completedAt !== null;
   const persistent = paymentId !== undefined && onTogglePayment !== undefined;
-
-  const handleCopy = async () => {
-    const ok = await copyText(text);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1300);
-    }
-  };
 
   const handleToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
     if (!persistent) return;
     await onTogglePayment(paymentId, e.target.checked);
+  };
+
+  const handleVenmoClick = () => {
+    if (!recipientMethod?.venmoUsername) return;
+    try {
+      const url = composeVenmoPayUrl({
+        recipientUsername: recipientMethod.venmoUsername,
+        amountCents,
+      });
+      // Anchor element click is more reliable than `window.location.href = url`
+      // for custom-scheme URLs on iOS Safari.
+      const a = document.createElement('a');
+      a.href = url;
+      a.rel = 'noopener noreferrer';
+      a.click();
+      pushToast?.(
+        `opening venmo to pay @${recipientMethod.venmoUsername} ${formatDollars(amountCents)}`,
+        'info'
+      );
+    } catch (err) {
+      pushToast?.((err as Error).message, 'error');
+    }
+  };
+
+  const handleZelleClick = async () => {
+    if (!recipientMethod?.zelleHandle || !recipientMethod.zelleHandleKind) return;
+    const display = formatZelleHandle({
+      handle: recipientMethod.zelleHandle,
+      kind: recipientMethod.zelleHandleKind,
+    });
+    const ok = await copyText(display);
+    pushToast?.(
+      ok ? `zelle handle copied — paste in your bank app: ${display}` : 'could not copy zelle handle',
+      ok ? 'success' : 'error'
+    );
   };
 
   return (
@@ -281,8 +303,8 @@ function SettlementRow({
               className="checkbox-poker"
               aria-label={
                 isCompleted
-                  ? `Mark "${text}" as outstanding`
-                  : `Mark "${text}" as settled`
+                  ? `Mark ${fromName} → ${toName} as outstanding`
+                  : `Mark ${fromName} → ${toName} as settled`
               }
             />
           </label>
@@ -292,17 +314,10 @@ function SettlementRow({
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={handleCopy}
+        <div
           onMouseEnter={() => onHover?.(true)}
           onMouseLeave={() => onHover?.(false)}
-          className={cn(
-            'flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-left',
-            'hover:bg-surface-2 active:bg-surface-3 transition-colors duration-100',
-            '-my-3 py-3 -mr-2 pr-2 rounded-sm'
-          )}
-          aria-label={`Copy: ${text}`}
+          className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3"
         >
           <span
             className={cn(
@@ -331,17 +346,15 @@ function SettlementRow({
           >
             {formatDollars(amountCents)}
           </span>
-          <span
-            className={cn(
-              'ticker-label w-12 text-right hidden sm:inline',
-              'opacity-0 group-hover:opacity-100 transition-opacity',
-              copied && 'opacity-100 text-gain'
-            )}
-            aria-hidden="true"
-          >
-            {copied ? '✓ copy' : 'copy'}
-          </span>
-        </button>
+          {recipientMethod && !isCompleted && (
+            <PaymentMethodIcons
+              recipientName={toName}
+              method={recipientMethod}
+              onVenmoClick={handleVenmoClick}
+              onZelleClick={handleZelleClick}
+            />
+          )}
+        </div>
       </div>
 
       {isCompleted && completedBy && (
@@ -361,6 +374,72 @@ function SettlementRow({
         </div>
       )}
     </li>
+  );
+}
+
+interface PaymentMethodIconsProps {
+  recipientName: string;
+  method: PersistedPaymentMethod;
+  onVenmoClick: () => void;
+  onZelleClick: () => void;
+}
+
+function PaymentMethodIcons({
+  recipientName,
+  method,
+  onVenmoClick,
+  onZelleClick,
+}: PaymentMethodIconsProps) {
+  const hasVenmo = !!method.venmoUsername;
+  const hasZelle = !!method.zelleHandle;
+  if (!hasVenmo && !hasZelle) return null;
+  return (
+    <span className="flex items-center gap-1 shrink-0">
+      {hasVenmo && (
+        <button
+          type="button"
+          onClick={onVenmoClick}
+          className="payment-icon"
+          aria-label={`Open Venmo to pay ${recipientName} (@${method.venmoUsername})`}
+          title={`venmo @${method.venmoUsername}`}
+        >
+          <VenmoMark />
+        </button>
+      )}
+      {hasZelle && (
+        <button
+          type="button"
+          onClick={onZelleClick}
+          className="payment-icon"
+          aria-label={`Copy ${recipientName}'s Zelle handle to clipboard`}
+          title={`zelle: ${method.zelleHandle}`}
+        >
+          <ZelleMark />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function VenmoMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M19.6 4.5c.7 1.2 1 2.4 1 3.9 0 4.8-4.1 11-7.4 15.4H5.5L2.4 5.4l6.7-.6 1.7 13.2c1.5-2.5 3.4-6.4 3.4-9.1 0-1.5-.3-2.5-.7-3.3l5.7-.6.4-.5z"
+      />
+    </svg>
+  );
+}
+
+function ZelleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2c5.5 0 10 4.5 10 10s-4.5 10-10 10S2 17.5 2 12 6.5 2 12 2zm-2 5v2H7l-.4.6L11 17h-3v2h6v-2l3.4-7.4.6-.6h-3V7h-5z"
+      />
+    </svg>
   );
 }
 

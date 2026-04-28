@@ -11,6 +11,7 @@ import {
   OPTIONS_NO_CONTENT,
   errorResponse,
   jsonResponse,
+  mapMutationError,
   readActorLabel,
 } from '../../../../lib/responses';
 
@@ -31,10 +32,16 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const game = await loadGameRow(ctx.env.DB, gameId);
   if (!game) return errorResponse(404, `No game with id "${gameId}".`);
 
-  const updated = await removeAlias(ctx.env.DB, {
-    gameId,
-    playerId,
-    actorLabel: readActorLabel(ctx.request),
-  });
-  return jsonResponse({ game: updated });
+  try {
+    const updated = await removeAlias(ctx.env.DB, {
+      gameId,
+      playerId,
+      actorLabel: readActorLabel(ctx.request),
+    });
+    return jsonResponse({ game: updated });
+  } catch (err) {
+    const mapped = mapMutationError(err);
+    if (mapped) return mapped;
+    throw err;
+  }
 };

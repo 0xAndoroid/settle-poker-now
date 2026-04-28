@@ -31,6 +31,8 @@ const SAMPLE_SNAPSHOT: PersistedGameSnapshot = {
     endedAt: 0,
     createdAt: 0,
     updatedAt: 1,
+    finalizedAt: 1,
+    finalizedBy: 'Andrew',
   },
   players: [
     { playerId: 'a', nickname: 'A', netCents: -5000 },
@@ -51,6 +53,7 @@ const SAMPLE_SNAPSHOT: PersistedGameSnapshot = {
   adjustments: [],
   isolations: [],
   aliases: [],
+  paymentMethods: [],
   audit: [],
 };
 

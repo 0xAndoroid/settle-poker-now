@@ -10,6 +10,7 @@ import {
   OPTIONS_NO_CONTENT,
   errorResponse,
   jsonResponse,
+  mapMutationError,
   readActorLabel,
 } from '../../../lib/responses';
 
@@ -52,12 +53,18 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const game = await loadGameRow(ctx.env.DB, gameId);
   if (!game) return errorResponse(404, `No game with id "${gameId}".`);
 
-  const updated = await addAdjustment(ctx.env.DB, {
-    gameId,
-    fromPlayerId: body.fromPlayerId,
-    toPlayerId: body.toPlayerId,
-    amountCents: Math.trunc(body.amountCents),
-    actorLabel: readActorLabel(ctx.request),
-  });
-  return jsonResponse({ game: updated }, { status: 201 });
+  try {
+    const updated = await addAdjustment(ctx.env.DB, {
+      gameId,
+      fromPlayerId: body.fromPlayerId,
+      toPlayerId: body.toPlayerId,
+      amountCents: Math.trunc(body.amountCents),
+      actorLabel: readActorLabel(ctx.request),
+    });
+    return jsonResponse({ game: updated }, { status: 201 });
+  } catch (err) {
+    const mapped = mapMutationError(err);
+    if (mapped) return mapped;
+    throw err;
+  }
 };

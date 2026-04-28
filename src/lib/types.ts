@@ -126,6 +126,10 @@ export interface PersistedGame {
   endedAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /** ms since epoch when the game was finalized (locked); null when still editable. */
+  finalizedAt: number | null;
+  /** Actor label of whoever finalized; null when not finalized. */
+  finalizedBy: string | null;
 }
 
 export interface PersistedPlayer {
@@ -169,6 +173,24 @@ export interface PersistedAlias {
   createdBy: string | null;
 }
 
+export type ZelleHandleKind = 'email' | 'phone';
+
+/**
+ * Per-game Venmo / Zelle handles for a player. Used to render
+ * deep-link icons next to settlement rows where this player is the
+ * recipient. Either side may be null.
+ */
+export interface PersistedPaymentMethod {
+  playerId: string;
+  /** Without leading '@'. */
+  venmoUsername: string | null;
+  /** Email or US phone — discriminated by `zelleHandleKind`. */
+  zelleHandle: string | null;
+  zelleHandleKind: ZelleHandleKind | null;
+  updatedAt: number;
+  updatedBy: string | null;
+}
+
 export type AuditAction =
   | 'create_game'
   | 'complete_payment'
@@ -178,7 +200,10 @@ export type AuditAction =
   | 'set_isolation'
   | 'clear_isolation'
   | 'add_alias'
-  | 'remove_alias';
+  | 'remove_alias'
+  | 'finalize'
+  | 'unfinalize'
+  | 'set_payment_methods';
 
 export interface PersistedAuditEntry {
   id: string;
@@ -195,5 +220,6 @@ export interface PersistedGameSnapshot {
   adjustments: PersistedAdjustment[];
   isolations: PersistedIsolation[];
   aliases: PersistedAlias[];
+  paymentMethods: PersistedPaymentMethod[];
   audit: PersistedAuditEntry[];
 }

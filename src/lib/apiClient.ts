@@ -6,7 +6,7 @@
  * server records audit trail entries.
  */
 
-import type { PersistedGameSnapshot } from './types';
+import type { PersistedGameSnapshot, ZelleHandleKind } from './types';
 
 const ACTOR_HEADER = 'X-Actor-Label';
 
@@ -60,6 +60,49 @@ export async function createPersistentGame(
     body: JSON.stringify({
       pokernowUrl: input.pokernowUrl,
       actorLabel: input.actorLabel ?? null,
+    }),
+  });
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  const json = (await res.json()) as GameResponse;
+  return json.game;
+}
+
+export interface CreateFinalizedGameInput {
+  pokernowUrl: string;
+  actorLabel?: string | null;
+  adjustments: ReadonlyArray<{
+    fromPlayerId: string;
+    toPlayerId: string;
+    amountCents: number;
+  }>;
+  isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
+  aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+}
+
+/**
+ * The new primary creation flow — used by the `[ FINALIZE › ]` button on
+ * the ephemeral view. Bundles all the modifications the user assembled
+ * pre-finalize so the server can snapshot the final settlement plan in
+ * one D1 batch.
+ */
+export async function createFinalizedGame(
+  input: CreateFinalizedGameInput,
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch('/api/games', {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      ...actorHeaders(input.actorLabel ?? null),
+    },
+    body: JSON.stringify({
+      pokernowUrl: input.pokernowUrl,
+      actorLabel: input.actorLabel ?? null,
+      finalize: true,
+      adjustments: input.adjustments,
+      isolations: input.isolations,
+      aliases: input.aliases,
     }),
   });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
@@ -234,6 +277,79 @@ export async function removeAliasRemote(
       method: 'DELETE',
       signal,
       headers: actorHeaders(args.actorLabel),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
+}
+
+/**
+ * Finalize a legacy (pre-finalize-on-create) persistent game. New games
+ * are minted in finalized state; this exists for the demo + any other
+ * unfinalized D1 records.
+ */
+export async function finalizeGameRemote(
+  args: { gameId: string; actorLabel: string | null },
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/finalize`,
+    {
+      method: 'POST',
+      signal,
+      headers: actorHeaders(args.actorLabel),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
+}
+
+/** Reverse the finalize lock — allowed by design (friend-trust model). */
+export async function unfinalizeGameRemote(
+  args: { gameId: string; actorLabel: string | null },
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/unfinalize`,
+    {
+      method: 'POST',
+      signal,
+      headers: actorHeaders(args.actorLabel),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
+}
+
+export interface PaymentMethodInput {
+  gameId: string;
+  playerId: string;
+  /** Without leading '@'. Pass `null` to clear. */
+  venmoUsername: string | null;
+  /** Email or US phone — discriminated by `zelleHandleKind`. */
+  zelleHandle: string | null;
+  zelleHandleKind: ZelleHandleKind | null;
+  actorLabel: string | null;
+}
+
+export async function setPaymentMethodsRemote(
+  args: PaymentMethodInput,
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/players/${encodeURIComponent(args.playerId)}/payment-methods`,
+    {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...actorHeaders(args.actorLabel),
+      },
+      body: JSON.stringify({
+        venmoUsername: args.venmoUsername,
+        zelleHandle: args.zelleHandle,
+        zelleHandleKind: args.zelleHandleKind,
+      }),
     }
   );
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));

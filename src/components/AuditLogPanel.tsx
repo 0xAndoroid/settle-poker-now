@@ -14,6 +14,11 @@ const ACTION_LABEL: Record<string, string> = {
   remove_adjustment: 'removed prior payment',
   set_isolation: 'isolated player',
   clear_isolation: 'cleared isolation',
+  add_alias: 'aliased player',
+  remove_alias: 'unfolded alias',
+  finalize: 'finalized 🔒',
+  unfinalize: 'unfinalized',
+  set_payment_methods: 'set payment handles',
 };
 
 export function AuditLogPanel({ entries, players }: AuditLogPanelProps) {

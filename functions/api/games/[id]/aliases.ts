@@ -9,15 +9,12 @@
  * returned for the client to replace local state authoritatively.
  */
 
-import {
-  AliasValidationError,
-  addAlias,
-  loadGameRow,
-} from '../../../lib/db';
+import { addAlias, loadGameRow } from '../../../lib/db';
 import {
   OPTIONS_NO_CONTENT,
   errorResponse,
   jsonResponse,
+  mapMutationError,
   readActorLabel,
 } from '../../../lib/responses';
 
@@ -61,9 +58,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     });
     return jsonResponse({ game: updated }, { status: 201 });
   } catch (err) {
-    if (err instanceof AliasValidationError) {
-      return errorResponse(400, err.message);
-    }
+    const mapped = mapMutationError(err);
+    if (mapped) return mapped;
     throw err;
   }
 };

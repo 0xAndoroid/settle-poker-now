@@ -1,31 +1,22 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LedgerPanel } from './LedgerPanel';
+import { ModificationsPanel } from './ModificationsPanel';
 import { SettlementPanel, type PaymentCompletion } from './SettlementPanel';
-import { IsolationPanel } from './IsolationPanel';
-import { AdjustmentsPanel } from './AdjustmentsPanel';
-import { AliasPanel } from './AliasPanel';
-import { ShareCard } from './ShareCard';
 import { IdentityPrompt } from './IdentityPrompt';
 import { AuditLogPanel } from './AuditLogPanel';
-import { MobileTabs, type TabKey } from './MobileTabs';
+import { MobileTabs, type PersistentTabKey } from './MobileTabs';
 import type { TickerItem } from './Masthead';
 import { usePersistentGame } from '@/hooks/usePersistentGame';
 import { useGameIdentity } from '@/hooks/useGameIdentity';
 import { gamePath } from '@/lib/routing';
 import { copyText } from '@/lib/clipboard';
-import { shareNodeAsImage } from '@/lib/shareImage';
 import { formatDollars } from '@/lib/money';
 import { projectSettlementPlan } from '@/lib/persistedProjection';
-import {
-  buildCanonicalMap,
-  collapseAdjustments,
-  collapseRows,
-} from '@/lib/aliases';
 import type {
   EffectiveBalance,
-  IsolationRule,
   LedgerRow,
   PersistedGameSnapshot,
+  PersistedPaymentMethod,
   SettlementPlan,
 } from '@/lib/types';
 
@@ -36,11 +27,17 @@ interface PersistentGameViewProps {
 }
 
 /**
- * Persistent game view at /g/:id. Owns:
- *   - Server snapshot fetch + polling (via `usePersistentGame`)
- *   - Identity selection per game (localStorage)
- *   - Mutations (mark complete, add/remove adjustment, set/clear isolation)
- *   - Tabbed mobile layout matching the ephemeral path
+ * Post-finalize read-only view at /g/:id. Owns:
+ *   - Server snapshot fetch + 8s polling (via `usePersistentGame`)
+ *   - Identity selection per game (localStorage) + Venmo/Zelle registration
+ *   - Mark-payment-settled toggle (the only structural mutation allowed
+ *     after finalize — the worker enforces a 423 lock on everything else)
+ *   - Read-only display: original ledger, modifications applied at
+ *     finalize, settlement plan, audit history.
+ *   - Copy-link / share-link to push the canonical URL through chat.
+ *
+ * Legacy unfinalized games (created via the old POST /api/games before
+ * finalize-on-create existed) render with a banner offering to lock them.
  */
 export function PersistentGameView({
   gameId,
@@ -50,31 +47,33 @@ export function PersistentGameView({
   const { identity, setIdentity } = useGameIdentity(gameId);
   const actorLabel = identity?.nickname ?? null;
 
-  const {
-    state,
-    togglePayment,
-    addAdjustment,
-    removeAdjustment,
-    setIsolation,
-    clearIsolation,
-    addAlias,
-    removeAlias,
-  } = usePersistentGame(gameId, actorLabel, {
-    onError: (message) => pushToast(message, 'error'),
-  });
+  const { state, togglePayment, savePaymentMethods, finalizeLegacy } =
+    usePersistentGame(gameId, actorLabel, {
+      onError: (message) => pushToast(message, 'error'),
+    });
 
-  const [activeTab, setActiveTab] = useState<TabKey>('plan');
-  const shareCardRef = useRef<HTMLDivElement | null>(null);
+  const [activeTab, setActiveTab] = useState<PersistentTabKey>('payments');
 
-  // Project the persisted snapshot into the same shape the ephemeral
-  // panels expect.
+  // Project the persisted snapshot into the same shape the panels expect.
+  // Read-only: we render the ORIGINAL ledger (pre-modification players)
+  // and surface the post-mod settlement plan separately.
   const projection = useMemo(
     () => (state.game ? projectSnapshot(state.game) : null),
     [state.game]
   );
 
+  const game = state.game;
+  const paymentMethodsByPlayerId = useMemo(() => {
+    const map = new Map<string, PersistedPaymentMethod>();
+    if (!game) return map;
+    for (const m of game.paymentMethods ?? []) {
+      map.set(m.playerId, m);
+    }
+    return map;
+  }, [game]);
+
   // Push ticker updates upward whenever the snapshot changes.
-  useMemo(() => {
+  useEffect(() => {
     if (!projection || !state.game) {
       onTickerChange(undefined);
       return;
@@ -103,96 +102,52 @@ export function PersistentGameView({
     const fullUrl = `${window.location.origin}${gamePath(gameId)}`;
     const ok = await copyText(fullUrl);
     pushToast(
-      ok
-        ? 'link copied — paste in chat for a live preview'
-        : 'could not copy link',
+      ok ? 'link copied — paste in chat for a live preview' : 'could not copy link',
       ok ? 'success' : 'error'
     );
   }, [gameId, pushToast]);
 
-  const handleShareImage = useCallback(async () => {
-    if (!shareCardRef.current) {
-      pushToast('share card not ready, try again', 'error');
-      return;
+  const handleShare = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const fullUrl = `${window.location.origin}${gamePath(gameId)}`;
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: 'settle.andrew.ee — settlement',
+          url: fullUrl,
+        });
+        return;
+      } catch (err) {
+        // AbortError = user dismissed the sheet; not an error worth toasting.
+        if ((err as Error).name === 'AbortError') return;
+      }
     }
-    const result = await shareNodeAsImage(shareCardRef.current, {
-      filename: `settle-${gameId}.png`,
-      title: 'settle.andrew.ee — settlement',
-      text: 'Settlement plan from settle.andrew.ee',
-    });
-    switch (result.kind) {
-      case 'shared':
-        pushToast('shared.', 'success');
-        break;
-      case 'copied':
-        pushToast('image copied — paste anywhere', 'success');
-        break;
-      case 'downloaded':
-        pushToast('png downloaded', 'success');
-        break;
-      case 'cancelled':
-        break;
-      case 'failed':
-        pushToast(result.detail ?? 'share failed', 'error');
-        break;
-    }
+    const ok = await copyText(fullUrl);
+    pushToast(
+      ok ? 'link copied' : 'could not share or copy link',
+      ok ? 'success' : 'error'
+    );
   }, [gameId, pushToast]);
 
-  const handleAddAdjustment = useCallback(
-    async (adj: { fromPlayerId: string; toPlayerId: string; amountCents: number }) => {
-      try {
-        await addAdjustment(adj);
-      } catch (err) {
-        pushToast((err as Error).message, 'error');
-      }
-    },
-    [addAdjustment, pushToast]
-  );
-
-  const handleRemoveAdjustment = useCallback(
-    async (adjustmentId: string) => {
-      try {
-        await removeAdjustment(adjustmentId);
-      } catch (err) {
-        pushToast((err as Error).message, 'error');
-      }
-    },
-    [pushToast, removeAdjustment]
-  );
-
-  const handleIsolationChange = useCallback(
-    async (rules: IsolationRule[]) => {
-      const current = state.game?.isolations ?? [];
-      try {
-        // Diff current vs new and emit the right server calls.
-        const incoming = new Map(rules.map((r) => [r.playerId, r.counterpartId]));
-        const existing = new Map(
-          current.map((r) => [r.playerId, r.counterpartId])
-        );
-
-        // Removals.
-        for (const [playerId] of existing) {
-          if (!incoming.has(playerId)) {
-            await clearIsolation(playerId);
-          }
-        }
-        // Adds + updates.
-        for (const [playerId, counterpartId] of incoming) {
-          if (existing.get(playerId) !== counterpartId) {
-            await setIsolation({ playerId, counterpartId });
-          }
-        }
-      } catch (err) {
-        pushToast((err as Error).message, 'error');
-      }
-    },
-    [clearIsolation, pushToast, setIsolation, state.game?.isolations]
-  );
+  const handleFinalizeLegacy = useCallback(async () => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Finalize this game?\n\n' +
+          'After finalizing, no one can add more aliases, prior payments, or private rules. ' +
+          'Marking payments complete still works.'
+      )
+    ) {
+      return;
+    }
+    await finalizeLegacy();
+    pushToast('game finalized ✓', 'success');
+  }, [finalizeLegacy, pushToast]);
 
   if (state.status === 'loading' && !projection) {
     return <CenterMessage label="loading game" />;
   }
-  if (state.status === 'error' || !projection) {
+  if (state.status === 'error' || !projection || !state.game) {
     return (
       <CenterMessage
         label="not found"
@@ -202,35 +157,71 @@ export function PersistentGameView({
   }
 
   const showIdentityPrompt = identity === null && !sessionDeclined();
+  const isFinalized = state.game.game.finalizedAt !== null;
 
   // Map current persisted plan ordering to txn list.
   const plan = projection.plan;
-  const paymentIds: string[] = state.game!.payments.map((p) => p.id);
+  const paymentIds: string[] = state.game.payments.map((p) => p.id);
   const completionByPaymentId = new Map<string, PaymentCompletion>(
-    state.game!.payments.map((p) => [
+    state.game.payments.map((p) => [
       p.id,
       { completedAt: p.completedAt, completedBy: p.completedBy },
     ])
   );
+  const modsTotal =
+    state.game.aliases.length +
+    state.game.adjustments.length +
+    state.game.isolations.length;
 
   return (
     <>
       <MobileTabs
+        mode="persistent"
         active={activeTab}
         onChange={setActiveTab}
         txnCount={plan.txns.length}
-        playerCount={projection.balances.length}
+        playerCount={projection.originalRows.length}
+        modsCount={modsTotal}
+        historyCount={state.game.audit.length}
       />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
+        {!isFinalized && (
+          <div className="mb-5 card border-warn/60">
+            <div className="card-header bg-warn/[0.08]">
+              <span className="ticker-label-strong text-warn">
+                ⚠ legacy game · not finalized
+              </span>
+              <button
+                type="button"
+                onClick={handleFinalizeLegacy}
+                className="btn btn-fill btn-sm"
+              >
+                finalize ›
+              </button>
+            </div>
+            <p className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed">
+              This game was created before finalize-on-create existed. Click
+              finalize to lock the plan in. Marking payments works either way.
+            </p>
+          </div>
+        )}
+
         {showIdentityPrompt && (
           <div className="mb-6">
             <IdentityPrompt
-              players={state.game!.players}
-              onPick={(picked) => {
-                if (picked) {
-                  setIdentity(picked);
-                  pushToast(`identified as ${picked.nickname}`, 'info');
+              players={state.game.players}
+              paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+              onPick={(result) => {
+                if (result.player) {
+                  setIdentity(result.player);
+                  pushToast(`identified as ${result.player.nickname}`, 'info');
+                  if (result.paymentMethods) {
+                    void savePaymentMethods({
+                      playerId: result.player.playerId,
+                      ...result.paymentMethods,
+                    });
+                  }
                 } else {
                   declineIdentity();
                   setIdentity(null);
@@ -244,49 +235,17 @@ export function PersistentGameView({
         <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-6">
           <div className="space-y-5">
             <LedgerPanel
-              rows={projection.rows}
-              effectiveBalances={projection.balances}
-              unit={state.game!.game.sourceUnit}
-              unitWasInferred={state.game!.game.unitProvenance !== 'header'}
-              hasUserOverride={state.game!.game.unitProvenance === 'user'}
-              // Persistent flow: unit is locked to what was snapshotted.
-              // (Surface a hint via the panel; no toggle.)
+              rows={projection.originalRows}
+              effectiveBalances={projection.originalBalances}
+              unit={state.game.game.sourceUnit}
+              unitWasInferred={state.game.game.unitProvenance !== 'header'}
+              hasUserOverride={state.game.game.unitProvenance === 'user'}
             />
-            <IsolationPanel
-              balances={projection.balances}
-              isolations={state.game!.isolations.map((r) => ({
-                playerId: r.playerId,
-                counterpartId: r.counterpartId,
-              }))}
-              cyclePlayerIds={plan.cyclePlayerIds}
-              onChange={handleIsolationChange}
-            />
-            <AdjustmentsPanel
-              balances={projection.balances}
-              adjustments={state.game!.adjustments.map((a) => ({
-                id: a.id,
-                fromId: a.fromPlayerId,
-                toId: a.toPlayerId,
-                amountCents: a.amountCents,
-              }))}
-              onAdd={(adj) =>
-                handleAddAdjustment({
-                  fromPlayerId: adj.fromId,
-                  toPlayerId: adj.toId,
-                  amountCents: adj.amountCents,
-                })
-              }
-              onRemove={handleRemoveAdjustment}
-            />
-            <AliasPanel
-              players={state.game!.players}
-              aliases={state.game!.aliases}
-              onAddAlias={(input) => addAlias(input)}
-              onRemoveAlias={(playerId) => removeAlias(playerId)}
-            />
-            <AuditLogPanel
-              entries={state.game!.audit}
-              players={state.game!.players}
+            <ModificationsPanel
+              players={state.game.players}
+              aliases={state.game.aliases}
+              adjustments={state.game.adjustments}
+              isolations={state.game.isolations}
             />
           </div>
           <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
@@ -297,15 +256,43 @@ export function PersistentGameView({
               completionByPaymentId={completionByPaymentId}
               onTogglePayment={togglePayment}
               onCopyLink={handleCopyLink}
-              onShareAsImage={handleShareImage}
+              onShare={handleShare}
+              paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+              pushToast={pushToast}
             />
-            <PersistentColophon gameId={gameId} />
+            <AuditLogPanel
+              entries={state.game.audit}
+              players={state.game.players}
+            />
+            <PersistentColophon
+              gameId={gameId}
+              isFinalized={isFinalized}
+              finalizedAt={state.game.game.finalizedAt}
+              finalizedBy={state.game.game.finalizedBy}
+            />
           </div>
         </div>
 
         {/* Mobile tabbed layout */}
         <div className="lg:hidden space-y-5">
-          {activeTab === 'plan' && (
+          {activeTab === 'ledger' && (
+            <LedgerPanel
+              rows={projection.originalRows}
+              effectiveBalances={projection.originalBalances}
+              unit={state.game.game.sourceUnit}
+              unitWasInferred={state.game.game.unitProvenance !== 'header'}
+              hasUserOverride={state.game.game.unitProvenance === 'user'}
+            />
+          )}
+          {activeTab === 'mods' && (
+            <ModificationsPanel
+              players={state.game.players}
+              aliases={state.game.aliases}
+              adjustments={state.game.adjustments}
+              isolations={state.game.isolations}
+            />
+          )}
+          {activeTab === 'payments' && (
             <SettlementPanel
               plan={plan}
               balances={projection.balances}
@@ -313,81 +300,19 @@ export function PersistentGameView({
               completionByPaymentId={completionByPaymentId}
               onTogglePayment={togglePayment}
               onCopyLink={handleCopyLink}
-              onShareAsImage={handleShareImage}
+              onShare={handleShare}
+              paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+              pushToast={pushToast}
             />
           )}
-          {activeTab === 'ledger' && (
-            <LedgerPanel
-              rows={projection.rows}
-              effectiveBalances={projection.balances}
-              unit={state.game!.game.sourceUnit}
-              unitWasInferred={state.game!.game.unitProvenance !== 'header'}
-              hasUserOverride={state.game!.game.unitProvenance === 'user'}
+          {activeTab === 'history' && (
+            <AuditLogPanel
+              entries={state.game.audit}
+              players={state.game.players}
             />
-          )}
-          {activeTab === 'config' && (
-            <>
-              <IsolationPanel
-                balances={projection.balances}
-                isolations={state.game!.isolations.map((r) => ({
-                  playerId: r.playerId,
-                  counterpartId: r.counterpartId,
-                }))}
-                cyclePlayerIds={plan.cyclePlayerIds}
-                onChange={handleIsolationChange}
-              />
-              <AdjustmentsPanel
-                balances={projection.balances}
-                adjustments={state.game!.adjustments.map((a) => ({
-                  id: a.id,
-                  fromId: a.fromPlayerId,
-                  toId: a.toPlayerId,
-                  amountCents: a.amountCents,
-                }))}
-                onAdd={(adj) =>
-                  handleAddAdjustment({
-                    fromPlayerId: adj.fromId,
-                    toPlayerId: adj.toId,
-                    amountCents: adj.amountCents,
-                  })
-                }
-                onRemove={handleRemoveAdjustment}
-              />
-              <AliasPanel
-                players={state.game!.players}
-                aliases={state.game!.aliases}
-                onAddAlias={(input) => addAlias(input)}
-                onRemoveAlias={(playerId) => removeAlias(playerId)}
-              />
-              <AuditLogPanel
-                entries={state.game!.audit}
-                players={state.game!.players}
-              />
-            </>
           )}
         </div>
       </main>
-
-      {/* Off-screen share card. */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          left: '-99999px',
-          top: 0,
-          pointerEvents: 'none',
-          zIndex: -1,
-        }}
-      >
-        {plan.txns.length > 0 && (
-          <ShareCard
-            ref={shareCardRef}
-            plan={plan}
-            balances={projection.balances}
-            dateLabel={formatGameDate(state.game!.game.startedAt)}
-          />
-        )}
-      </div>
     </>
   );
 }
@@ -395,66 +320,93 @@ export function PersistentGameView({
 /* ──────── Helpers ──────── */
 
 interface Projection {
-  rows: LedgerRow[];
+  /** Pre-modification rows — exactly as PokerNow returned them. */
+  originalRows: LedgerRow[];
+  /**
+   * Same player set as `originalRows` but in EffectiveBalance shape so
+   * the ledger panel can render. originalNet === effectiveNet here
+   * (modifications go in the separate ModificationsPanel).
+   */
+  originalBalances: EffectiveBalance[];
+  /**
+   * Post-modification balances (used by SettlementPanel for nickname
+   * lookup in case aliases collapsed the roster).
+   */
   balances: EffectiveBalance[];
   plan: SettlementPlan;
 }
 
 function projectSnapshot(snap: PersistedGameSnapshot): Projection {
-  // Apply alias collapse first — same shape as the server-side
-  // re-derive pipeline. Aliased players disappear from the active
-  // roster; their net is folded into the canonical target.
-  const canonical = buildCanonicalMap(snap.aliases);
-  const rawRows: LedgerRow[] = snap.players.map((p) => ({
+  // ORIGINAL ledger — the un-modified PokerNow snapshot. We never collapse
+  // aliases here because the user wants to see who actually played.
+  const originalRows: LedgerRow[] = snap.players.map((p) => ({
     playerId: p.playerId,
     nickname: p.nickname,
     netCents: p.netCents,
     buyInCents: 0,
     buyOutCents: 0,
   }));
-  const rawAdjustments = snap.adjustments.map((a) => ({
-    id: a.id,
-    fromId: a.fromPlayerId,
-    toId: a.toPlayerId,
-    amountCents: a.amountCents,
+  const originalBalances: EffectiveBalance[] = snap.players.map((p) => ({
+    playerId: p.playerId,
+    nickname: p.nickname,
+    originalNetCents: p.netCents,
+    effectiveNetCents: p.netCents,
   }));
-  const rows = collapseRows(rawRows, canonical);
-  const collapsedAdjustments = collapseAdjustments(rawAdjustments, canonical);
 
-  // Compute effective balances by replaying (collapsed) adjustments.
-  const balanceById = new Map<string, EffectiveBalance>(
-    rows.map((r) => [
-      r.playerId,
-      {
-        playerId: r.playerId,
-        nickname: r.nickname,
-        originalNetCents: r.netCents,
-        effectiveNetCents: r.netCents,
-      },
-    ])
-  );
-  for (const adj of collapsedAdjustments) {
-    const from = balanceById.get(adj.fromId);
-    const to = balanceById.get(adj.toId);
+  // Post-modification roster: alias the players, then settle. Same pipeline
+  // the worker uses on rederive — we only need the nickname-by-id resolver
+  // for the SettlementPanel here, since the persisted `payments` rows
+  // already hold the canonical from/to ids.
+  const aliasMap = new Map<string, string>();
+  for (const a of snap.aliases) aliasMap.set(a.playerId, a.aliasToPlayerId);
+  const canonicalNameOf = (id: string): string => {
+    let cur = id;
+    let hops = 0;
+    while (aliasMap.has(cur) && hops++ < 16) cur = aliasMap.get(cur)!;
+    const player = snap.players.find((p) => p.playerId === cur);
+    return player?.nickname ?? cur;
+  };
+  const balances: EffectiveBalance[] = snap.players
+    .filter((p) => !aliasMap.has(p.playerId))
+    .map((p) => ({
+      playerId: p.playerId,
+      nickname: canonicalNameOf(p.playerId),
+      originalNetCents: p.netCents,
+      effectiveNetCents: p.netCents,
+    }));
+  // Sum aliased players' nets into their canonicals so the panel's
+  // outstanding ledger lookups still find a row.
+  for (const a of snap.aliases) {
+    let target = a.aliasToPlayerId;
+    let hops = 0;
+    while (aliasMap.has(target) && hops++ < 16) {
+      target = aliasMap.get(target)!;
+    }
+    const slot = balances.find((b) => b.playerId === target);
+    const folded = snap.players.find((p) => p.playerId === a.playerId);
+    if (slot && folded) {
+      slot.originalNetCents += folded.netCents;
+      slot.effectiveNetCents += folded.netCents;
+    }
+  }
+  // Replay adjustments on the collapsed roster.
+  for (const adj of snap.adjustments) {
+    let fromId = adj.fromPlayerId;
+    let toId = adj.toPlayerId;
+    let hops = 0;
+    while (aliasMap.has(fromId) && hops++ < 16) fromId = aliasMap.get(fromId)!;
+    hops = 0;
+    while (aliasMap.has(toId) && hops++ < 16) toId = aliasMap.get(toId)!;
+    if (fromId === toId) continue;
+    const from = balances.find((b) => b.playerId === fromId);
+    const to = balances.find((b) => b.playerId === toId);
     if (!from || !to) continue;
     from.effectiveNetCents += adj.amountCents;
     to.effectiveNetCents -= adj.amountCents;
   }
-  const balances = Array.from(balanceById.values());
+
   const plan = projectSettlementPlan(snap);
-
-  return { rows, balances, plan };
-}
-
-function formatGameDate(start: number | null): string | undefined {
-  if (start === null) return undefined;
-  return new Date(start)
-    .toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-    .toLowerCase();
+  return { originalRows, originalBalances, balances, plan };
 }
 
 /* ──────── In-memory "skip identity" flag ──────── */
@@ -489,16 +441,50 @@ function CenterMessage({ label, body }: { label: string; body?: string }) {
   );
 }
 
-function PersistentColophon({ gameId }: { gameId: string }) {
+interface PersistentColophonProps {
+  gameId: string;
+  isFinalized: boolean;
+  finalizedAt: number | null;
+  finalizedBy: string | null;
+}
+
+function PersistentColophon({
+  gameId,
+  isFinalized,
+  finalizedAt,
+  finalizedBy,
+}: PersistentColophonProps) {
+  const stamp = finalizedAt
+    ? new Date(finalizedAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : null;
   return (
     <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
       <p className="ticker-label-strong mb-2">¶ persistent link</p>
       <p>
         <span className="text-fg font-semibold">/g/{gameId}</span> is the
-        canonical URL for this game. Anyone with the link sees the same
-        live state — including which payments have been marked settled.
+        canonical URL for this game. Anyone with the link sees the same live
+        state — including which payments have been marked settled.
       </p>
       <hr className="hr my-3" />
+      {isFinalized && stamp && (
+        <p className="mb-3">
+          <span className="pill pill-accent">finalized</span>{' '}
+          <span className="text-fg font-semibold">{stamp}</span>
+          {finalizedBy ? (
+            <>
+              {' '}
+              <span className="text-fg-mute">·</span>{' '}
+              <span className="text-fg font-semibold">{finalizedBy}</span>
+            </>
+          ) : null}
+        </p>
+      )}
       <p>
         Polling every 8s while this tab is open. Marking a payment refreshes
         all open viewers.

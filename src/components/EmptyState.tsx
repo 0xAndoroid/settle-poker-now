@@ -2,19 +2,23 @@ import { useState, type FormEvent } from 'react';
 import { extractGameId } from '@/lib/pokernow';
 
 interface EmptyStateProps {
-  /** Ephemeral flow: parse hash + render in-memory. */
+  /**
+   * Pre-finalize ephemeral analyze step. Pulls the ledger by id, hydrates
+   * the in-memory edit state, and lets the user add aliases / adjustments
+   * / private rules. Persistence happens later via the `[ FINALIZE › ]`
+   * button on the ephemeral view (this page has no shareable link CTA —
+   * see system rewire).
+   */
   onAnalyze: (gameId: string) => void;
-  /** Persistent flow: POST to /api/games, then navigate to /g/<id>. */
-  onCreateLink: (pokernowUrl: string) => Promise<void>;
   loading?: boolean;
 }
 
 const PLACEHOLDER = 'pokernow.club/games/abc123…';
 
-export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptyStateProps) {
+export function EmptyState({ onAnalyze, loading = false }: EmptyStateProps) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState<'analyze' | 'persist' | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const trimmed = value.trim();
   const valid = !!extractGameId(trimmed);
@@ -27,28 +31,13 @@ export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptySt
       return;
     }
     setError(null);
-    setSubmitting('analyze');
+    setSubmitting(true);
     onAnalyze(gameId);
-    // The parent handles state transition; resetting the local flag on
-    // unmount or via the loading prop change is enough.
+    // Parent owns the state transition; the local flag is only for the
+    // submit-button pressed-state spinner.
   };
 
-  const handlePersist = async () => {
-    if (!extractGameId(trimmed)) {
-      setError('Not a recognized PokerNow game URL.');
-      return;
-    }
-    setError(null);
-    setSubmitting('persist');
-    try {
-      await onCreateLink(trimmed);
-    } catch (err) {
-      setSubmitting(null);
-      setError((err as Error).message);
-    }
-  };
-
-  const isLoading = loading || submitting !== null;
+  const isLoading = loading || submitting;
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
@@ -56,16 +45,15 @@ export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptySt
       <div className="mb-10 sm:mb-12">
         <p className="ticker-label text-accent mb-4">
           <span className="live-dot mr-2 align-middle" aria-hidden="true" />
-          poker night settlement · v0.4
+          poker night settlement · v0.5
         </p>
         <h2 className="font-sans font-bold text-[40px] sm:text-[60px] leading-[0.98] tracking-tight-3 text-balance max-w-[18ch]">
           Settle the night in the fewest possible payments.
         </h2>
         <p className="mt-5 text-fg-dim text-[15px] sm:text-[16px] leading-relaxed max-w-[52ch]">
-          Greedy debt simplification. Per-player isolation rules. Mark
-          payments settled together. State lives in the URL hash for
-          ad-hoc games — or persist with a shareable link that updates as
-          your group pays.
+          Paste the PokerNow URL, fold duplicate players, record cash that
+          changed hands, set private settlement rules — then finalize to
+          mint a shareable link your group can mark off as they pay.
         </p>
       </div>
 
@@ -73,7 +61,7 @@ export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptySt
       <form onSubmit={handleAnalyze} className="card">
         <div className="card-header">
           <span className="ticker-label-strong">› paste game url</span>
-          <span className="ticker-label hidden sm:inline">step 01 / 03</span>
+          <span className="ticker-label hidden sm:inline">step 01 / 02</span>
         </div>
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex items-stretch gap-2 sm:gap-3">
@@ -105,24 +93,13 @@ export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptySt
             />
           </div>
 
-          {/* Two side-by-side actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-stretch">
-            <button
-              type="button"
-              onClick={handlePersist}
-              disabled={isLoading || !valid}
-              className="btn btn-fill h-12 text-[13px]"
-            >
-              {submitting === 'persist' ? 'creating…' : 'create persistent link ›'}
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !valid}
-              className="btn h-12 text-[13px]"
-            >
-              {submitting === 'analyze' ? 'loading…' : 'analyze (ephemeral)'}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={isLoading || !valid}
+            className="btn btn-fill h-12 w-full text-[13px]"
+          >
+            {submitting ? 'loading…' : 'analyze ›'}
+          </button>
 
           {error && (
             <p
@@ -173,13 +150,13 @@ const RULES: { tag: string; title: string; body: string }[] = [
     body: 'Subset-sum partitioning via bitmask DP — exact minimum for tables ≤ 15 players. Greedy max-creditor↔max-debtor fallback above that. Integer cents only.',
   },
   {
-    tag: 'persist',
-    title: 'shareable persistent links',
-    body: 'Hit “create link”, drop it in chat, watch payments tick off as your group pays. Live preview in iMessage / Telegram unfurls.',
+    tag: 'finalize',
+    title: 'finalize → shareable link',
+    body: 'Finalize when the modifications are right. The settlement plan locks; your group taps off payments as they hit Venmo / Zelle. Live preview in chat unfurls.',
   },
   {
     tag: 'rules',
-    title: 'isolated-player + adjustments',
-    body: '“Andrew settles only with Kevin.” Already paid in cash? Record it. The plan recomputes.',
+    title: 'aliases · prior payments · private rules',
+    body: '“Andrew2 is the same as Andrew.” “Kevin already paid Andrew $400.” “Andrew settles only with Kevin.” Stack them; the plan recomputes.',
   },
 ];

@@ -63,3 +63,24 @@ export function readActorLabel(request: Request): string | null {
   const trimmed = raw.trim().slice(0, 64);
   return trimmed.length > 0 ? trimmed : null;
 }
+
+/**
+ * Map a known mutation error class to an HTTP response. Returns
+ * `null` if the error isn't one we recognise — caller should rethrow
+ * so the platform's default error handler logs it.
+ *
+ * Centralising the mapping keeps every mutation route's catch block
+ * to one line. The two recognised classes:
+ *   - `LockedError` (game is finalized) → 423 Locked
+ *   - any other error with a `.name` of `*ValidationError` → 400 Bad Request
+ */
+export function mapMutationError(err: unknown): Response | null {
+  if (!(err instanceof Error)) return null;
+  if (err.name === 'LockedError') {
+    return errorResponse(423, err.message);
+  }
+  if (err.name.endsWith('ValidationError')) {
+    return errorResponse(400, err.message);
+  }
+  return null;
+}

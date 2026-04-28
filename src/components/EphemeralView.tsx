@@ -7,15 +7,14 @@ import { AdjustmentsPanel } from './AdjustmentsPanel';
 import { AliasPanel } from './AliasPanel';
 import { LoadingView } from './LoadingView';
 import { ErrorView } from './ErrorView';
-import { ShareCard } from './ShareCard';
-import { MobileTabs, type TabKey } from './MobileTabs';
+import { MobileTabs, type EphemeralTabKey } from './MobileTabs';
 import type { TickerItem } from './Masthead';
 import { useLedger } from '@/hooks/useLedger';
 import { computePlan } from '@/lib/settle';
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
-import { createPersistentGame } from '@/lib/apiClient';
+import { ApiError, createFinalizedGame } from '@/lib/apiClient';
 import { gamePath, navigate } from '@/lib/routing';
 import { type AliasRule, canonicalize } from '@/lib/aliases';
 import type {
@@ -26,7 +25,6 @@ import type {
   PersistedAlias,
   PersistedPlayer,
 } from '@/lib/types';
-import { shareNodeAsImage } from '@/lib/shareImage';
 
 interface EphemeralViewProps {
   onTickerChange: (ticker: TickerItem[] | undefined) => void;
@@ -37,17 +35,6 @@ interface EphemeralViewProps {
    */
   registerReset?: (reset: () => void) => void;
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
-}
-
-function formatGameDate(start: Date | null): string | undefined {
-  if (!start) return undefined;
-  return start
-    .toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-    .toLowerCase();
 }
 
 export function EphemeralView({
@@ -63,10 +50,9 @@ export function EphemeralView({
   const [aliases, setAliases] = useState<AliasRule[]>([]);
   const [unitOverride, setUnitOverride] = useState<LedgerUnit | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('plan');
+  const [activeTab, setActiveTab] = useState<EphemeralTabKey>('ledger');
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
-
-  const shareCardRef = useRef<HTMLDivElement | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
 
   // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
@@ -278,13 +264,59 @@ export function EphemeralView({
   );
 
 
-  const handleCreatePersistentLink = useCallback(
-    async (pokernowUrl: string) => {
-      const game = await createPersistentGame({ pokernowUrl });
+  const handleFinalize = useCallback(async () => {
+    if (!parsedLedger || !ledgerState.gameId) {
+      pushToast('nothing to finalize yet', 'error');
+      return;
+    }
+    if (plan.cyclePlayerIds.length > 0) {
+      pushToast('break the isolation cycle first', 'error');
+      return;
+    }
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Finalize this game?\n\nThe settlement plan will lock and a shareable link will be minted. ' +
+          'You can still mark payments complete, but you will not be able to add more aliases / adjustments / private rules.'
+      )
+    ) {
+      return;
+    }
+    setFinalizing(true);
+    try {
+      const game = await createFinalizedGame({
+        // The worker accepts bare ids via extractGameId, but pass a full
+        // URL so the audit trail records something a human recognises.
+        pokernowUrl:
+          ledgerState.gameId === 'demo'
+            ? 'demo'
+            : `https://www.pokernow.club/games/${ledgerState.gameId}`,
+        adjustments: adjustments.map((a) => ({
+          fromPlayerId: a.fromId,
+          toPlayerId: a.toId,
+          amountCents: a.amountCents,
+        })),
+        isolations: isolations.map((r) => ({
+          playerId: r.playerId,
+          counterpartId: r.counterpartId,
+        })),
+        aliases: aliases.map((a) => ({
+          playerId: a.playerId,
+          aliasToPlayerId: a.aliasToPlayerId,
+        })),
+      });
       navigate(gamePath(game.game.id));
-    },
-    []
-  );
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not finalize game.';
+      pushToast(message, 'error');
+      setFinalizing(false);
+    }
+  }, [adjustments, aliases, isolations, ledgerState.gameId, parsedLedger, plan.cyclePlayerIds.length, pushToast]);
 
   const reset = useCallback(() => {
     resetLedger();
@@ -307,45 +339,12 @@ export function EphemeralView({
     registerReset?.(reset);
   }, [registerReset, reset]);
 
-  const handleShareAsImage = useCallback(async () => {
-    if (!shareCardRef.current) {
-      pushToast('share card not ready, try again', 'error');
-      return;
-    }
-    const result = await shareNodeAsImage(shareCardRef.current, {
-      filename: `settle-${ledgerState.gameId ?? 'plan'}.png`,
-      title: 'settle.andrew.ee — settlement',
-      text: 'Settlement plan from settle.andrew.ee',
-    });
-    switch (result.kind) {
-      case 'shared':
-        pushToast('shared.', 'success');
-        break;
-      case 'copied':
-        pushToast('image copied — paste anywhere', 'success');
-        break;
-      case 'downloaded':
-        pushToast('png downloaded', 'success');
-        break;
-      case 'cancelled':
-        break;
-      case 'failed':
-        pushToast(result.detail ?? 'share failed', 'error');
-        break;
-    }
-  }, [ledgerState.gameId, pushToast]);
-
   const errorMessage =
     parseError ??
     (ledgerState.status === 'error' ? ledgerState.error ?? 'unknown error' : null);
 
   if (ledgerState.status === 'idle') {
-    return (
-      <EmptyState
-        onAnalyze={handleAnalyze}
-        onCreateLink={handleCreatePersistentLink}
-      />
-    );
+    return <EmptyState onAnalyze={handleAnalyze} />;
   }
   if (ledgerState.status === 'loading') {
     return <LoadingView gameId={ledgerState.gameId ?? '…'} />;
@@ -365,6 +364,7 @@ export function EphemeralView({
   return (
     <>
       <MobileTabs
+        mode="ephemeral"
         active={activeTab}
         onChange={setActiveTab}
         txnCount={plan.txns.length}
@@ -384,11 +384,11 @@ export function EphemeralView({
               highlightedPlayerId={highlightedPlayerId}
               onHighlight={setHighlightedPlayerId}
             />
-            <IsolationPanel
-              balances={balances}
-              isolations={isolations}
-              cyclePlayerIds={plan.cyclePlayerIds}
-              onChange={setIsolations}
+            <AliasPanel
+              players={aliasPanelPlayers}
+              aliases={aliasPanelRows}
+              onAddAlias={handleAddAlias}
+              onRemoveAlias={handleRemoveAlias}
             />
             <AdjustmentsPanel
               balances={balances}
@@ -396,49 +396,51 @@ export function EphemeralView({
               onAdd={handleAddAdjustment}
               onRemove={handleRemoveAdjustment}
             />
-            <AliasPanel
-              players={aliasPanelPlayers}
-              aliases={aliasPanelRows}
-              onAddAlias={handleAddAlias}
-              onRemoveAlias={handleRemoveAlias}
+            <IsolationPanel
+              balances={balances}
+              isolations={isolations}
+              cyclePlayerIds={plan.cyclePlayerIds}
+              onChange={setIsolations}
             />
           </div>
           <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
             <SettlementPanel
               plan={plan}
               balances={balances}
-              onShareAsImage={handleShareAsImage}
               onHighlight={setHighlightedPlayerId}
+              onFinalize={handleFinalize}
+              finalizing={finalizing}
             />
             <Colophon />
           </div>
         </div>
 
         <div className="lg:hidden space-y-5">
-          {activeTab === 'plan' && (
-            <SettlementPanel
-              plan={plan}
-              balances={balances}
-              onShareAsImage={handleShareAsImage}
-            />
-          )}
           {activeTab === 'ledger' && (
-            <LedgerPanel
-              rows={parsedLedger.rows}
-              effectiveBalances={balances}
-              unit={parsedLedger.unit}
-              unitWasInferred={parsedLedger.unitWasInferred}
-              hasUserOverride={unitOverride !== null}
-              onUnitChange={setUnitOverride}
-            />
+            <>
+              <LedgerPanel
+                rows={parsedLedger.rows}
+                effectiveBalances={balances}
+                unit={parsedLedger.unit}
+                unitWasInferred={parsedLedger.unitWasInferred}
+                hasUserOverride={unitOverride !== null}
+                onUnitChange={setUnitOverride}
+              />
+              <SettlementPanel
+                plan={plan}
+                balances={balances}
+                onFinalize={handleFinalize}
+                finalizing={finalizing}
+              />
+            </>
           )}
           {activeTab === 'config' && (
             <>
-              <IsolationPanel
-                balances={balances}
-                isolations={isolations}
-                cyclePlayerIds={plan.cyclePlayerIds}
-                onChange={setIsolations}
+              <AliasPanel
+                players={aliasPanelPlayers}
+                aliases={aliasPanelRows}
+                onAddAlias={handleAddAlias}
+                onRemoveAlias={handleRemoveAlias}
               />
               <AdjustmentsPanel
                 balances={balances}
@@ -446,36 +448,16 @@ export function EphemeralView({
                 onAdd={handleAddAdjustment}
                 onRemove={handleRemoveAdjustment}
               />
-              <AliasPanel
-                players={aliasPanelPlayers}
-                aliases={aliasPanelRows}
-                onAddAlias={handleAddAlias}
-                onRemoveAlias={handleRemoveAlias}
+              <IsolationPanel
+                balances={balances}
+                isolations={isolations}
+                cyclePlayerIds={plan.cyclePlayerIds}
+                onChange={setIsolations}
               />
             </>
           )}
         </div>
       </main>
-
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'fixed',
-          left: '-99999px',
-          top: 0,
-          pointerEvents: 'none',
-          zIndex: -1,
-        }}
-      >
-        {plan.txns.length > 0 && (
-          <ShareCard
-            ref={shareCardRef}
-            plan={plan}
-            balances={balances}
-            dateLabel={formatGameDate(parsedLedger.startedAt)}
-          />
-        )}
-      </div>
     </>
   );
 }
@@ -494,9 +476,10 @@ function Colophon() {
       </p>
       <hr className="hr my-3" />
       <p>
-        <span className="text-fg font-semibold">URL hash state.</span> Every adjustment,
-        isolation rule, alias, and unit override encodes into the URL. Share the link,
-        share the plan.
+        <span className="text-fg font-semibold">Finalize → shareable link.</span> Add
+        aliases / prior payments / private rules first. When the plan looks right, hit
+        finalize: the settlement plan is snapshotted to a persistent `/g/&lt;id&gt;` URL
+        your group can mark off as they pay.
       </p>
     </aside>
   );

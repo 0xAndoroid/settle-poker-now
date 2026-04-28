@@ -344,6 +344,31 @@
     cursor: not-allowed;
   }
 
+  /* Per-row Venmo / Zelle deep-link button. Tiny square — sits next to
+     the recipient's amount in the settlement plan. Tone shifts on hover
+     so the icon reads as actionable without competing visually with the
+     mark-as-settled checkbox. */
+  .payment-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgb(var(--line-strong));
+    background: rgb(var(--surface));
+    color: rgb(var(--fg-dim));
+    cursor: pointer;
+    transition:
+      color 80ms linear,
+      border-color 80ms linear,
+      background 80ms linear;
+  }
+  .payment-icon:hover {
+    color: rgb(var(--accent));
+    border-color: rgb(var(--accent));
+    background: rgb(var(--accent) / 0.08);
+  }
+
   /* Live blip — small dot that pulses to signal "fresh data".
      Static for users who request reduced motion. */
   .live-dot {

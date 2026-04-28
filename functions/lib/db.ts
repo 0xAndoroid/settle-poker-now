@@ -47,6 +47,10 @@ export interface DbGame {
   endedAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /** ms since epoch when the game was finalized; null when still editable. */
+  finalizedAt: number | null;
+  /** Actor label of whoever finalized; null when not finalized. */
+  finalizedBy: string | null;
 }
 
 export interface DbPlayer {
@@ -90,6 +94,19 @@ export interface DbAlias {
   createdBy: string | null;
 }
 
+export type ZelleHandleKind = 'email' | 'phone';
+
+export interface DbPaymentMethod {
+  playerId: string;
+  /** Without leading '@'. */
+  venmoUsername: string | null;
+  /** Email address or US phone — discriminated by `zelleHandleKind`. */
+  zelleHandle: string | null;
+  zelleHandleKind: ZelleHandleKind | null;
+  updatedAt: number;
+  updatedBy: string | null;
+}
+
 export interface DbAuditEntry {
   id: string;
   action: AuditAction;
@@ -107,7 +124,10 @@ export type AuditAction =
   | 'set_isolation'
   | 'clear_isolation'
   | 'add_alias'
-  | 'remove_alias';
+  | 'remove_alias'
+  | 'finalize'
+  | 'unfinalize'
+  | 'set_payment_methods';
 
 export interface DbGameSnapshot {
   game: DbGame;
@@ -116,6 +136,7 @@ export interface DbGameSnapshot {
   adjustments: DbAdjustment[];
   isolations: DbIsolation[];
   aliases: DbAlias[];
+  paymentMethods: DbPaymentMethod[];
   audit: DbAuditEntry[];
 }
 
@@ -152,6 +173,8 @@ function rowToGame(row: Record<string, unknown>): DbGame {
     endedAt: (row.ended_at as number | null) ?? null,
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
+    finalizedAt: (row.finalized_at as number | null) ?? null,
+    finalizedBy: (row.finalized_by as string | null) ?? null,
   };
 }
 
@@ -204,6 +227,18 @@ function rowToAlias(row: Record<string, unknown>): DbAlias {
   };
 }
 
+function rowToPaymentMethod(row: Record<string, unknown>): DbPaymentMethod {
+  return {
+    playerId: row.player_id as string,
+    venmoUsername: (row.venmo_username as string | null) ?? null,
+    zelleHandle: (row.zelle_handle as string | null) ?? null,
+    zelleHandleKind:
+      (row.zelle_handle_kind as ZelleHandleKind | null) ?? null,
+    updatedAt: row.updated_at as number,
+    updatedBy: (row.updated_by as string | null) ?? null,
+  };
+}
+
 function rowToAudit(row: Record<string, unknown>): DbAuditEntry {
   let parsed: unknown = {};
   try {
@@ -230,32 +265,43 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
   if (!game) return null;
 
   // Fan out to all related queries in parallel.
-  const [playersRes, paymentsRes, adjustmentsRes, isolationsRes, aliasesRes, auditRes] =
-    await Promise.all([
-      db.prepare('SELECT * FROM players WHERE game_id = ?').bind(id).all<Record<string, unknown>>(),
-      db
-        .prepare('SELECT * FROM payments WHERE game_id = ? ORDER BY position ASC')
-        .bind(id)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare('SELECT * FROM adjustments WHERE game_id = ? ORDER BY created_at ASC')
-        .bind(id)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare('SELECT * FROM isolation_rules WHERE game_id = ? ORDER BY created_at ASC')
-        .bind(id)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare('SELECT * FROM player_aliases WHERE game_id = ? ORDER BY created_at ASC')
-        .bind(id)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare(
-          'SELECT * FROM audit_log WHERE game_id = ? ORDER BY created_at DESC LIMIT 50'
-        )
-        .bind(id)
-        .all<Record<string, unknown>>(),
-    ]);
+  const [
+    playersRes,
+    paymentsRes,
+    adjustmentsRes,
+    isolationsRes,
+    aliasesRes,
+    paymentMethodsRes,
+    auditRes,
+  ] = await Promise.all([
+    db.prepare('SELECT * FROM players WHERE game_id = ?').bind(id).all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM payments WHERE game_id = ? ORDER BY position ASC')
+      .bind(id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM adjustments WHERE game_id = ? ORDER BY created_at ASC')
+      .bind(id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM isolation_rules WHERE game_id = ? ORDER BY created_at ASC')
+      .bind(id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM player_aliases WHERE game_id = ? ORDER BY created_at ASC')
+      .bind(id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare('SELECT * FROM player_payment_methods WHERE game_id = ?')
+      .bind(id)
+      .all<Record<string, unknown>>(),
+    db
+      .prepare(
+        'SELECT * FROM audit_log WHERE game_id = ? ORDER BY created_at DESC LIMIT 50'
+      )
+      .bind(id)
+      .all<Record<string, unknown>>(),
+  ]);
 
   return {
     game: rowToGame(game),
@@ -264,6 +310,7 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
     adjustments: (adjustmentsRes.results ?? []).map(rowToAdjustment),
     isolations: (isolationsRes.results ?? []).map(rowToIsolation),
     aliases: (aliasesRes.results ?? []).map(rowToAlias),
+    paymentMethods: (paymentMethodsRes.results ?? []).map(rowToPaymentMethod),
     audit: (auditRes.results ?? []).map(rowToAudit),
   };
 }
@@ -395,6 +442,291 @@ export async function createGame(
   throw new Error('Could not allocate a unique slug after 4 attempts');
 }
 
+/**
+ * Atomic create-with-modifications-and-finalize.
+ *
+ * Snapshot-mints a finalized D1 game from an ephemeral edit session. All
+ * the work happens in one D1 batch:
+ *   1. Allocate slug
+ *   2. Insert games (with `finalized_at` set), players, adjustments,
+ *      isolations, aliases (canonicalized), payments (final plan), audit.
+ *
+ * The settlement plan is computed in-memory from the bundle — same pipeline
+ * the client + server `rederivePlan` uses, so the persisted plan matches
+ * what the user saw before clicking finalize. Validation:
+ *   - all adjustment / isolation / alias playerIds must exist in `rows`
+ *   - aliases canonicalize-on-write (no chains, no cycles)
+ *   - amounts > 0
+ *
+ * Returns the full snapshot (including the freshly-set `finalizedAt`).
+ */
+export class CreateFinalizedValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CreateFinalizedValidationError';
+  }
+}
+
+export async function createGameFinalized(
+  db: D1Database,
+  input: {
+    pokernowGameId: string;
+    sourceUnit: LedgerUnit;
+    unitProvenance: UnitProvenance;
+    startedAt: number | null;
+    endedAt: number | null;
+    rows: LedgerRow[];
+    adjustments: ReadonlyArray<{
+      fromPlayerId: string;
+      toPlayerId: string;
+      amountCents: number;
+    }>;
+    isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
+    aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+    actorLabel: string | null;
+  }
+): Promise<DbGameSnapshot> {
+  const playerIds = new Set(input.rows.map((r) => r.playerId));
+  for (const a of input.adjustments) {
+    if (!playerIds.has(a.fromPlayerId) || !playerIds.has(a.toPlayerId)) {
+      throw new CreateFinalizedValidationError(
+        `Adjustment references unknown player.`
+      );
+    }
+    if (a.fromPlayerId === a.toPlayerId) {
+      throw new CreateFinalizedValidationError(
+        'Adjustment from and to must differ.'
+      );
+    }
+    if (!Number.isFinite(a.amountCents) || a.amountCents <= 0) {
+      throw new CreateFinalizedValidationError(
+        'Adjustment amount must be a positive integer.'
+      );
+    }
+  }
+  for (const r of input.isolations) {
+    if (!playerIds.has(r.playerId) || !playerIds.has(r.counterpartId)) {
+      throw new CreateFinalizedValidationError(
+        `Isolation rule references unknown player.`
+      );
+    }
+    if (r.playerId === r.counterpartId) {
+      throw new CreateFinalizedValidationError(
+        'Player cannot be isolated to themselves.'
+      );
+    }
+  }
+  // Canonicalize aliases (compress chains, reject cycles).
+  const proposed = new Map<string, string>();
+  for (const a of input.aliases) {
+    if (!playerIds.has(a.playerId) || !playerIds.has(a.aliasToPlayerId)) {
+      throw new CreateFinalizedValidationError(
+        `Alias references unknown player.`
+      );
+    }
+    if (a.playerId === a.aliasToPlayerId) {
+      throw new CreateFinalizedValidationError(
+        'Player cannot be aliased to themselves.'
+      );
+    }
+    proposed.set(a.playerId, a.aliasToPlayerId);
+  }
+  const canonAliases: { playerId: string; aliasToPlayerId: string }[] = [];
+  for (const [src] of proposed) {
+    const target = canonicalize(proposed.get(src)!, proposed);
+    if (target === null) {
+      throw new CreateFinalizedValidationError(
+        'Aliases form a cycle — refusing to finalize.'
+      );
+    }
+    if (target === src) {
+      throw new CreateFinalizedValidationError(
+        `Alias for "${src}" collapses back to itself.`
+      );
+    }
+    canonAliases.push({ playerId: src, aliasToPlayerId: target });
+  }
+
+  // Compute the final plan in-memory using the same pipeline as
+  // `rederivePlan`. Mirrors `computePlan` in src/lib/settle.ts.
+  const canonicalMap = buildCanonicalMap(canonAliases);
+  const collapsedRows = collapseRows(input.rows, canonicalMap);
+  const collapsedAdjustments = collapseAdjustments(
+    input.adjustments.map((a, i) => ({
+      id: `seed_${i}`,
+      fromId: a.fromPlayerId,
+      toId: a.toPlayerId,
+      amountCents: a.amountCents,
+    })),
+    canonicalMap
+  );
+  const { rules: collapsedIsolations } = collapseIsolations(
+    input.isolations.map((r) => ({
+      playerId: r.playerId,
+      counterpartId: r.counterpartId,
+    })),
+    canonicalMap
+  );
+  const balances = applyAdjustments(collapsedRows, collapsedAdjustments);
+  const plan = buildSettlementPlan(balances, collapsedIsolations);
+
+  const now = Date.now();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const id = newGameSlug();
+    const stmts: D1PreparedStatement[] = [];
+
+    // games row — finalized at creation time.
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO games
+            (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          id,
+          input.pokernowGameId,
+          input.sourceUnit,
+          input.unitProvenance,
+          input.startedAt,
+          input.endedAt,
+          now,
+          now,
+          now,
+          input.actorLabel
+        )
+    );
+
+    // players
+    for (const row of input.rows) {
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO players (game_id, player_id, nickname, net_cents) VALUES (?, ?, ?, ?)`
+          )
+          .bind(id, row.playerId, row.nickname, row.netCents)
+      );
+    }
+
+    // adjustments
+    for (const a of input.adjustments) {
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO adjustments (id, game_id, from_player_id, to_player_id, amount_cents, created_at, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            newId('a_'),
+            id,
+            a.fromPlayerId,
+            a.toPlayerId,
+            Math.trunc(a.amountCents),
+            now,
+            input.actorLabel
+          )
+      );
+    }
+
+    // isolation rules — one per player, last-write-wins
+    const seenIso = new Set<string>();
+    for (const r of input.isolations) {
+      if (seenIso.has(r.playerId)) continue;
+      seenIso.add(r.playerId);
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO isolation_rules (game_id, player_id, counterpart_id, created_at)
+             VALUES (?, ?, ?, ?)`
+          )
+          .bind(id, r.playerId, r.counterpartId, now)
+      );
+    }
+
+    // aliases (canonicalized)
+    for (const a of canonAliases) {
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO player_aliases (game_id, player_id, alias_to_player_id, created_at, created_by)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .bind(id, a.playerId, a.aliasToPlayerId, now, input.actorLabel)
+      );
+    }
+
+    // payments — the FINAL settlement plan
+    let position = 0;
+    for (const txn of plan.txns) {
+      stmts.push(
+        db
+          .prepare(
+            `INSERT INTO payments
+              (id, game_id, from_player_id, to_player_id, amount_cents, forced, position, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            newId('p_'),
+            id,
+            txn.fromId,
+            txn.toId,
+            txn.amountCents,
+            txn.forced ? 1 : 0,
+            position++,
+            now
+          )
+      );
+    }
+
+    // audit
+    stmts.push(
+      auditStmt(db, {
+        gameId: id,
+        action: 'create_game',
+        actorLabel: input.actorLabel,
+        payload: {
+          pokernowGameId: input.pokernowGameId,
+          sourceUnit: input.sourceUnit,
+          unitProvenance: input.unitProvenance,
+          playerCount: input.rows.length,
+          adjustmentCount: input.adjustments.length,
+          isolationCount: seenIso.size,
+          aliasCount: canonAliases.length,
+          paymentCount: plan.txns.length,
+          finalizedAtCreate: true,
+        },
+        createdAt: now,
+      })
+    );
+    stmts.push(
+      auditStmt(db, {
+        gameId: id,
+        action: 'finalize',
+        actorLabel: input.actorLabel,
+        payload: { atCreate: true },
+        createdAt: now,
+      })
+    );
+
+    try {
+      await db.batch(stmts);
+    } catch (err) {
+      const message = (err as Error).message ?? '';
+      if (/UNIQUE.*games\.id/i.test(message) || /UNIQUE.*PRIMARY/i.test(message)) {
+        continue;
+      }
+      throw err;
+    }
+
+    const snapshot = await loadGame(db, id);
+    if (!snapshot) {
+      throw new Error('Game inserted but vanished — broken D1?');
+    }
+    return snapshot;
+  }
+  throw new Error('Could not allocate a unique slug after 4 attempts');
+}
+
 /* ──────── Mutations ──────── */
 
 /**
@@ -472,6 +804,7 @@ export async function addAdjustment(
     actorLabel: string | null;
   }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   const now = Date.now();
   const adjId = newId('a_');
   await db.batch([
@@ -509,6 +842,7 @@ export async function removeAdjustment(
   db: D1Database,
   args: { gameId: string; adjustmentId: string; actorLabel: string | null }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   const now = Date.now();
   await db.batch([
     db
@@ -534,6 +868,7 @@ export async function setIsolation(
     actorLabel: string | null;
   }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   const now = Date.now();
   await db.batch([
     db
@@ -561,6 +896,7 @@ export async function clearIsolation(
   db: D1Database,
   args: { gameId: string; playerId: string; actorLabel: string | null }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   const now = Date.now();
   await db.batch([
     db
@@ -608,6 +944,7 @@ export async function addAlias(
     actorLabel: string | null;
   }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   if (args.playerId === args.aliasToPlayerId) {
     throw new AliasValidationError(
       'A player cannot be aliased to themselves.'
@@ -694,6 +1031,7 @@ export async function removeAlias(
   db: D1Database,
   args: { gameId: string; playerId: string; actorLabel: string | null }
 ): Promise<DbGameSnapshot> {
+  await ensureUnlocked(db, args.gameId);
   const now = Date.now();
   await db.batch([
     db
@@ -710,6 +1048,220 @@ export async function removeAlias(
     }),
   ]);
   return rederivePlan(db, args.gameId);
+}
+
+/* ──────── Finalize / unfinalize ──────── */
+
+export class LockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LockedError';
+  }
+}
+
+/**
+ * Throws `LockedError` if the game is finalized. Used at the top of
+ * structural mutations (adjustments / isolations / aliases) — note we
+ * deliberately do NOT call this from `setPaymentCompleted` (marking
+ * payments survives finalization by design) or `setPaymentMethods`
+ * (a per-user UX setting, not a game-state mutation).
+ */
+export async function ensureUnlocked(
+  db: D1Database,
+  gameId: string
+): Promise<DbGame> {
+  const game = await loadGameRow(db, gameId);
+  if (!game) {
+    throw new LockedError(`No game with id "${gameId}".`);
+  }
+  if (game.finalizedAt !== null) {
+    throw new LockedError(
+      `Game is finalized (locked). Unfinalize first to make structural edits.`
+    );
+  }
+  return game;
+}
+
+/**
+ * Mark the game as finalized. Idempotent — re-finalizing an already
+ * finalized game is a no-op (returns the current snapshot, no audit
+ * entry). Returns the full snapshot for client authoritative-replace.
+ */
+export async function finalizeGame(
+  db: D1Database,
+  args: { gameId: string; actorLabel: string | null }
+): Promise<DbGameSnapshot> {
+  const game = await loadGameRow(db, args.gameId);
+  if (!game) {
+    throw new LockedError(`No game with id "${args.gameId}".`);
+  }
+  if (game.finalizedAt !== null) {
+    const snap = await loadGame(db, args.gameId);
+    if (!snap) throw new Error('Game vanished mid-finalize');
+    return snap;
+  }
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        'UPDATE games SET finalized_at = ?, finalized_by = ?, updated_at = ? WHERE id = ?'
+      )
+      .bind(now, args.actorLabel, now, args.gameId),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'finalize',
+      actorLabel: args.actorLabel,
+      payload: {},
+      createdAt: now,
+    }),
+  ]);
+  const snap = await loadGame(db, args.gameId);
+  if (!snap) throw new Error('Game vanished mid-finalize');
+  return snap;
+}
+
+/**
+ * Reverse the finalize lock. Idempotent — unfinalizing a not-finalized
+ * game is a no-op. Audit entry recorded so a friend can later see who
+ * unlocked.
+ */
+export async function unfinalizeGame(
+  db: D1Database,
+  args: { gameId: string; actorLabel: string | null }
+): Promise<DbGameSnapshot> {
+  const game = await loadGameRow(db, args.gameId);
+  if (!game) {
+    throw new LockedError(`No game with id "${args.gameId}".`);
+  }
+  if (game.finalizedAt === null) {
+    const snap = await loadGame(db, args.gameId);
+    if (!snap) throw new Error('Game vanished mid-unfinalize');
+    return snap;
+  }
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        'UPDATE games SET finalized_at = NULL, finalized_by = NULL, updated_at = ? WHERE id = ?'
+      )
+      .bind(now, args.gameId),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'unfinalize',
+      actorLabel: args.actorLabel,
+      payload: {
+        previouslyFinalizedAt: game.finalizedAt,
+        previouslyFinalizedBy: game.finalizedBy,
+      },
+      createdAt: now,
+    }),
+  ]);
+  const snap = await loadGame(db, args.gameId);
+  if (!snap) throw new Error('Game vanished mid-unfinalize');
+  return snap;
+}
+
+/* ──────── Player payment methods ──────── */
+
+export class PaymentMethodValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentMethodValidationError';
+  }
+}
+
+/**
+ * Upsert per-player Venmo / Zelle handles. Either side can be omitted
+ * to leave it cleared. Allowed even after the game is finalized — these
+ * are per-user UX settings, not game state.
+ */
+export async function setPaymentMethods(
+  db: D1Database,
+  args: {
+    gameId: string;
+    playerId: string;
+    venmoUsername: string | null;
+    zelleHandle: string | null;
+    zelleHandleKind: ZelleHandleKind | null;
+    actorLabel: string | null;
+  }
+): Promise<DbGameSnapshot> {
+  const game = await loadGameRow(db, args.gameId);
+  if (!game) {
+    throw new PaymentMethodValidationError(
+      `No game with id "${args.gameId}".`
+    );
+  }
+
+  // Player must exist in this game's roster.
+  const playerRow = await db
+    .prepare('SELECT 1 FROM players WHERE game_id = ? AND player_id = ?')
+    .bind(args.gameId, args.playerId)
+    .first();
+  if (!playerRow) {
+    throw new PaymentMethodValidationError(
+      `Player "${args.playerId}" is not in this game.`
+    );
+  }
+
+  // Both halves of the Zelle handle must agree on null-ness.
+  if (
+    (args.zelleHandle === null) !== (args.zelleHandleKind === null)
+  ) {
+    throw new PaymentMethodValidationError(
+      'zelleHandle and zelleHandleKind must both be null or both set.'
+    );
+  }
+
+  const venmoUsername = args.venmoUsername?.trim().replace(/^@/, '') ?? null;
+  const zelleHandle = args.zelleHandle?.trim() ?? null;
+  const venmoFinal =
+    venmoUsername && venmoUsername.length > 0 ? venmoUsername : null;
+  const zelleFinal =
+    zelleHandle && zelleHandle.length > 0 ? zelleHandle : null;
+  const zelleKind = zelleFinal ? args.zelleHandleKind : null;
+
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO player_payment_methods
+          (game_id, player_id, venmo_username, zelle_handle, zelle_handle_kind, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(game_id, player_id) DO UPDATE SET
+           venmo_username    = excluded.venmo_username,
+           zelle_handle      = excluded.zelle_handle,
+           zelle_handle_kind = excluded.zelle_handle_kind,
+           updated_at        = excluded.updated_at,
+           updated_by        = excluded.updated_by`
+      )
+      .bind(
+        args.gameId,
+        args.playerId,
+        venmoFinal,
+        zelleFinal,
+        zelleKind,
+        now,
+        args.actorLabel
+      ),
+    db
+      .prepare('UPDATE games SET updated_at = ? WHERE id = ?')
+      .bind(now, args.gameId),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'set_payment_methods',
+      actorLabel: args.actorLabel,
+      payload: {
+        playerId: args.playerId,
+        hasVenmo: venmoFinal !== null,
+        hasZelle: zelleFinal !== null,
+      },
+      createdAt: now,
+    }),
+  ]);
+  const snap = await loadGame(db, args.gameId);
+  if (!snap) throw new Error('Game vanished mid-payment-method-update');
+  return snap;
 }
 
 /* ──────── Plan re-derivation ──────── */
