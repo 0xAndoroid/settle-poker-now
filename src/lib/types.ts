@@ -19,12 +19,23 @@ export interface LedgerRow {
   buyOutCents: number;
 }
 
+/**
+ * Unit a PokerNow ledger reports values in. Cents-mode is the default for
+ * games with sub-dollar play; dollars-mode is used by hosts who disable
+ * cents in the game settings.
+ */
+export type LedgerUnit = 'cents' | 'dollars';
+
 export interface ParsedLedger {
   rows: LedgerRow[];
   /** Earliest session_start_at across all rows. */
   startedAt: Date | null;
   /** Latest session_end_at across all rows. */
   endedAt: Date | null;
+  /** The unit the ledger CSV reported `net`/`buy_in` in. */
+  unit: LedgerUnit;
+  /** True when `unit` was inferred from a heuristic, false when supplied authoritatively. */
+  unitWasInferred: boolean;
 }
 
 /** A pre-existing transfer the user already settled outside the app. */

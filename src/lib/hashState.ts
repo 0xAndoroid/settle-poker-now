@@ -9,15 +9,22 @@
  * payload is small for typical 2–10-player games).
  */
 
-import type { Adjustment, IsolationRule } from './types';
+import type { Adjustment, IsolationRule, LedgerUnit } from './types';
 
 export interface HashState {
   gameId: string | null;
   adjustments: Adjustment[];
   isolations: IsolationRule[];
+  /** User-specified unit override. `null` = no override (use worker hint / heuristic). */
+  unitOverride: LedgerUnit | null;
 }
 
-const EMPTY: HashState = { gameId: null, adjustments: [], isolations: [] };
+const EMPTY: HashState = {
+  gameId: null,
+  adjustments: [],
+  isolations: [],
+  unitOverride: null,
+};
 
 function toBase64Url(input: string): string {
   // btoa requires latin-1; encode UTF-8 first.
@@ -37,7 +44,12 @@ function fromBase64Url(input: string): string {
 }
 
 export function encodeHash(state: HashState): string {
-  if (!state.gameId && state.adjustments.length === 0 && state.isolations.length === 0) {
+  if (
+    !state.gameId &&
+    state.adjustments.length === 0 &&
+    state.isolations.length === 0 &&
+    state.unitOverride === null
+  ) {
     return '';
   }
   const payload = {
@@ -49,6 +61,7 @@ export function encodeHash(state: HashState): string {
       c: a.amountCents,
     })),
     iso: state.isolations.map((r) => ({ p: r.playerId, c: r.counterpartId })),
+    u: state.unitOverride ?? null,
   };
   return toBase64Url(JSON.stringify(payload));
 }
@@ -63,6 +76,7 @@ export function decodeHash(hash: string): HashState {
       g?: string | null;
       a?: { i: string; f: string; t: string; c: number }[];
       iso?: { p: string; c: string }[];
+      u?: LedgerUnit | null;
     };
 
     const adjustments: Adjustment[] = (parsed.a ?? [])
@@ -84,10 +98,14 @@ export function decodeHash(hash: string): HashState {
       .filter((row) => typeof row.p === 'string' && typeof row.c === 'string')
       .map((row) => ({ playerId: row.p, counterpartId: row.c }));
 
+    const unitOverride: LedgerUnit | null =
+      parsed.u === 'cents' || parsed.u === 'dollars' ? parsed.u : null;
+
     return {
       gameId: typeof parsed.g === 'string' ? parsed.g : null,
       adjustments,
       isolations,
+      unitOverride,
     };
   } catch {
     return { ...EMPTY };

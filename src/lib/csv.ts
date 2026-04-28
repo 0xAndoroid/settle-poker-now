@@ -4,18 +4,28 @@
  * CSV columns (PokerNow as of late 2024/2025):
  *   player_nickname,player_id,session_start_at,session_end_at,buy_in,buy_out,stack,net
  *
- * `buy_in`, `buy_out`, `stack`, `net` are integer cents.
+ * Numeric columns may be reported in either CENTS or DOLLARS depending on
+ * whether the host enabled "cents" in the game settings:
+ *   - cents-mode: `100` means $1.00, a `$50` buy-in shows as `5000`.
+ *   - dollars-mode: `100` means $100,  a `$50` buy-in shows as `50`.
+ *
+ * Internally everything is normalized to integer cents (×100 for
+ * dollars-mode input). The unit is determined in this priority order:
+ *   1. Explicit override passed by the caller.
+ *   2. Authoritative hint from PokerNow (e.g. via the worker, fed in as
+ *      the same `unit` argument).
+ *   3. Heuristic inference based on value magnitudes (see {@link inferUnit}).
  *
  * Aggregation rules:
- *   - Group by `player_id` (NOT nickname — players can rename mid-session and
- *     can have multiple session segments per game).
+ *   - Group by `player_id` (NOT nickname — players can rename mid-session
+ *     and have multiple session segments per game).
  *   - Sum `net` across rows.
  *   - Display name = nickname from the most-recent `session_start_at` row.
  *   - `startedAt` = min(session_start_at), `endedAt` = max(session_end_at).
  */
 
 import Papa from 'papaparse';
-import type { LedgerRow, ParsedLedger } from './types';
+import type { LedgerRow, LedgerUnit, ParsedLedger } from './types';
 
 interface RawRow {
   player_nickname: string;
@@ -39,13 +49,24 @@ const REQUIRED_COLS = [
 // U+FEFF byte-order mark — Excel and several CSV exporters prepend it.
 const BOM = String.fromCharCode(0xfeff);
 
+/**
+ * Threshold above which a value MUST be cents (because it would imply an
+ * unreasonable dollar amount in dollars-mode). $2000 is the chosen cutoff:
+ *   - cents-mode: 2000 = $20.00 — completely ordinary.
+ *   - dollars-mode: 2000 = $2000 — uncommon for a home game.
+ *
+ * In ambiguous regions (all values < 2000), we lean dollars-mode because
+ * dollars-mode is the breakage-causing case the user reported. Cents-mode
+ * games at sub-$20 totals are vanishingly rare in practice.
+ */
+const CENTS_INFERENCE_THRESHOLD = 2000;
+
 interface Accumulator {
   playerId: string;
-  netCents: number;
-  buyInCents: number;
-  buyOutCents: number;
-  // Track the row with the latest session_start_at so we can use its nickname
-  // as the display name.
+  /** Raw native value (cents OR dollars) — converted to cents at the end. */
+  netRaw: number;
+  buyInRaw: number;
+  buyOutRaw: number;
   latestStartAt: number;
   latestNickname: string;
 }
@@ -72,8 +93,40 @@ function parseDate(value: string | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-export function parseLedgerCsv(csv: string): ParsedLedger {
-  // Strip a leading BOM (U+FEFF) if present — common in CSV exports.
+/**
+ * Heuristic unit detection. Examines all raw `buy_in`, `buy_out`, `stack`,
+ * and `net` magnitudes; if any exceed {@link CENTS_INFERENCE_THRESHOLD},
+ * the values are in cents (because dollars-mode at that magnitude would
+ * imply a $2000+ home game). Otherwise the game is in dollars-mode.
+ *
+ * Edge cases:
+ *   - All values zero → defaults to cents-mode (matches the
+ *     longstanding default and is harmless: 0 × 100 = 0).
+ *   - Returns the inferred unit only; the caller decides how to combine
+ *     with any authoritative hint.
+ */
+export function inferUnit(rawValues: readonly number[]): LedgerUnit {
+  let maxAbs = 0;
+  for (const v of rawValues) {
+    const a = Math.abs(v);
+    if (a > maxAbs) maxAbs = a;
+  }
+  if (maxAbs >= CENTS_INFERENCE_THRESHOLD) return 'cents';
+  return 'dollars';
+}
+
+export interface ParseLedgerOptions {
+  /**
+   * Explicit unit override. When provided, the heuristic is skipped and
+   * `unitWasInferred` will be `false` in the returned ledger.
+   */
+  unit?: LedgerUnit;
+}
+
+export function parseLedgerCsv(
+  csv: string,
+  options: ParseLedgerOptions = {}
+): ParsedLedger {
   const trimmed = (csv.startsWith(BOM) ? csv.slice(BOM.length) : csv).trim();
   if (!trimmed) throw new LedgerParseError('Ledger CSV is empty');
 
@@ -102,18 +155,24 @@ export function parseLedgerCsv(csv: string): ParsedLedger {
   let earliestStart: number | null = null;
   let latestEnd: number | null = null;
 
+  // Collect every numeric magnitude we see, so the heuristic has a wide
+  // base to work with.
+  const allMagnitudes: number[] = [];
+
   for (const row of result.data) {
     const playerId = row.player_id?.trim();
     if (!playerId) {
       throw new LedgerParseError('Row missing player_id');
     }
 
-    const netCents = parseInteger(row.net, 'net');
-    const buyInCents = parseInteger(row.buy_in, 'buy_in');
-    const buyOutCents = parseInteger(row.buy_out, 'buy_out');
-    const stackCents = parseInteger(row.stack, 'stack');
+    const netRaw = parseInteger(row.net, 'net');
+    const buyInRaw = parseInteger(row.buy_in, 'buy_in');
+    const buyOutRaw = parseInteger(row.buy_out, 'buy_out');
+    const stackRaw = parseInteger(row.stack, 'stack');
     const startMs = parseDate(row.session_start_at);
     const endMs = parseDate(row.session_end_at);
+
+    allMagnitudes.push(netRaw, buyInRaw, buyOutRaw, stackRaw);
 
     if (startMs !== null) {
       earliestStart = earliestStart === null ? startMs : Math.min(earliestStart, startMs);
@@ -126,20 +185,20 @@ export function parseLedgerCsv(csv: string): ParsedLedger {
     if (!acc) {
       acc = {
         playerId,
-        netCents: 0,
-        buyInCents: 0,
-        buyOutCents: 0,
+        netRaw: 0,
+        buyInRaw: 0,
+        buyOutRaw: 0,
         latestStartAt: -Infinity,
         latestNickname: row.player_nickname?.trim() || playerId,
       };
       accumulators.set(playerId, acc);
     }
 
-    acc.netCents += netCents;
-    acc.buyInCents += buyInCents;
-    // PokerNow's `buy_out` is the player's cashed chips; remaining stack at
-    // game end is in `stack`. For total "money out" we want buy_out + stack.
-    acc.buyOutCents += buyOutCents + stackCents;
+    acc.netRaw += netRaw;
+    acc.buyInRaw += buyInRaw;
+    // PokerNow's `buy_out` is cashed chips; remaining `stack` at game end
+    // is separate. Total "money out" = buy_out + stack.
+    acc.buyOutRaw += buyOutRaw + stackRaw;
 
     const candidate = startMs ?? -Infinity;
     if (candidate > acc.latestStartAt) {
@@ -148,12 +207,16 @@ export function parseLedgerCsv(csv: string): ParsedLedger {
     }
   }
 
+  const unit: LedgerUnit = options.unit ?? inferUnit(allMagnitudes);
+  const unitWasInferred = options.unit === undefined;
+  const multiplier = unit === 'dollars' ? 100 : 1;
+
   const rows: LedgerRow[] = Array.from(accumulators.values()).map((acc) => ({
     playerId: acc.playerId,
     nickname: acc.latestNickname,
-    netCents: acc.netCents,
-    buyInCents: acc.buyInCents,
-    buyOutCents: acc.buyOutCents,
+    netCents: acc.netRaw * multiplier,
+    buyInCents: acc.buyInRaw * multiplier,
+    buyOutCents: acc.buyOutRaw * multiplier,
   }));
 
   // Sort by net desc, tiebreak by playerId asc for determinism.
@@ -163,6 +226,8 @@ export function parseLedgerCsv(csv: string): ParsedLedger {
     rows,
     startedAt: earliestStart !== null ? new Date(earliestStart) : null,
     endedAt: latestEnd !== null ? new Date(latestEnd) : null,
+    unit,
+    unitWasInferred,
   };
 }
 

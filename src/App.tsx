@@ -13,8 +13,14 @@ import { MobileTabs, type TabKey } from './components/MobileTabs';
 import { useLedger } from './hooks/useLedger';
 import { useToast } from './hooks/useToast';
 import { computePlan } from './lib/settle';
+import { LedgerParseError, parseLedgerCsv } from './lib/csv';
 import { readHashFromLocation, writeHashToLocation } from './lib/hashState';
-import type { Adjustment, IsolationRule } from './lib/types';
+import type {
+  Adjustment,
+  IsolationRule,
+  LedgerUnit,
+  ParsedLedger,
+} from './lib/types';
 import { shareNodeAsImage } from './lib/shareImage';
 
 function formatGameDate(start: Date | null): string | undefined {
@@ -34,6 +40,8 @@ export default function App() {
 
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
+  const [unitOverride, setUnitOverride] = useState<LedgerUnit | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('plan');
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
@@ -47,6 +55,7 @@ export default function App() {
     const initial = readHashFromLocation();
     if (initial.adjustments.length > 0) setAdjustments(initial.adjustments);
     if (initial.isolations.length > 0) setIsolations(initial.isolations);
+    if (initial.unitOverride !== null) setUnitOverride(initial.unitOverride);
     if (initial.gameId) fetchGame(initial.gameId);
   }, [fetchGame]);
 
@@ -57,13 +66,45 @@ export default function App() {
       gameId: ledgerState.gameId,
       adjustments,
       isolations,
+      unitOverride,
     });
-  }, [ledgerState.gameId, adjustments, isolations]);
+  }, [ledgerState.gameId, adjustments, isolations, unitOverride]);
+
+  /**
+   * Parse the raw CSV with the strongest unit signal available:
+   *   user override > worker hint > parser heuristic.
+   * Re-parsed automatically on csv / hint / override changes.
+   */
+  const parsedLedger: ParsedLedger | null = useMemo(() => {
+    if (!ledgerState.csv) return null;
+    const effectiveHint = unitOverride ?? ledgerState.headerUnit;
+    try {
+      return parseLedgerCsv(
+        ledgerState.csv,
+        effectiveHint ? { unit: effectiveHint } : {}
+      );
+    } catch (err) {
+      const message =
+        err instanceof LedgerParseError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Unknown parse error';
+      // Defer setState to next tick so we don't dispatch during render.
+      queueMicrotask(() => setParseError(message));
+      return null;
+    }
+  }, [ledgerState.csv, ledgerState.headerUnit, unitOverride]);
+
+  // Reset any stale parse error when fetch state changes.
+  useEffect(() => {
+    if (ledgerState.status !== 'success') setParseError(null);
+  }, [ledgerState.status]);
 
   // Drop adjustments / isolation rules referencing players that no longer exist.
   useEffect(() => {
-    if (!ledgerState.ledger) return;
-    const validIds = new Set(ledgerState.ledger.rows.map((r) => r.playerId));
+    if (!parsedLedger) return;
+    const validIds = new Set(parsedLedger.rows.map((r) => r.playerId));
 
     setAdjustments((current) => {
       const filtered = current.filter(
@@ -78,10 +119,10 @@ export default function App() {
       );
       return filtered.length === current.length ? current : filtered;
     });
-  }, [ledgerState.ledger]);
+  }, [parsedLedger]);
 
   const { balances, plan } = useMemo(() => {
-    if (!ledgerState.ledger) {
+    if (!parsedLedger) {
       return {
         balances: [],
         plan: {
@@ -93,8 +134,8 @@ export default function App() {
         },
       };
     }
-    return computePlan(ledgerState.ledger.rows, adjustments, isolations);
-  }, [ledgerState.ledger, adjustments, isolations]);
+    return computePlan(parsedLedger.rows, adjustments, isolations);
+  }, [parsedLedger, adjustments, isolations]);
 
   const handleAddAdjustment = useCallback((adj: Adjustment) => {
     setAdjustments((current) => [...current, adj]);
@@ -106,9 +147,11 @@ export default function App() {
 
   const handleSubmitGameId = useCallback(
     (id: string) => {
-      // Reset adjustments/isolations when switching to a fresh game.
+      // Reset all derived state when switching to a fresh game.
       setAdjustments([]);
       setIsolations([]);
+      setUnitOverride(null);
+      setParseError(null);
       fetchGame(id);
     },
     [fetchGame]
@@ -118,7 +161,14 @@ export default function App() {
     resetLedger();
     setAdjustments([]);
     setIsolations([]);
-    writeHashToLocation({ gameId: null, adjustments: [], isolations: [] });
+    setUnitOverride(null);
+    setParseError(null);
+    writeHashToLocation({
+      gameId: null,
+      adjustments: [],
+      isolations: [],
+      unitOverride: null,
+    });
   }, [resetLedger]);
 
   const handleShareAsImage = useCallback(async () => {
@@ -150,6 +200,9 @@ export default function App() {
   }, [ledgerState.gameId, pushToast]);
 
   const showHeader = ledgerState.status !== 'idle';
+  const errorMessage =
+    parseError ??
+    (ledgerState.status === 'error' ? ledgerState.error ?? 'unknown error' : null);
 
   return (
     <div className="min-h-full">
@@ -163,16 +216,16 @@ export default function App() {
         <LoadingView gameId={ledgerState.gameId ?? '…'} />
       )}
 
-      {ledgerState.status === 'error' && (
+      {(ledgerState.status === 'error' || (parsedLedger === null && parseError)) && (
         <ErrorView
-          message={ledgerState.error ?? 'unknown error'}
+          message={errorMessage ?? 'unknown error'}
           gameId={ledgerState.gameId}
           onRetry={() => ledgerState.gameId && fetchGame(ledgerState.gameId)}
           onReset={handleReset}
         />
       )}
 
-      {ledgerState.status === 'success' && ledgerState.ledger && (
+      {ledgerState.status === 'success' && parsedLedger && (
         <>
           <MobileTabs
             active={activeTab}
@@ -186,8 +239,12 @@ export default function App() {
             <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x-2 lg:divide-ink">
               <div className="space-y-6 lg:pr-8">
                 <LedgerPanel
-                  rows={ledgerState.ledger.rows}
+                  rows={parsedLedger.rows}
                   effectiveBalances={balances}
+                  unit={parsedLedger.unit}
+                  unitWasInferred={parsedLedger.unitWasInferred}
+                  hasUserOverride={unitOverride !== null}
+                  onUnitChange={setUnitOverride}
                   highlightedPlayerId={highlightedPlayerId}
                   onHighlight={setHighlightedPlayerId}
                 />
@@ -226,8 +283,12 @@ export default function App() {
               )}
               {activeTab === 'ledger' && (
                 <LedgerPanel
-                  rows={ledgerState.ledger.rows}
+                  rows={parsedLedger.rows}
                   effectiveBalances={balances}
+                  unit={parsedLedger.unit}
+                  unitWasInferred={parsedLedger.unitWasInferred}
+                  hasUserOverride={unitOverride !== null}
+                  onUnitChange={setUnitOverride}
                 />
               )}
               {activeTab === 'config' && (
@@ -262,12 +323,12 @@ export default function App() {
           zIndex: -1,
         }}
       >
-        {ledgerState.ledger && plan.txns.length > 0 && (
+        {parsedLedger && plan.txns.length > 0 && (
           <ShareCard
             ref={shareCardRef}
             plan={plan}
             balances={balances}
-            dateLabel={formatGameDate(ledgerState.ledger.startedAt)}
+            dateLabel={formatGameDate(parsedLedger.startedAt)}
           />
         )}
       </div>

@@ -1,11 +1,19 @@
 import { ledgerBalances } from '@/lib/csv';
 import { formatNet } from '@/lib/money';
-import type { EffectiveBalance, LedgerRow } from '@/lib/types';
+import type { EffectiveBalance, LedgerRow, LedgerUnit } from '@/lib/types';
 import { cn } from '@/lib/cn';
 
 interface LedgerPanelProps {
   rows: LedgerRow[];
   effectiveBalances: EffectiveBalance[];
+  /** Active unit the values are interpreted in. */
+  unit: LedgerUnit;
+  /** True when `unit` came from the parser heuristic (no auth signal). */
+  unitWasInferred: boolean;
+  /** True when the user has manually overridden the unit (else: auto). */
+  hasUserOverride: boolean;
+  /** Set to a unit to override, or `null` to clear the override and revert to auto. */
+  onUnitChange?: (unit: LedgerUnit | null) => void;
   highlightedPlayerId?: string | null;
   onHighlight?: (playerId: string | null) => void;
 }
@@ -13,6 +21,10 @@ interface LedgerPanelProps {
 export function LedgerPanel({
   rows,
   effectiveBalances,
+  unit,
+  unitWasInferred,
+  hasUserOverride,
+  onUnitChange,
   highlightedPlayerId,
   onHighlight,
 }: LedgerPanelProps) {
@@ -40,6 +52,15 @@ export function LedgerPanel({
           </span>
         )}
       </div>
+
+      {onUnitChange && (
+        <UnitSwitch
+          unit={unit}
+          unitWasInferred={unitWasInferred}
+          hasUserOverride={hasUserOverride}
+          onUnitChange={onUnitChange}
+        />
+      )}
 
       <table className="w-full font-mono text-[13px]">
         <colgroup>
@@ -115,5 +136,90 @@ export function LedgerPanel({
         </tfoot>
       </table>
     </section>
+  );
+}
+
+interface UnitSwitchProps {
+  unit: LedgerUnit;
+  unitWasInferred: boolean;
+  hasUserOverride: boolean;
+  onUnitChange: (unit: LedgerUnit | null) => void;
+}
+
+/**
+ * Two-position typewriter switch for unit override. Sits just under the
+ * Balance Sheet heading. The active option is a filled black chip, the
+ * other is outlined. Below the chips, a one-liner reports provenance and
+ * exposes a "revert to auto" link if the user overrode the unit.
+ */
+function UnitSwitch({
+  unit,
+  unitWasInferred,
+  hasUserOverride,
+  onUnitChange,
+}: UnitSwitchProps) {
+  const provenance = hasUserOverride
+    ? 'manual override'
+    : unitWasInferred
+      ? 'auto-detected from ledger magnitudes'
+      : 'reported by pokernow';
+
+  return (
+    <div className="px-4 py-3 border-b border-hairline bg-paper-2 flex flex-wrap items-center gap-3">
+      <span className="text-[10px] uppercase tracking-masthead font-bold text-mute">
+        unit
+      </span>
+      <div role="radiogroup" aria-label="Ledger value unit" className="flex">
+        <UnitButton
+          label="dollars"
+          active={unit === 'dollars'}
+          onClick={() => onUnitChange('dollars')}
+        />
+        <UnitButton
+          label="cents"
+          active={unit === 'cents'}
+          onClick={() => onUnitChange('cents')}
+        />
+      </div>
+      <span className="text-[11px] italic text-mute leading-tight">
+        ↳ {provenance}
+      </span>
+      {hasUserOverride && (
+        <button
+          type="button"
+          onClick={() => onUnitChange(null)}
+          className="text-[11px] uppercase tracking-all font-bold underline underline-offset-4 decoration-2 hover:bg-ink hover:text-paper hover:no-underline px-1"
+          aria-label="Revert unit override and use auto-detection"
+        >
+          revert
+        </button>
+      )}
+    </div>
+  );
+}
+
+interface UnitButtonProps {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+function UnitButton({ label, active, onClick }: UnitButtonProps) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        'min-h-[36px] px-3 font-mono text-[11px] uppercase tracking-all font-bold border-2 border-ink',
+        '-ml-[2px] first:ml-0 first:border-r-[1px] last:border-l-[1px]',
+        active
+          ? 'bg-ink text-paper'
+          : 'bg-paper text-ink hover:bg-paper-3'
+      )}
+    >
+      {label}
+    </button>
   );
 }

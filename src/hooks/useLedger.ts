@@ -1,21 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { ledgerProxyUrl } from '@/lib/pokernow';
-import type { ParsedLedger } from '@/lib/types';
+import type { LedgerUnit } from '@/lib/types';
+
+export type LedgerStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export interface LedgerState {
-  status: 'idle' | 'loading' | 'success' | 'error';
-  ledger: ParsedLedger | null;
+  status: LedgerStatus;
+  /** Raw CSV body returned by the proxy. Kept around so we can re-parse on unit-override changes. */
+  csv: string | null;
+  /**
+   * Authoritative unit hint from the worker (sourced from PokerNow's
+   * hand-replayer API). `null` if the worker couldn't determine it (the
+   * parser falls back to its heuristic).
+   */
+  headerUnit: LedgerUnit | null;
   error: string | null;
   gameId: string | null;
 }
 
 const INITIAL: LedgerState = {
   status: 'idle',
-  ledger: null,
+  csv: null,
+  headerUnit: null,
   error: null,
   gameId: null,
 };
+
+function readUnitHeader(headerValue: string | null): LedgerUnit | null {
+  if (headerValue == null) return null;
+  const v = headerValue.trim().toLowerCase();
+  if (v === 'true' || v === '1') return 'cents';
+  if (v === 'false' || v === '0') return 'dollars';
+  return null;
+}
 
 export function useLedger() {
   const [state, setState] = useState<LedgerState>(INITIAL);
@@ -26,7 +43,7 @@ export function useLedger() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setState({ status: 'loading', ledger: null, error: null, gameId });
+    setState({ ...INITIAL, status: 'loading', gameId });
 
     try {
       const res = await fetch(ledgerProxyUrl(gameId), {
@@ -42,17 +59,26 @@ export function useLedger() {
       }
 
       const csv = await res.text();
-      const ledger = parseLedgerCsv(csv);
-      setState({ status: 'success', ledger, error: null, gameId });
+      const headerUnit = readUnitHeader(res.headers.get('X-Pokernow-Cents'));
+
+      setState({
+        status: 'success',
+        csv,
+        headerUnit,
+        error: null,
+        gameId,
+      });
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       const message =
-        err instanceof LedgerParseError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Unknown error';
-      setState({ status: 'error', ledger: null, error: message, gameId });
+        err instanceof Error ? err.message : 'Unknown error';
+      setState({
+        status: 'error',
+        csv: null,
+        headerUnit: null,
+        error: message,
+        gameId,
+      });
     }
   }, []);
 
