@@ -6,7 +6,15 @@ import type {
 } from '@/lib/types';
 import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
-import { composeVenmoPayUrl, formatZelleHandle } from '@/lib/paymentLinks';
+import {
+  composeVenmoPayUrl,
+  detectMobilePlatform,
+  formatZelleHandle,
+} from '@/lib/paymentLinks';
+
+// UA doesn't change during a session — resolve once at module load to
+// avoid the cost (and visual flicker) of recomputing per click.
+const VENMO_PLATFORM = detectMobilePlatform();
 
 export interface PaymentCompletion {
   completedAt: number | null;
@@ -260,11 +268,18 @@ function SettlementRow({
         recipientUsername: recipientMethod.venmoUsername,
         amountCents,
         note: gameNote,
+        platform: VENMO_PLATFORM,
       });
-      // Universal HTTPS URL — open in a new tab on desktop (browser
-      // navigates to venmo.com with the prefilled form), and let mobile
-      // OSes intercept and hand off to the installed Venmo app.
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (VENMO_PLATFORM === 'mobile') {
+        // Custom-scheme `venmo://...` URLs don't survive `window.open`
+        // reliably on iOS Safari — assigning to `window.location.href`
+        // is the canonical way to fire them.
+        window.location.href = url;
+      } else {
+        // Desktop universal URL — open in a new tab so the user keeps
+        // their settle.andrew.ee tab.
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
       pushToast?.(
         `opening venmo to pay @${recipientMethod.venmoUsername} ${formatDollars(amountCents)}`,
         'info'
