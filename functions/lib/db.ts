@@ -18,6 +18,13 @@ import {
   applyAdjustments,
   buildSettlementPlan,
 } from '../../src/lib/settle';
+import {
+  buildCanonicalMap,
+  canonicalize,
+  collapseAdjustments,
+  collapseIsolations,
+  collapseRows,
+} from '../../src/lib/aliases';
 import type {
   Adjustment,
   IsolationRule,
@@ -74,6 +81,15 @@ export interface DbIsolation {
   createdAt: number;
 }
 
+export interface DbAlias {
+  /** The duplicate player_id (folded out of the active roster). */
+  playerId: string;
+  /** Canonical target — chain-compressed on write so this never references another aliased player. */
+  aliasToPlayerId: string;
+  createdAt: number;
+  createdBy: string | null;
+}
+
 export interface DbAuditEntry {
   id: string;
   action: AuditAction;
@@ -89,7 +105,9 @@ export type AuditAction =
   | 'add_adjustment'
   | 'remove_adjustment'
   | 'set_isolation'
-  | 'clear_isolation';
+  | 'clear_isolation'
+  | 'add_alias'
+  | 'remove_alias';
 
 export interface DbGameSnapshot {
   game: DbGame;
@@ -97,6 +115,7 @@ export interface DbGameSnapshot {
   payments: DbPayment[];
   adjustments: DbAdjustment[];
   isolations: DbIsolation[];
+  aliases: DbAlias[];
   audit: DbAuditEntry[];
 }
 
@@ -176,6 +195,15 @@ function rowToIsolation(row: Record<string, unknown>): DbIsolation {
   };
 }
 
+function rowToAlias(row: Record<string, unknown>): DbAlias {
+  return {
+    playerId: row.player_id as string,
+    aliasToPlayerId: row.alias_to_player_id as string,
+    createdAt: row.created_at as number,
+    createdBy: (row.created_by as string | null) ?? null,
+  };
+}
+
 function rowToAudit(row: Record<string, unknown>): DbAuditEntry {
   let parsed: unknown = {};
   try {
@@ -202,7 +230,7 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
   if (!game) return null;
 
   // Fan out to all related queries in parallel.
-  const [playersRes, paymentsRes, adjustmentsRes, isolationsRes, auditRes] =
+  const [playersRes, paymentsRes, adjustmentsRes, isolationsRes, aliasesRes, auditRes] =
     await Promise.all([
       db.prepare('SELECT * FROM players WHERE game_id = ?').bind(id).all<Record<string, unknown>>(),
       db
@@ -215,6 +243,10 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
         .all<Record<string, unknown>>(),
       db
         .prepare('SELECT * FROM isolation_rules WHERE game_id = ? ORDER BY created_at ASC')
+        .bind(id)
+        .all<Record<string, unknown>>(),
+      db
+        .prepare('SELECT * FROM player_aliases WHERE game_id = ? ORDER BY created_at ASC')
         .bind(id)
         .all<Record<string, unknown>>(),
       db
@@ -231,6 +263,7 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
     payments: (paymentsRes.results ?? []).map(rowToPayment),
     adjustments: (adjustmentsRes.results ?? []).map(rowToAdjustment),
     isolations: (isolationsRes.results ?? []).map(rowToIsolation),
+    aliases: (aliasesRes.results ?? []).map(rowToAlias),
     audit: (auditRes.results ?? []).map(rowToAudit),
   };
 }
@@ -544,6 +577,141 @@ export async function clearIsolation(
   return rederivePlan(db, args.gameId);
 }
 
+/* ──────── Alias mutations ──────── */
+
+export class AliasValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AliasValidationError';
+  }
+}
+
+/**
+ * Add (or update) an alias rule. Validates:
+ *   - playerId !== aliasToPlayerId (no self-alias)
+ *   - both ids exist in `players` for this game
+ *   - adding `playerId → aliasToPlayerId` does not introduce a cycle
+ *
+ * Canonicalization on write: if `aliasToPlayerId` is itself aliased
+ * (e.g. Y → Z is already stored), we store `playerId → Z` directly.
+ * That keeps the alias graph a one-hop forest, simplifying every read.
+ *
+ * Idempotent: if `playerId` already aliases to the same canonical, we
+ * still record an audit entry but return the snapshot unchanged.
+ */
+export async function addAlias(
+  db: D1Database,
+  args: {
+    gameId: string;
+    playerId: string;
+    aliasToPlayerId: string;
+    actorLabel: string | null;
+  }
+): Promise<DbGameSnapshot> {
+  if (args.playerId === args.aliasToPlayerId) {
+    throw new AliasValidationError(
+      'A player cannot be aliased to themselves.'
+    );
+  }
+
+  const snap = await loadGame(db, args.gameId);
+  if (!snap) {
+    throw new AliasValidationError(`No game with id "${args.gameId}".`);
+  }
+
+  const playerIds = new Set(snap.players.map((p) => p.playerId));
+  if (!playerIds.has(args.playerId)) {
+    throw new AliasValidationError(
+      `Player "${args.playerId}" is not in this game.`
+    );
+  }
+  if (!playerIds.has(args.aliasToPlayerId)) {
+    throw new AliasValidationError(
+      `Target player "${args.aliasToPlayerId}" is not in this game.`
+    );
+  }
+
+  // Build the alias map AS IT WOULD LOOK after the proposed insert,
+  // then check for a cycle starting from playerId. If canonicalize()
+  // returns null, the new edge introduced a cycle.
+  const proposed = new Map<string, string>();
+  for (const a of snap.aliases) {
+    if (a.playerId !== args.playerId) {
+      proposed.set(a.playerId, a.aliasToPlayerId);
+    }
+  }
+  proposed.set(args.playerId, args.aliasToPlayerId);
+
+  const canonicalTarget = canonicalize(args.aliasToPlayerId, proposed);
+  if (canonicalTarget === null) {
+    throw new AliasValidationError(
+      `Refusing alias: would form a cycle with existing rules.`
+    );
+  }
+  if (canonicalTarget === args.playerId) {
+    throw new AliasValidationError(
+      `Refusing alias: target collapses back to ${args.playerId}.`
+    );
+  }
+
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO player_aliases (game_id, player_id, alias_to_player_id, created_at, created_by)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(game_id, player_id) DO UPDATE SET
+           alias_to_player_id = excluded.alias_to_player_id,
+           created_at = excluded.created_at,
+           created_by = excluded.created_by`
+      )
+      .bind(
+        args.gameId,
+        args.playerId,
+        canonicalTarget,
+        now,
+        args.actorLabel
+      ),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'add_alias',
+      actorLabel: args.actorLabel,
+      payload: {
+        playerId: args.playerId,
+        aliasToPlayerId: canonicalTarget,
+        // Keep the originally-requested target for audit transparency
+        // when canonicalization redirected it.
+        requestedTarget: args.aliasToPlayerId,
+      },
+      createdAt: now,
+    }),
+  ]);
+
+  return rederivePlan(db, args.gameId);
+}
+
+export async function removeAlias(
+  db: D1Database,
+  args: { gameId: string; playerId: string; actorLabel: string | null }
+): Promise<DbGameSnapshot> {
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare(
+        'DELETE FROM player_aliases WHERE game_id = ? AND player_id = ?'
+      )
+      .bind(args.gameId, args.playerId),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'remove_alias',
+      actorLabel: args.actorLabel,
+      payload: { playerId: args.playerId },
+      createdAt: now,
+    }),
+  ]);
+  return rederivePlan(db, args.gameId);
+}
+
 /* ──────── Plan re-derivation ──────── */
 
 /**
@@ -562,7 +730,13 @@ async function rederivePlan(db: D1Database, gameId: string): Promise<DbGameSnaps
     throw new Error(`Game ${gameId} disappeared mid-mutation`);
   }
 
-  const ledgerRows: LedgerRow[] = snap.players.map((p) => ({
+  // 1. Build the alias canonical map. Every read below routes player ids
+  //    through this map so the resulting plan operates on the COLLAPSED
+  //    roster. Removing an alias just produces an empty map and the rest
+  //    of the pipeline runs as before.
+  const canonical = buildCanonicalMap(snap.aliases);
+
+  const rawRows: LedgerRow[] = snap.players.map((p) => ({
     playerId: p.playerId,
     nickname: p.nickname,
     netCents: p.netCents,
@@ -570,22 +744,32 @@ async function rederivePlan(db: D1Database, gameId: string): Promise<DbGameSnaps
     buyOutCents: 0,
   }));
 
-  const adjustments: Adjustment[] = snap.adjustments.map((a) => ({
+  const rawAdjustments: Adjustment[] = snap.adjustments.map((a) => ({
     id: a.id,
     fromId: a.fromPlayerId,
     toId: a.toPlayerId,
     amountCents: a.amountCents,
   }));
 
-  const isolations: IsolationRule[] = snap.isolations.map((i) => ({
+  const rawIsolations: IsolationRule[] = snap.isolations.map((i) => ({
     playerId: i.playerId,
     counterpartId: i.counterpartId,
   }));
 
+  // 2. Collapse rows + adjustments + isolations through the canonical map.
+  const ledgerRows = collapseRows(rawRows, canonical);
+  const adjustments = collapseAdjustments(rawAdjustments, canonical);
+  const { rules: isolations } = collapseIsolations(rawIsolations, canonical);
+
+  // 3. Adjustments → effective balances → settlement plan.
   const balances = applyAdjustments(ledgerRows, adjustments);
   const plan = buildSettlementPlan(balances, isolations);
 
-  await replacePayments(db, gameId, plan, snap.payments);
+  // 4. Persist the new payment list. We canonicalize OLD payment keys
+  //    before matching so completion state survives alias additions
+  //    (the previous payment's from/to would otherwise be the
+  //    pre-collapse player ids and miss the new canonical-id txns).
+  await replacePayments(db, gameId, plan, snap.payments, canonical);
   const refreshed = await loadGame(db, gameId);
   if (!refreshed) throw new Error('Game vanished after re-derivation');
   return refreshed;
@@ -599,17 +783,20 @@ async function replacePayments(
   db: D1Database,
   gameId: string,
   plan: SettlementPlan,
-  oldPayments: DbPayment[]
+  oldPayments: DbPayment[],
+  canonical: ReadonlyMap<string, string>
 ): Promise<void> {
   // Build a lookup from key → first matching old payment so we can preserve
-  // completion state. If multiple old payments collide on the same key
-  // (rare but possible if the same txn appears twice), consume them in
-  // insertion order.
+  // completion state. We canonicalize the old payment ids through the
+  // current alias map first, otherwise an alias addition would invalidate
+  // every key (the new plan uses canonical ids; the old payments still
+  // hold pre-collapse ids).
+  const canonicalOf = (id: string) => canonical.get(id) ?? id;
   const oldByKey = new Map<string, DbPayment[]>();
   for (const p of oldPayments) {
     const key = txnKey({
-      fromId: p.fromPlayerId,
-      toId: p.toPlayerId,
+      fromId: canonicalOf(p.fromPlayerId),
+      toId: canonicalOf(p.toPlayerId),
       amountCents: p.amountCents,
     });
     const bucket = oldByKey.get(key) ?? [];

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ApiError,
   addAdjustmentRemote,
+  addAliasRemote,
   clearIsolationRemote,
   fetchPersistentGame,
   removeAdjustmentRemote,
+  removeAliasRemote,
   setIsolationRemote,
   setPaymentCompleted,
 } from '@/lib/apiClient';
@@ -64,6 +66,8 @@ export function usePersistentGame(
   removeAdjustment: (adjustmentId: string) => Promise<void>;
   setIsolation: (input: { playerId: string; counterpartId: string }) => Promise<void>;
   clearIsolation: (playerId: string) => Promise<void>;
+  addAlias: (input: { playerId: string; aliasToPlayerId: string }) => Promise<void>;
+  removeAlias: (playerId: string) => Promise<void>;
 } {
   const [state, setState] = useState<PersistentGameState>({
     status: 'loading',
@@ -262,6 +266,18 @@ export function usePersistentGame(
     [actorLabel, gameId, runMutation]
   );
 
+  const addAlias = useCallback(
+    (input: { playerId: string; aliasToPlayerId: string }) =>
+      runMutation(() => addAliasRemote({ gameId, ...input, actorLabel })),
+    [actorLabel, gameId, runMutation]
+  );
+
+  const removeAlias = useCallback(
+    (playerId: string) =>
+      runMutation(() => removeAliasRemote({ gameId, playerId, actorLabel })),
+    [actorLabel, gameId, runMutation]
+  );
+
   return {
     state,
     refresh,
@@ -270,6 +286,8 @@ export function usePersistentGame(
     removeAdjustment,
     setIsolation,
     clearIsolation,
+    addAlias,
+    removeAlias,
   };
 }
 

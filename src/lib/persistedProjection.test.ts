@@ -101,6 +101,7 @@ describe('projectSettlementPlan', () => {
     ],
     adjustments: [],
     isolations: [],
+    aliases: [],
     audit: [],
   });
 

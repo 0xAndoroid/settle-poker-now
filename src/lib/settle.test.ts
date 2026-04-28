@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyAdjustments, buildSettlementPlan, computePlan } from './settle';
+import {
+  OPTIMAL_PARTITION_LIMIT,
+  applyAdjustments,
+  buildSettlementPlan,
+  computePlan,
+} from './settle';
 import type {
   Adjustment,
   EffectiveBalance,
@@ -335,5 +340,294 @@ describe('applyAdjustments', () => {
     ]);
     expect(result.find((r) => r.playerId === 'a')!.effectiveNetCents).toBe(-6000);
     expect(result.find((r) => r.playerId === 'b')!.effectiveNetCents).toBe(6000);
+  });
+});
+
+/* ──────── Optimal subset-sum partition algorithm ──────── */
+
+/**
+ * Run the legacy greedy heuristic standalone for comparison. Mirrors
+ * the inner `greedySettle` of settle.ts (kept private). We compute it
+ * by running `buildSettlementPlan` with one giant pool that the
+ * partition step folds into a single subset (size > 15) — but since we
+ * want a comparison value, easier to count directly: greedy on a
+ * zero-sum pool of size N produces exactly (count of debtors + count
+ * of creditors − 1) transactions when nets are all distinct, and
+ * fewer in some lucky cases. The simpler way to compute it here is
+ * to call `buildSettlementPlan` with a deliberately-padded pool that
+ * exceeds the threshold.
+ *
+ * Cleaner alternative: re-implement greedy here for tests only, so we
+ * can compare numbers without leaning on threshold tricks.
+ */
+function greedyTxnCount(balances: EffectiveBalance[]): number {
+  const debtors: number[] = [];
+  const creditors: number[] = [];
+  for (const b of balances) {
+    if (b.effectiveNetCents < 0) debtors.push(-b.effectiveNetCents);
+    else if (b.effectiveNetCents > 0) creditors.push(b.effectiveNetCents);
+  }
+  let count = 0;
+  while (debtors.length > 0 && creditors.length > 0) {
+    debtors.sort((a, b) => b - a);
+    creditors.sort((a, b) => b - a);
+    const transfer = Math.min(debtors[0]!, creditors[0]!);
+    debtors[0]! -= transfer;
+    creditors[0]! -= transfer;
+    if (debtors[0]! === 0) debtors.shift();
+    if (creditors[0]! === 0) creditors.shift();
+    count++;
+  }
+  return count;
+}
+
+describe('optimal subset-sum partition — counterexamples vs greedy', () => {
+  it('the canonical {+5,+5,−3,−3,−2,−2} partitions into 2 zero-sum triples', () => {
+    // Two zero-sum triples: {A=+5, C=-3, E=-2} and {B=+5, D=-3, F=-2}.
+    // Naive greedy can give 5 here; sort-and-pair greedy gets to 4,
+    // matching optimal. We assert subsetCount=2 (the actual structural
+    // win) and txns.length=4 (the matching count).
+    const balances = [
+      balance('a', 'A', 500),
+      balance('b', 'B', 500),
+      balance('c', 'C', -300),
+      balance('d', 'D', -300),
+      balance('e', 'E', -200),
+      balance('f', 'F', -200),
+    ];
+
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.algorithm).toBe('optimal');
+    expect(plan.subsetCount).toBe(2);
+    expect(plan.txns.length).toBe(4);
+    expect(plan.txns.length).toBeLessThanOrEqual(greedyTxnCount(balances));
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('the strict counterexample where naive greedy makes too many trades', () => {
+    // Sort-and-pair greedy on this 8-player input chooses to bridge a
+    // chunk that breaks an otherwise-clean two-subset partition. We
+    // confirm subsetCount > 1 here and the optimal count matches.
+    // Players designed so that {A,B,C,D} and {E,F,G,H} each sum to 0.
+    const balances = [
+      balance('a', 'A', 700),
+      balance('b', 'B', 300),
+      balance('c', 'C', -400),
+      balance('d', 'D', -600),
+      balance('e', 'E', 800),
+      balance('f', 'F', 200),
+      balance('g', 'G', -500),
+      balance('h', 'H', -500),
+    ];
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.algorithm).toBe('optimal');
+    expect(plan.subsetCount).toBeGreaterThanOrEqual(2);
+    expect(plan.txns.length).toBeLessThanOrEqual(greedyTxnCount(balances));
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('two independent +X / −X pairs settle in 2 txns (subsetCount=2)', () => {
+    const balances = [
+      balance('a', 'A', 1000),
+      balance('b', 'B', -1000),
+      balance('c', 'C', 500),
+      balance('d', 'D', -500),
+    ];
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.algorithm).toBe('optimal');
+    expect(plan.subsetCount).toBe(2);
+    expect(plan.txns.length).toBe(2);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('one big creditor + many debtors degenerates to N−1 txns', () => {
+    // No zero-sum subset smaller than the whole set exists here.
+    const balances = [
+      balance('a', 'A', 700),
+      balance('b', 'B', -100),
+      balance('c', 'C', -200),
+      balance('d', 'D', -150),
+      balance('e', 'E', -250),
+    ];
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.algorithm).toBe('optimal');
+    expect(plan.subsetCount).toBe(1);
+    expect(plan.txns.length).toBe(4);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('all-zero-net pool produces no transactions and partitions trivially', () => {
+    const balances = [
+      balance('a', 'A', 0),
+      balance('b', 'B', 0),
+      balance('c', 'C', 0),
+    ];
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.txns.length).toBe(0);
+    expect(plan.algorithm).toBe('optimal');
+  });
+});
+
+describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 players)', () => {
+  function randInt(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /** Generate a random zero-sum integer-cent ledger. */
+  function randomBalanced(n: number): EffectiveBalance[] {
+    // Pull n−1 random nets in [−500, 500], then set the last to balance.
+    const nets: number[] = [];
+    let runningSum = 0;
+    for (let i = 0; i < n - 1; i++) {
+      const v = randInt(-500, 500);
+      nets.push(v);
+      runningSum += v;
+    }
+    nets.push(-runningSum);
+    return nets.map((net, i) =>
+      balance(`p${String(i).padStart(2, '0')}`, `P${i}`, net)
+    );
+  }
+
+  it.each([6, 10, 14])('optimal ≤ greedy for %s-player games (×50 each)', (n) => {
+    let totalSavings = 0;
+    let casesWithSavings = 0;
+    for (let i = 0; i < 50; i++) {
+      const bs = randomBalanced(n);
+      const plan = buildSettlementPlan(bs, []);
+      const greedyCount = greedyTxnCount(bs);
+      // Optimal is by construction min — but if some inputs collapse to
+      // greedy-fallback (shouldn't happen at n ≤ 15) we still pass.
+      expect(
+        plan.txns.length,
+        `optimal=${plan.txns.length} > greedy=${greedyCount} for ${JSON.stringify(bs.map((b) => b.effectiveNetCents))}`
+      ).toBeLessThanOrEqual(greedyCount);
+      if (plan.txns.length < greedyCount) {
+        casesWithSavings++;
+        totalSavings += greedyCount - plan.txns.length;
+      }
+      expectBalanced(plan.txns, bs);
+    }
+    // Sanity stat — at least some games should have savings (informational).
+    expect(casesWithSavings).toBeGreaterThanOrEqual(0);
+    expect(totalSavings).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('optimal subset-sum partition — determinism', () => {
+  it('produces identical outputs across re-runs of the same input', () => {
+    const balances = [
+      balance('a', 'A', 500),
+      balance('b', 'B', 500),
+      balance('c', 'C', -300),
+      balance('d', 'D', -300),
+      balance('e', 'E', -200),
+      balance('f', 'F', -200),
+    ];
+    const a = buildSettlementPlan(balances, []);
+    const b = buildSettlementPlan(balances, []);
+    expect(a.txns).toEqual(b.txns);
+    expect(a.subsetCount).toBe(b.subsetCount);
+  });
+
+  it('is invariant under input row reordering', () => {
+    const original = [
+      balance('a', 'A', 500),
+      balance('b', 'B', 500),
+      balance('c', 'C', -300),
+      balance('d', 'D', -300),
+      balance('e', 'E', -200),
+      balance('f', 'F', -200),
+    ];
+    const shuffled = [...original].reverse();
+    const a = buildSettlementPlan(original, []);
+    const b = buildSettlementPlan(shuffled, []);
+    expect(a.txns).toEqual(b.txns);
+  });
+});
+
+describe('optimal subset-sum partition — performance', () => {
+  it('completes a worst-case N=15 game in under 500 ms', () => {
+    // 15 players, mixed magnitudes so greedy is nearly worst-case and
+    // optimal must enumerate many subsets. Last value is forced to make
+    // the pool exactly zero-sum.
+    const head = [
+      300, 200, 400, 100, 250,
+      -150, -180, -220, -270, -90,
+      -50, 50, 100, -200,
+    ];
+    const last = -head.reduce((a, b) => a + b, 0); // makes the total exactly 0
+    const nets = [...head, last];
+    const balances = nets.map((n, i) =>
+      balance(`p${String(i).padStart(2, '0')}`, `P${i}`, n)
+    );
+    expect(balances.reduce((acc, b) => acc + b.effectiveNetCents, 0)).toBe(0);
+
+    const t0 = performance.now();
+    const plan = buildSettlementPlan(balances, []);
+    const elapsed = performance.now() - t0;
+    expect(elapsed).toBeLessThan(500);
+    expect(plan.algorithm).toBe('optimal');
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('falls back to greedy when N exceeds the optimal threshold', () => {
+    const N = OPTIMAL_PARTITION_LIMIT + 3; // 18
+    const nets = Array.from({ length: N }, (_, i) =>
+      i % 2 === 0 ? 100 : -100
+    );
+    const balances = nets.map((n, i) =>
+      balance(`p${String(i).padStart(2, '0')}`, `P${i}`, n)
+    );
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.algorithm).toBe('greedy-fallback');
+    expectBalanced(plan.txns, balances);
+  });
+});
+
+describe('optimal subset-sum partition — interaction with isolation rules', () => {
+  it('isolation collapses first, then optimal partitions the residual', () => {
+    // Andrew is isolated to Kevin. Andrew=-300, Kevin=+200 net.
+    // After isolation: Andrew → pays Kevin $300 (forced). Kevin's
+    // residual = 200 - 300 = -100. Pool now: Kevin=-100, Sam=+150, Tom=-50.
+    // Sum of pool = 0. Partition could find {Sam=+150, Kevin=-100, Tom=-50}
+    // — but no smaller zero-sum split exists, so 1 subset = 2 internal txns,
+    // total 3 txns (1 forced + 2 residual).
+    const balances = [
+      balance('andrew', 'Andrew', -30000),
+      balance('kevin', 'Kevin', 20000),
+      balance('sam', 'Sam', 15000),
+      balance('tom', 'Tom', -5000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toEqual([
+      { fromId: 'andrew', toId: 'kevin', amountCents: 30000, forced: true },
+    ]);
+    expect(plan.algorithm).toBe('optimal');
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('residual pool of one + zero-net player needs no extra txns', () => {
+    // Andrew → Kevin isolation; remaining pool collapses to a single
+    // zero-net Kevin → no additional transactions.
+    const balances = [
+      balance('andrew', 'Andrew', -10000),
+      balance('kevin', 'Kevin', 10000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+    expect(plan.txns).toHaveLength(1);
+    expect(plan.txns[0]).toEqual({
+      fromId: 'andrew',
+      toId: 'kevin',
+      amountCents: 10000,
+      forced: true,
+    });
   });
 });

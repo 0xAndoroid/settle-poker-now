@@ -3,6 +3,7 @@ import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel, type PaymentCompletion } from './SettlementPanel';
 import { IsolationPanel } from './IsolationPanel';
 import { AdjustmentsPanel } from './AdjustmentsPanel';
+import { AliasPanel } from './AliasPanel';
 import { ShareCard } from './ShareCard';
 import { IdentityPrompt } from './IdentityPrompt';
 import { AuditLogPanel } from './AuditLogPanel';
@@ -15,6 +16,11 @@ import { copyText } from '@/lib/clipboard';
 import { shareNodeAsImage } from '@/lib/shareImage';
 import { formatDollars } from '@/lib/money';
 import { projectSettlementPlan } from '@/lib/persistedProjection';
+import {
+  buildCanonicalMap,
+  collapseAdjustments,
+  collapseRows,
+} from '@/lib/aliases';
 import type {
   EffectiveBalance,
   IsolationRule,
@@ -51,6 +57,8 @@ export function PersistentGameView({
     removeAdjustment,
     setIsolation,
     clearIsolation,
+    addAlias,
+    removeAlias,
   } = usePersistentGame(gameId, actorLabel, {
     onError: (message) => pushToast(message, 'error'),
   });
@@ -270,6 +278,12 @@ export function PersistentGameView({
               }
               onRemove={handleRemoveAdjustment}
             />
+            <AliasPanel
+              players={state.game!.players}
+              aliases={state.game!.aliases}
+              onAddAlias={(input) => addAlias(input)}
+              onRemoveAlias={(playerId) => removeAlias(playerId)}
+            />
             <AuditLogPanel
               entries={state.game!.audit}
               players={state.game!.players}
@@ -339,6 +353,12 @@ export function PersistentGameView({
                 }
                 onRemove={handleRemoveAdjustment}
               />
+              <AliasPanel
+                players={state.game!.players}
+                aliases={state.game!.aliases}
+                onAddAlias={(input) => addAlias(input)}
+                onRemoveAlias={(playerId) => removeAlias(playerId)}
+              />
               <AuditLogPanel
                 entries={state.game!.audit}
                 players={state.game!.players}
@@ -381,15 +401,27 @@ interface Projection {
 }
 
 function projectSnapshot(snap: PersistedGameSnapshot): Projection {
-  const rows: LedgerRow[] = snap.players.map((p) => ({
+  // Apply alias collapse first — same shape as the server-side
+  // re-derive pipeline. Aliased players disappear from the active
+  // roster; their net is folded into the canonical target.
+  const canonical = buildCanonicalMap(snap.aliases);
+  const rawRows: LedgerRow[] = snap.players.map((p) => ({
     playerId: p.playerId,
     nickname: p.nickname,
     netCents: p.netCents,
     buyInCents: 0,
     buyOutCents: 0,
   }));
+  const rawAdjustments = snap.adjustments.map((a) => ({
+    id: a.id,
+    fromId: a.fromPlayerId,
+    toId: a.toPlayerId,
+    amountCents: a.amountCents,
+  }));
+  const rows = collapseRows(rawRows, canonical);
+  const collapsedAdjustments = collapseAdjustments(rawAdjustments, canonical);
 
-  // Compute effective balances by replaying adjustments.
+  // Compute effective balances by replaying (collapsed) adjustments.
   const balanceById = new Map<string, EffectiveBalance>(
     rows.map((r) => [
       r.playerId,
@@ -401,9 +433,9 @@ function projectSnapshot(snap: PersistedGameSnapshot): Projection {
       },
     ])
   );
-  for (const adj of snap.adjustments) {
-    const from = balanceById.get(adj.fromPlayerId);
-    const to = balanceById.get(adj.toPlayerId);
+  for (const adj of collapsedAdjustments) {
+    const from = balanceById.get(adj.fromId);
+    const to = balanceById.get(adj.toId);
     if (!from || !to) continue;
     from.effectiveNetCents += adj.amountCents;
     to.effectiveNetCents -= adj.amountCents;

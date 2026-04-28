@@ -243,6 +243,171 @@ function resolveIsolations(
 }
 
 /**
+ * Maximum table size (after isolation collapse) for which we run the
+ * provably-optimal subset-sum partition. 2^15 = 32k masks; the inner
+ * subset-enumeration is bounded by the same so worst-case work is O(3^15)
+ * ≈ 14M ops — well under 100 ms in JS. Above this we fall back to greedy.
+ */
+export const OPTIMAL_PARTITION_LIMIT = 15;
+
+/**
+ * Result of attempting an optimal partition. `partition` is a list of
+ * disjoint sub-arrays of `EffectiveBalance` whose nets each sum to zero.
+ * `kind` reports which algorithm settled the residual pool.
+ */
+interface OptimalPartitionResult {
+  partition: EffectiveBalance[][];
+  kind: 'optimal' | 'greedy-fallback';
+}
+
+/**
+ * Optimal min-transactions partitioning via bitmask DP.
+ *
+ * Restated: minimum number of transactions to clear a set of N players
+ * with zero-sum balances equals N − k, where k is the maximum number of
+ * disjoint non-empty zero-sum subsets the players can be partitioned
+ * into. Each k-player zero-sum subset is in turn settleable in k − 1
+ * transactions (e.g. via greedy internally — order doesn't matter inside
+ * a zero-sum subset).
+ *
+ * DP:
+ *   f[mask] = max disjoint zero-sum subsets within `mask`,
+ *             or −∞ if `mask` cannot be partitioned (sum ≠ 0).
+ *   f[0]    = 0
+ *   For each mask with sum=0, anchor on its lowest bit `i` (forces a
+ *   canonical traversal order), and for each subset S of `mask` that
+ *   contains `i` and has sum 0:
+ *       f[mask] = max(f[mask], f[mask \ S] + 1).
+ *
+ * Determinism: input `balances` are sorted by `playerId` before bit
+ * assignment, so the same logical pool always maps to the same bit
+ * indices.
+ *
+ * Returns `{partition, kind: 'optimal'}` when the pool was zero-sum and
+ * within the size limit; otherwise the greedy fallback wraps the whole
+ * pool as one subset and returns `{partition: [pool], kind: 'greedy-fallback'}`.
+ */
+function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResult {
+  // Drop zero-net players from the partitioning — they're already settled.
+  // They contribute trivially as size-1 zero-sum subsets (no transactions).
+  const zeroNet = balances.filter((b) => b.effectiveNetCents === 0);
+  const nonZero = balances.filter((b) => b.effectiveNetCents !== 0);
+
+  if (nonZero.length === 0) {
+    return {
+      partition: zeroNet.map((b) => [b]),
+      kind: 'optimal',
+    };
+  }
+  if (nonZero.length > OPTIMAL_PARTITION_LIMIT) {
+    return {
+      partition: [balances],
+      kind: 'greedy-fallback',
+    };
+  }
+
+  // Total of the pool — required to be zero for partitioning to work.
+  // (Imbalanced pools fall through to greedy which still produces a
+  // sensible best-effort plan.)
+  const total = nonZero.reduce((acc, b) => acc + b.effectiveNetCents, 0);
+  if (total !== 0) {
+    return { partition: [balances], kind: 'greedy-fallback' };
+  }
+
+  // Sort by playerId for determinism — bit i corresponds to the i-th id
+  // in lexicographic order.
+  const sorted = nonZero
+    .slice()
+    .sort((a, b) => a.playerId.localeCompare(b.playerId));
+  const N = sorted.length;
+  const FULL = (1 << N) - 1;
+  const nets = sorted.map((b) => b.effectiveNetCents);
+
+  // sumOf[mask] = sum of nets for the bits set in mask. Computed
+  // incrementally: drop the lowest bit, look up the rest, add the
+  // dropped player's net.
+  const sumOf = new Array<number>(1 << N).fill(0);
+  for (let mask = 1; mask <= FULL; mask++) {
+    const low = mask & -mask;
+    const i = 31 - Math.clz32(low);
+    sumOf[mask] = sumOf[mask ^ low]! + nets[i]!;
+  }
+
+  // f[mask]    = max disjoint zero-sum subsets in `mask`, or -1.
+  // choice[mask] = the subset S we picked first (anchor-containing) that
+  //                achieved f[mask]. 0 means uninitialized.
+  const f = new Int32Array(1 << N);
+  f.fill(-1);
+  f[0] = 0;
+  const choice = new Int32Array(1 << N);
+
+  for (let mask = 1; mask <= FULL; mask++) {
+    if (sumOf[mask] !== 0) continue;
+    const lowBit = mask & -mask;
+    const baseMask = mask ^ lowBit;
+
+    // Enumerate every subset of baseMask. For each one, prepend lowBit
+    // to form S — the candidate anchor-containing subset of `mask`.
+    // Standard trick: `sub = (sub - 1) & baseMask` walks all subsets
+    // of `baseMask` (in descending order, including 0).
+    let sub = baseMask;
+    while (true) {
+      const S = sub | lowBit;
+      if (sumOf[S] === 0) {
+        const rest = mask ^ S;
+        const fRest = f[rest]!;
+        if (fRest >= 0 && fRest + 1 > f[mask]!) {
+          f[mask] = fRest + 1;
+          choice[mask] = S;
+        }
+      }
+      if (sub === 0) break;
+      sub = (sub - 1) & baseMask;
+    }
+  }
+
+  if (f[FULL]! <= 0) {
+    // Shouldn't happen — total=0 guarantees the trivial partition (whole
+    // set as one subset) gives f=1. Defensive fallback.
+    return { partition: [balances], kind: 'greedy-fallback' };
+  }
+
+  // Reconstruct partition by walking choice[].
+  const subsetMasks: number[] = [];
+  let cursor = FULL;
+  while (cursor !== 0) {
+    const S = choice[cursor]!;
+    if (S === 0) {
+      // Should be unreachable when f[cursor] > 0; bail.
+      return { partition: [balances], kind: 'greedy-fallback' };
+    }
+    subsetMasks.push(S);
+    cursor ^= S;
+  }
+  // Sort subsets for determinism (smallest mask first → naturally
+  // groups by smallest playerId in each subset).
+  subsetMasks.sort((a, b) => a - b);
+
+  const partition: EffectiveBalance[][] = subsetMasks.map((S) => {
+    const out: EffectiveBalance[] = [];
+    let m = S;
+    while (m !== 0) {
+      const low = m & -m;
+      const i = 31 - Math.clz32(low);
+      out.push(sorted[i]!);
+      m ^= low;
+    }
+    return out;
+  });
+
+  // Each zero-net player joins the partition as a size-1 trivial subset
+  // (no transactions) — keeps the count of "subsets" honest for the UI.
+  for (const b of zeroNet) partition.push([b]);
+
+  return { partition, kind: 'optimal' };
+}
+
+/**
  * Greedy max-creditor↔max-debtor settlement. Operates on a flat pool — all
  * isolation has already been resolved upstream.
  */
@@ -285,33 +450,64 @@ function greedySettle(balances: EffectiveBalance[]): SettlementTxn[] {
 }
 
 /**
- * End-to-end: apply adjustments → resolve isolation → greedy settle.
+ * End-to-end: apply adjustments → resolve isolation → optimal-or-greedy
+ * settle the residual pool.
+ *
+ * For pools of ≤ {@link OPTIMAL_PARTITION_LIMIT} non-zero-net players
+ * with sum-to-zero, the residual is partitioned into the maximum number
+ * of disjoint zero-sum subsets via bitmask DP, and each subset is
+ * greedy-settled internally. The result is provably minimum-transactions.
+ *
+ * For larger pools (or imbalanced pools), we fall back to running
+ * greedy on the entire residual.
  */
 export function buildSettlementPlan(
   balances: EffectiveBalance[],
   isolations: IsolationRule[]
 ): SettlementPlan {
   const resolution = resolveIsolations(balances, isolations);
-  const greedyTxns = greedySettle(resolution.remaining);
-  const allTxns = [...resolution.forcedTxns, ...greedyTxns];
+
+  // Optimal partition (or greedy fallback) of the residual pool.
+  const partitionResult = partitionOptimally(resolution.remaining);
+  const residualTxns: SettlementTxn[] = [];
+  for (const subset of partitionResult.partition) {
+    // Each subset is zero-sum (when `kind === 'optimal'`); within a
+    // zero-sum subset of size k, any settlement order produces k − 1
+    // transactions, so greedy is fine here.
+    for (const t of greedySettle(subset)) residualTxns.push(t);
+  }
+
+  const allTxns = [...resolution.forcedTxns, ...residualTxns];
 
   // Residue = sum across players still in cycles + the open-pool residue
   // (which should be zero for a balanced ledger).
-  let residueCents = 0;
+  let cycleResidue = 0;
   const cycleSet = new Set(resolution.cyclePlayerIds);
   for (const b of balances) {
     if (cycleSet.has(b.playerId)) {
-      residueCents += b.effectiveNetCents;
+      cycleResidue += b.effectiveNetCents;
     }
   }
-  // Open-pool residue (after greedy) = sum of remaining balances minus what
-  // the greedy moved. Greedy preserves the sum, so this collapses to the
-  // pool's total.
+  // Open-pool residue: greedy preserves the sum, so this is just the
+  // pool's running total.
   let openPoolResidue = 0;
   for (const b of resolution.remaining) {
     openPoolResidue += b.effectiveNetCents;
   }
-  residueCents = Math.abs(residueCents) + Math.abs(openPoolResidue);
+  const residueCents = Math.abs(cycleResidue) + Math.abs(openPoolResidue);
+
+  // Subset count: trivial for greedy (the entire pool is one subset);
+  // for optimal it's the partition count we landed on.
+  const subsetCount =
+    partitionResult.kind === 'optimal' ? partitionResult.partition.length : 1;
+
+  // Map partition kind → public algorithm tag.
+  const algorithm: SettlementPlan['algorithm'] =
+    partitionResult.kind === 'optimal'
+      ? 'optimal'
+      : resolution.remaining.length > OPTIMAL_PARTITION_LIMIT
+        ? 'greedy-fallback'
+        : 'greedy';
 
   return {
     txns: allTxns,
@@ -319,6 +515,8 @@ export function buildSettlementPlan(
     residueCents,
     cyclePlayerIds: resolution.cyclePlayerIds,
     appliedIsolations: resolution.appliedIsolations,
+    algorithm,
+    subsetCount,
   };
 }
 

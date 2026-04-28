@@ -136,6 +136,8 @@ export function EphemeralView({
           residueCents: 0,
           cyclePlayerIds: [],
           appliedIsolations: [],
+          algorithm: 'optimal' as const,
+          subsetCount: 0,
         },
       };
     }

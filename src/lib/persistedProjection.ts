@@ -6,9 +6,11 @@
  * DOM. Mirrors what `functions/lib/db.ts` does on the server side.
  */
 
+import { OPTIMAL_PARTITION_LIMIT } from './settle';
 import type {
   IsolationRule,
   PersistedGameSnapshot,
+  SettlementAlgorithm,
   SettlementPlan,
   SettlementTxn,
 } from './types';
@@ -75,6 +77,14 @@ export function projectSettlementPlan(snap: PersistedGameSnapshot): SettlementPl
     }))
   );
 
+  // Estimate which algorithm the server used, based on the number of
+  // distinct non-zero-net players. Mirrors the threshold in
+  // `buildSettlementPlan`. Purely informational — used to label the UI
+  // ("3 payments — minimum" vs "5 payments — greedy fallback").
+  const nonZeroPlayers = snap.players.filter((p) => p.netCents !== 0).length;
+  const algorithm: SettlementAlgorithm =
+    nonZeroPlayers > OPTIMAL_PARTITION_LIMIT ? 'greedy-fallback' : 'optimal';
+
   return {
     txns,
     isFullyBalanced: cyclePlayerIds.length === 0,
@@ -84,5 +94,9 @@ export function projectSettlementPlan(snap: PersistedGameSnapshot): SettlementPl
       playerId: r.playerId,
       counterpartId: r.counterpartId,
     })),
+    algorithm,
+    // We don't have the partition info from the server's persisted plan.
+    // Default to a value that won't mislead a UI consumer.
+    subsetCount: algorithm === 'optimal' ? 1 : 1,
   };
 }

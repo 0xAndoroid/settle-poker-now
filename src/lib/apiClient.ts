@@ -195,3 +195,47 @@ export async function clearIsolationRemote(
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }
+
+export async function addAliasRemote(
+  args: {
+    gameId: string;
+    playerId: string;
+    aliasToPlayerId: string;
+    actorLabel: string | null;
+  },
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/aliases`,
+    {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...actorHeaders(args.actorLabel),
+      },
+      body: JSON.stringify({
+        playerId: args.playerId,
+        aliasToPlayerId: args.aliasToPlayerId,
+      }),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
+}
+
+export async function removeAliasRemote(
+  args: { gameId: string; playerId: string; actorLabel: string | null },
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/aliases/${encodeURIComponent(args.playerId)}`,
+    {
+      method: 'DELETE',
+      signal,
+      headers: actorHeaders(args.actorLabel),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
+}

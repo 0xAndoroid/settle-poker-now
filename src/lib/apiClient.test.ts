@@ -50,6 +50,7 @@ const SAMPLE_SNAPSHOT: PersistedGameSnapshot = {
   ],
   adjustments: [],
   isolations: [],
+  aliases: [],
   audit: [],
 };
 

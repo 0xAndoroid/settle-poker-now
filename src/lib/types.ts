@@ -76,6 +76,16 @@ export interface SettlementTxn {
   forced?: boolean;
 }
 
+/**
+ * Which algorithm produced the residual settlement.
+ *   - `optimal`  → bitmask-DP subset-sum partition; provably min-txns.
+ *   - `greedy`   → max-creditor↔max-debtor heuristic; ≤ N−1 txns.
+ *   - `greedy-fallback` → optimal would have been used but the pool
+ *     exceeded the size threshold; we fell back to greedy. Surfaced
+ *     in the UI ("settled with a greedy fallback for tables > 15").
+ */
+export type SettlementAlgorithm = 'optimal' | 'greedy' | 'greedy-fallback';
+
 /** Output of the planner. */
 export interface SettlementPlan {
   txns: SettlementTxn[];
@@ -87,6 +97,10 @@ export interface SettlementPlan {
   cyclePlayerIds: string[];
   /** Isolation rules that were applied (no cycles, both players exist). */
   appliedIsolations: IsolationRule[];
+  /** Which algorithm settled the residual non-isolated pool. */
+  algorithm: SettlementAlgorithm;
+  /** Number of zero-sum subsets the residual pool partitioned into (optimal only — `1` for greedy/greedy-fallback). */
+  subsetCount: number;
 }
 
 /** Effective per-player balances after applying adjustments. */
@@ -146,6 +160,15 @@ export interface PersistedIsolation {
   createdAt: number;
 }
 
+export interface PersistedAlias {
+  /** The duplicate player_id (disappears from the active roster). */
+  playerId: string;
+  /** Canonical target — never points at another aliased player (chain-compressed on write). */
+  aliasToPlayerId: string;
+  createdAt: number;
+  createdBy: string | null;
+}
+
 export type AuditAction =
   | 'create_game'
   | 'complete_payment'
@@ -153,7 +176,9 @@ export type AuditAction =
   | 'add_adjustment'
   | 'remove_adjustment'
   | 'set_isolation'
-  | 'clear_isolation';
+  | 'clear_isolation'
+  | 'add_alias'
+  | 'remove_alias';
 
 export interface PersistedAuditEntry {
   id: string;
@@ -169,5 +194,6 @@ export interface PersistedGameSnapshot {
   payments: PersistedPayment[];
   adjustments: PersistedAdjustment[];
   isolations: PersistedIsolation[];
+  aliases: PersistedAlias[];
   audit: PersistedAuditEntry[];
 }
