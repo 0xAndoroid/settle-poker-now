@@ -4,7 +4,47 @@
 
 @layer base {
   :root {
-    color-scheme: light only;
+    /*
+     * Dark (default) — trading-terminal charcoal stack.
+     * RGB triples (no `rgb(...)` wrapper) so Tailwind can compose with alpha.
+     */
+    --bg: 10 10 12;            /* #0a0a0c */
+    --surface: 19 19 24;       /* #131318 */
+    --surface-2: 26 26 36;     /* #1a1a24 */
+    --surface-3: 36 36 48;     /* #242430 */
+    --line: 37 37 47;          /* #25252f */
+    --line-strong: 58 58 74;   /* #3a3a4a */
+    --fg: 237 237 242;         /* #ededf2 */
+    --fg-dim: 149 149 168;     /* #9595a8 */
+    --fg-mute: 90 90 108;      /* #5a5a6c */
+    --accent: 217 70 239;      /* #d946ef magenta */
+    --accent-2: 6 182 212;     /* #06b6d4 cyan */
+    --gain: 0 212 168;         /* #00d4a8 teal-cyan */
+    --loss: 255 54 69;          /* #ff3645 vivid red */
+    --warn: 255 184 0;         /* #ffb800 amber */
+
+    color-scheme: dark;
+  }
+
+  :root.light {
+    /* Light mode — calm, paper-bright, same accents at darker shades.
+       --gain pulled to #007a5a for WCAG AA-normal contrast on small numerals. */
+    --bg: 248 248 250;
+    --surface: 255 255 255;
+    --surface-2: 240 240 244;
+    --surface-3: 226 226 232;
+    --line: 219 219 226;
+    --line-strong: 178 178 192;
+    --fg: 16 16 20;
+    --fg-dim: 95 95 110;
+    --fg-mute: 138 138 152;
+    --accent: 192 38 211;
+    --accent-2: 8 145 178;
+    --gain: 0 122 90;
+    --loss: 196 35 47;
+    --warn: 178 116 0;
+
+    color-scheme: light;
   }
 
   html,
@@ -14,57 +54,49 @@
   }
 
   html {
-    /* Slightly off-white paper, with a faint vertical-line "ledger paper"
-       texture rendered as repeating linear gradients — costs no extra HTTP. */
-    background-color: #faf6ed;
-    background-image:
-      /* faint horizontal rule lines, one per ~36px (the row height we use) */
-      repeating-linear-gradient(
-        to bottom,
-        transparent 0,
-        transparent 35px,
-        rgba(20, 20, 20, 0.04) 35px,
-        rgba(20, 20, 20, 0.04) 36px
-      ),
-      /* a hint of paper grain */
-      radial-gradient(circle at 30% 10%, rgba(154, 122, 38, 0.06), transparent 60%),
-      radial-gradient(circle at 80% 110%, rgba(20, 20, 20, 0.04), transparent 60%);
-    background-attachment: fixed;
+    background: rgb(var(--bg));
   }
 
   body {
-    color: #141414;
+    color: rgb(var(--fg));
     font-family:
-      'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-feature-settings: 'tnum' on, 'lnum' on, 'ss01' on;
+      'Inter Tight', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss03', 'cv02';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
+    background-color: rgb(var(--bg));
+    /* Ambient grid texture — barely-visible 1px dot grid, evokes a CRT
+       trading terminal without being kitsch. */
+    background-image: radial-gradient(
+      rgb(var(--line) / 0.7) 1px,
+      transparent 1px
+    );
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    background-attachment: fixed;
   }
 
   *::selection {
-    background: #141414;
-    color: #faf6ed;
+    background: rgb(var(--accent) / 0.32);
+    color: rgb(var(--fg));
   }
 
-  /* Custom scrollbar — subtle, paper-aged */
   *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgba(20, 20, 20, 0.18);
-    border: 2px solid transparent;
-    background-clip: content-box;
+    background: rgb(var(--line-strong) / 0.6);
+    border-radius: 4px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(20, 20, 20, 0.32);
-    background-clip: content-box;
-    border: 2px solid transparent;
+    background: rgb(var(--line-strong));
   }
 
   button,
@@ -90,173 +122,227 @@
   textarea:focus-visible,
   select:focus-visible,
   a:focus-visible {
-    outline: 2px solid #141414;
+    outline: 2px solid rgb(var(--accent));
     outline-offset: 2px;
+    border-radius: 2px;
   }
 
-  /* Set a base for headings so they don't get browser defaults that fight the masthead. */
   h1,
   h2,
   h3,
   h4 {
     margin: 0;
-    font-weight: 700;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* Tabular figures for any number — Inter Tight + JetBrains Mono both
+     support `tnum`. */
+  .num,
+  td.num,
+  span.num {
+    font-feature-settings: 'tnum' on, 'lnum' on, 'zero' on;
+    font-variant-numeric: tabular-nums lining-nums slashed-zero;
   }
 }
 
 @layer components {
-  /* The defining slab — bordered "card" used for every panel.
-     Two pixels solid black on top, hairline elsewhere. Echoes the rule above
-     a column total on a printed ledger. */
-  .slab {
-    background: #faf6ed;
-    border: 1px solid #141414;
-    border-top-width: 3px;
-    position: relative;
+  /* Card primitive — flat, hairline border, no shadow. The defining surface. */
+  .card {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
   }
 
-  .slab-section + .slab-section {
-    border-top: 1px solid #141414;
-  }
-
-  /* Section heading inside a slab. */
-  .slab-heading {
+  .card-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid #141414;
-    background: #f1ebda;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgb(var(--line));
+    background: rgb(var(--surface-2));
+  }
+
+  .ticker-label {
+    font-family: 'Inter Tight', Inter, system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgb(var(--fg-dim));
+  }
+
+  .ticker-label-strong {
+    font-family: 'Inter Tight', Inter, system-ui, sans-serif;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgb(var(--fg));
   }
 
-  /* Dotted divider — the single quintessential receipt-design move. */
-  .dotted {
-    height: 1px;
-    background-image: radial-gradient(circle, #141414 1px, transparent 1.4px);
-    background-size: 6px 1px;
-    background-repeat: repeat-x;
-    background-position: center;
-  }
-
-  /* Buttons — hard edges, invert on hover. No gradients, no shadow, no radius. */
+  /* Buttons — flat, hairline border, accent-on-hover, no shadow. */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 0 18px;
-    height: 44px;
-    border: 2px solid #141414;
-    background: #faf6ed;
-    color: #141414;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    padding: 0 16px;
+    height: 40px;
+    background: rgb(var(--surface));
+    color: rgb(var(--fg));
+    border: 1px solid rgb(var(--line-strong));
+    font-family: 'Inter Tight', Inter, system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0;
     cursor: pointer;
     transition:
       background 80ms linear,
+      border-color 80ms linear,
       color 80ms linear;
   }
   .btn:hover:not(:disabled) {
-    background: #141414;
-    color: #faf6ed;
+    border-color: rgb(var(--accent));
+    color: rgb(var(--accent));
   }
   .btn:active:not(:disabled) {
-    transform: translate(1px, 1px);
+    transform: translateY(1px);
   }
   .btn:disabled {
-    opacity: 0.4;
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
   .btn-fill {
-    background: #141414;
-    color: #faf6ed;
+    background: rgb(var(--accent));
+    color: white;
+    border-color: rgb(var(--accent));
   }
   .btn-fill:hover:not(:disabled) {
-    background: #faf6ed;
-    color: #141414;
+    background: transparent;
+    color: rgb(var(--accent));
+    border-color: rgb(var(--accent));
   }
 
   .btn-ghost {
+    background: transparent;
     border-color: transparent;
+    color: rgb(var(--fg-dim));
+    height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
   }
   .btn-ghost:hover:not(:disabled) {
-    background: #141414;
-    color: #faf6ed;
-    border-color: #141414;
+    background: rgb(var(--surface-2));
+    color: rgb(var(--fg));
+    border-color: transparent;
   }
 
   .btn-sm {
-    height: 36px;
+    height: 32px;
     padding: 0 12px;
     font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
   }
 
-  /* Typewriter input — bottom rule only, no border box. */
+  /* Inputs — minimal, hairline-bordered, focus highlights with accent. */
   .field {
     display: block;
     width: 100%;
-    padding: 12px 4px;
-    background: transparent;
-    border: 0;
-    border-bottom: 2px solid #141414;
-    font-family: inherit;
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line-strong));
+    color: rgb(var(--fg));
+    padding: 10px 12px;
     font-size: 14px;
-    color: #141414;
-    min-height: 48px;
+    min-height: 44px;
+    transition: border-color 80ms linear, background 80ms linear;
   }
   .field::placeholder {
-    color: #928b7d;
-    text-transform: lowercase;
+    color: rgb(var(--fg-mute));
   }
   .field:focus {
     outline: none;
-    background: rgba(20, 20, 20, 0.04);
+    border-color: rgb(var(--accent));
+    background: rgb(var(--surface-2));
   }
 
-  .field-boxed {
-    border: 2px solid #141414;
-    padding: 12px 14px;
-  }
-  .field-boxed:focus {
-    background: rgba(20, 20, 20, 0.06);
-  }
-
-  /* "Cell" — small bordered chip used in headers/labels. */
-  .cell {
+  /* Single-purpose pill for tickers + status. Subtle. */
+  .pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 2px 8px;
-    border: 1px solid #141414;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid rgb(var(--line-strong));
+    background: rgb(var(--surface-2));
+    color: rgb(var(--fg-dim));
+    font-family: 'Inter Tight', Inter, system-ui, sans-serif;
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.12em;
     text-transform: uppercase;
+    letter-spacing: 0.14em;
+    border-radius: 2px;
   }
 
-  /* Highlight a stamp — used for "DRAFT" or status pills, NEVER on data. */
-  .stamp {
-    border: 2px solid #141414;
-    padding: 4px 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 11px;
-    font-weight: 800;
-    transform: rotate(-2deg);
+  .pill-gain {
+    background: rgb(var(--gain) / 0.12);
+    border-color: rgb(var(--gain) / 0.4);
+    color: rgb(var(--gain));
+  }
+  .pill-loss {
+    background: rgb(var(--loss) / 0.12);
+    border-color: rgb(var(--loss) / 0.4);
+    color: rgb(var(--loss));
+  }
+  .pill-accent {
+    background: rgb(var(--accent) / 0.14);
+    border-color: rgb(var(--accent) / 0.4);
+    color: rgb(var(--accent));
+  }
+
+  /* Live blip — small dot that pulses to signal "fresh data".
+     Static for users who request reduced motion. */
+  .live-dot {
     display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgb(var(--gain));
+    animation: live 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot {
+      animation: none;
+    }
   }
 
-  .num {
-    font-variant-numeric: tabular-nums lining-nums;
+  /* Hairline horizontal rule, used between sections inside a card. */
+  .hr {
+    height: 1px;
+    background: rgb(var(--line));
+    border: 0;
+  }
+
+  /* Ticker tape band — used in masthead. */
+  .tape {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    overflow: hidden;
+    white-space: nowrap;
+    color: rgb(var(--fg-dim));
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .tape-sep {
+    color: rgb(var(--line-strong));
   }
 }
 
@@ -267,43 +353,9 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
-
   .text-balance {
     text-wrap: balance;
   }
-
-  /* Serrated bottom edge — used on share cards and panels that "tear off". */
-  .serrated-bottom {
-    --teeth: 14px;
-    --depth: 7px;
-    -webkit-mask-image:
-      linear-gradient(to bottom, #000 calc(100% - var(--depth)), transparent calc(100% - var(--depth))),
-      linear-gradient(135deg, transparent 50%, #000 50%),
-      linear-gradient(45deg, transparent 50%, #000 50%);
-    -webkit-mask-size:
-      100% calc(100% - var(--depth)),
-      var(--teeth) var(--depth),
-      var(--teeth) var(--depth);
-    -webkit-mask-position:
-      0 0,
-      0 100%,
-      calc(var(--teeth) / 2) 100%;
-    -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
-    mask-image:
-      linear-gradient(to bottom, #000 calc(100% - var(--depth)), transparent calc(100% - var(--depth))),
-      linear-gradient(135deg, transparent 50%, #000 50%),
-      linear-gradient(45deg, transparent 50%, #000 50%);
-    mask-size:
-      100% calc(100% - var(--depth)),
-      var(--teeth) var(--depth),
-      var(--teeth) var(--depth);
-    mask-position:
-      0 0,
-      0 100%,
-      calc(var(--teeth) / 2) 100%;
-    mask-repeat: no-repeat, repeat-x, repeat-x;
-  }
-
   .safe-bottom {
     padding-bottom: max(env(safe-area-inset-bottom), 1rem);
   }

@@ -4,24 +4,36 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#faf6ed" />
+    <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8f8fa" media="(prefers-color-scheme: light)" />
     <meta
       name="description"
-      content="Settle PokerNow games in the fewest possible payments. Paste a game URL, get a printable settlement statement."
+      content="Minimum-payment settlement for PokerNow games. Paste a game URL, settle the night."
     />
 
-    <title>settle.andrew.ee · poker night cashout</title>
+    <title>settle.andrew.ee · poker night settlement</title>
 
     <meta property="og:title" content="settle.andrew.ee" />
-    <meta property="og:description" content="Poker night cashout. Minimum payments." />
+    <meta property="og:description" content="Poker night settlement. Minimum payments." />
     <meta property="og:type" content="website" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('spn-theme');
+          // Default to DARK. Light only if user explicitly chose it.
+          var light = stored === 'light';
+          if (light) document.documentElement.classList.add('light');
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

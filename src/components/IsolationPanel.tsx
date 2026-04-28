@@ -36,26 +36,25 @@ export function IsolationPanel({
   };
 
   return (
-    <section
-      aria-labelledby="isolation-heading"
-      className="slab"
-    >
-      <div className="slab-heading">
-        <span id="isolation-heading">private ledgers</span>
-        <span className="text-mute font-normal normal-case tracking-normal text-[10.5px]">
+    <section aria-labelledby="isolation-heading" className="card">
+      <div className="card-header">
+        <span id="isolation-heading" className="ticker-label-strong">
+          private rules
+        </span>
+        <span className="ticker-label">
           {isolations.length} of {balances.length} isolated
         </span>
       </div>
 
-      <div className="px-5 py-3 border-b border-hairline bg-paper-2">
-        <p className="text-[12px] leading-relaxed text-ink-2">
-          Mark a player as <span className="font-bold">isolated</span> to settle them
-          with one specific counterpart only. The counterpart absorbs their
-          obligation and settles freely with everyone else.
+      <div className="px-4 py-3 border-b border-line bg-surface-2">
+        <p className="text-[12.5px] leading-relaxed text-fg-dim">
+          Mark a player as <span className="text-fg font-semibold">isolated</span> to
+          settle them with one specific counterpart only. The counterpart
+          absorbs their obligation and settles freely with everyone else.
         </p>
       </div>
 
-      <ul role="list" className="font-mono">
+      <ul role="list">
         {sorted.map((b, idx) => {
           const rule = ruleByPlayer.get(b.playerId);
           const inCycle = cycleSet.has(b.playerId);
@@ -64,21 +63,20 @@ export function IsolationPanel({
             <li
               key={b.playerId}
               className={cn(
-                'px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3',
-                idx > 0 && 'border-t border-hairline',
-                inCycle && 'bg-loss/[0.04]'
+                'px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border-b border-line/60 last:border-b-0',
+                inCycle && 'bg-loss/5'
               )}
             >
-              <span className="text-mute text-[11px] tabular-nums w-5 flex-shrink-0 hidden sm:inline">
+              <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0 hidden sm:inline">
                 {String(idx + 1).padStart(2, '0')}
               </span>
-              <span className="font-bold text-[13px] flex-shrink-0 min-w-[100px]">
+              <span className="font-sans font-semibold text-[14px] flex-shrink-0 min-w-[100px] text-fg">
                 {b.nickname}
               </span>
 
               <div className="flex-1 flex items-center gap-2 sm:gap-3 flex-wrap">
-                <span className="text-mute text-[12px] italic lowercase">
-                  &nbsp;{rule ? 'settles only with' : 'open to all'}&nbsp;
+                <span className="ticker-label">
+                  {rule ? 'settles only with' : 'open to all'}
                 </span>
                 <select
                   value={rule?.counterpartId ?? ''}
@@ -86,13 +84,21 @@ export function IsolationPanel({
                     setRule(b.playerId, e.target.value || null)
                   }
                   className={cn(
-                    'font-mono text-[13px] font-bold bg-paper border-b-2 border-ink',
-                    'px-2 py-1 min-h-[36px] focus:bg-paper-2 outline-none',
+                    'font-sans text-[12px] font-semibold bg-surface border border-line-strong text-fg',
+                    'pl-2.5 pr-8 py-1.5 min-h-[32px]',
+                    'hover:border-accent focus:border-accent outline-none',
                     inCycle && 'border-loss text-loss'
                   )}
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 10px center',
+                    appearance: 'none',
+                  }}
                   aria-label={`Counterpart for ${b.nickname}`}
                 >
-                  <option value="">— anyone —</option>
+                  <option value="">—</option>
                   {balances
                     .filter((x) => x.playerId !== b.playerId)
                     .map((x) => (
@@ -103,9 +109,7 @@ export function IsolationPanel({
                 </select>
 
                 {inCycle && (
-                  <span className="text-loss text-[11px] uppercase tracking-all font-bold">
-                    ⚠ cycle
-                  </span>
+                  <span className="pill pill-loss">⚠ cycle</span>
                 )}
               </div>
             </li>

@@ -6,7 +6,7 @@ interface EmptyStateProps {
   loading?: boolean;
 }
 
-const PLACEHOLDER = 'pokernow.club/games/abc123';
+const PLACEHOLDER = 'pokernow.club/games/abc123…';
 
 export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
   const [value, setValue] = useState('');
@@ -24,104 +24,100 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-5 sm:px-8 py-10 sm:py-14">
-      {/* Slab 1: lede */}
-      <div className="slab">
-        <div className="px-6 py-8 sm:px-10 sm:py-12">
-          <h2 className="font-mono font-extrabold text-balance text-[34px] sm:text-[52px] leading-[0.95] tracking-tight">
-            settle the night
-            <br />
-            in the fewest
-            <br />
-            possible payments.
-          </h2>
-          <p className="mt-6 max-w-[44ch] text-[14px] sm:text-[15px] leading-relaxed text-ink-2">
-            Greedy debt simplification. Player groups optional. State lives in
-            the URL hash, no accounts. Plan exports as a printable receipt.
-          </p>
-        </div>
-
-        {/* Form section, separated by a heavy rule */}
-        <div className="border-t-[3px] border-ink bg-paper-2">
-          <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-10 sm:py-7">
-            <label
-              htmlFor="game-url"
-              className="block text-[10px] uppercase tracking-masthead font-bold mb-2"
-            >
-              game url
-            </label>
-            <div className="flex items-end gap-3 sm:gap-4">
-              <span aria-hidden="true" className="font-mono text-ink/60 pb-3 select-none hidden sm:inline">
-                &raquo;
-              </span>
-              <input
-                id="game-url"
-                name="game-url"
-                type="text"
-                inputMode="url"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                value={value}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder={PLACEHOLDER}
-                disabled={loading}
-                className="field flex-1 font-mono text-[14px] sm:text-[16px]"
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'game-url-error' : undefined}
-              />
-              <button
-                type="submit"
-                disabled={loading || !value.trim()}
-                className="btn btn-fill min-w-[128px]"
-              >
-                {loading ? '· · ·' : '[ settle › ]'}
-              </button>
-            </div>
-            {error && (
-              <p
-                id="game-url-error"
-                className="mt-3 text-[12px] uppercase tracking-all font-bold text-loss"
-                role="alert"
-              >
-                ⚠ {error}
-              </p>
-            )}
-            <div className="mt-5 flex items-center gap-3 text-[12px]">
-              <span className="text-mute">no game handy?</span>
-              <button
-                type="button"
-                onClick={() => onSubmit('demo')}
-                disabled={loading}
-                className="font-bold uppercase tracking-all underline underline-offset-4 decoration-2 hover:bg-ink hover:text-paper px-1"
-              >
-                run with demo data
-              </button>
-            </div>
-          </form>
-        </div>
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
+      {/* Hero */}
+      <div className="mb-10 sm:mb-12">
+        <p className="ticker-label text-accent mb-4">
+          <span className="live-dot mr-2 align-middle" aria-hidden="true" />
+          poker night settlement · v0.3
+        </p>
+        <h2 className="font-sans font-bold text-[40px] sm:text-[60px] leading-[0.98] tracking-tight-3 text-balance max-w-[18ch]">
+          Settle the night in the fewest possible payments.
+        </h2>
+        <p className="mt-5 text-fg-dim text-[15px] sm:text-[16px] leading-relaxed max-w-[52ch]">
+          Greedy debt simplification. Per-player isolation rules. Already-paid
+          adjustments. State lives in the URL hash. Plan exports as a 4:5 image
+          for chat.
+        </p>
       </div>
 
-      {/* Three rules block — three "FAQ" entries laid out like an editorial sidebar */}
-      <div className="mt-10 grid sm:grid-cols-3 gap-0 border-2 border-ink">
-        {RULES.map((r, i) => (
-          <div
-            key={r.title}
-            className={`p-5 ${
-              i > 0 ? 'border-t-2 sm:border-t-0 sm:border-l-2 border-ink' : ''
-            }`}
-          >
-            <p className="text-[10px] uppercase tracking-masthead font-bold text-mute mb-2">
-              ¶ {String(i + 1).padStart(2, '0')}
+      {/* URL input — terminal-style entry */}
+      <form onSubmit={handleSubmit} className="card">
+        <div className="card-header">
+          <span className="ticker-label-strong">› paste game url</span>
+          <span className="ticker-label hidden sm:inline">step 01 / 03</span>
+        </div>
+        <div className="p-4 sm:p-5">
+          <div className="flex items-stretch gap-2 sm:gap-3">
+            <span
+              aria-hidden="true"
+              className="flex items-center pl-1 text-accent font-mono text-[15px] font-semibold select-none"
+            >
+              ›
+            </span>
+            <input
+              id="game-url"
+              name="game-url"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder={PLACEHOLDER}
+              disabled={loading}
+              className="field flex-1 font-mono text-[14px]"
+              aria-invalid={error ? 'true' : 'false'}
+              aria-describedby={error ? 'game-url-error' : undefined}
+            />
+            <button
+              type="submit"
+              disabled={loading || !value.trim()}
+              className="btn btn-fill min-w-[120px]"
+            >
+              {loading ? 'loading…' : 'settle ›'}
+            </button>
+          </div>
+          {error && (
+            <p
+              id="game-url-error"
+              className="mt-3 text-loss text-[12px] font-semibold flex items-center gap-2"
+              role="alert"
+            >
+              <span className="pill pill-loss">err</span>
+              {error}
             </p>
-            <h3 className="font-mono font-extrabold text-[16px] mb-2 leading-tight">
+          )}
+          <div className="mt-4 flex items-center gap-2 text-[12px] text-fg-mute">
+            <span>no game?</span>
+            <button
+              type="button"
+              onClick={() => onSubmit('demo')}
+              disabled={loading}
+              className="text-accent hover:underline underline-offset-4 font-semibold"
+            >
+              run with demo data ›
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Three-up feature row */}
+      <div className="mt-8 grid sm:grid-cols-3 gap-3">
+        {RULES.map((r, i) => (
+          <div key={r.title} className="card p-4">
+            <p className="ticker-label mb-2">
+              {String(i + 1).padStart(2, '0')} · {r.tag}
+            </p>
+            <h3 className="font-sans font-semibold text-[14px] mb-1.5 leading-tight">
               {r.title}
             </h3>
-            <p className="text-[12.5px] leading-relaxed text-ink-2">{r.body}</p>
+            <p className="text-[12.5px] text-fg-dim leading-relaxed">{r.body}</p>
           </div>
         ))}
       </div>
@@ -129,17 +125,20 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
   );
 }
 
-const RULES: { title: string; body: string }[] = [
+const RULES: { tag: string; title: string; body: string }[] = [
   {
-    title: 'Min-transactions',
-    body: 'Greedy max-creditor↔max-debtor. ≤ N−1 payments for N players, often fewer. Integer cents only — no float drift.',
+    tag: 'algo',
+    title: 'min-transaction settlement',
+    body: 'Greedy max-creditor↔max-debtor. ≤ N−1 payments for N players. Integer cents only — no float drift.',
   },
   {
-    title: 'Isolated players',
-    body: 'Mark "Andrew settles only with Kevin." Hub-and-spoke. Cycles get rejected with a clear error.',
+    tag: 'rules',
+    title: 'isolated-player rules',
+    body: '“Andrew settles only with Kevin.” Hub-and-spoke. Cycles get caught and surfaced.',
   },
   {
-    title: 'Print + share',
-    body: 'Tap any payment to copy. Hit SHARE for a 4:5 receipt PNG — clipboard on desktop, native share sheet on mobile.',
+    tag: 'export',
+    title: 'tap-to-copy + image share',
+    body: 'Tap any payment to copy. Hit SHARE for a 4:5 PNG — clipboard on desktop, native sheet on mobile.',
   },
 ];

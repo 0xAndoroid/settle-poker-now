@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Masthead } from './components/Masthead';
+import { Masthead, type TickerItem } from './components/Masthead';
 import { EmptyState } from './components/EmptyState';
 import { LedgerPanel } from './components/LedgerPanel';
 import { SettlementPanel } from './components/SettlementPanel';
@@ -12,9 +12,11 @@ import { ToastViewport } from './components/Toast';
 import { MobileTabs, type TabKey } from './components/MobileTabs';
 import { useLedger } from './hooks/useLedger';
 import { useToast } from './hooks/useToast';
+import { useTheme } from './hooks/useTheme';
 import { computePlan } from './lib/settle';
 import { LedgerParseError, parseLedgerCsv } from './lib/csv';
 import { readHashFromLocation, writeHashToLocation } from './lib/hashState';
+import { formatDollars } from './lib/money';
 import type {
   Adjustment,
   IsolationRule,
@@ -35,6 +37,7 @@ function formatGameDate(start: Date | null): string | undefined {
 }
 
 export default function App() {
+  const { theme, toggle: toggleTheme } = useTheme();
   const { state: ledgerState, fetchGame, reset: resetLedger } = useLedger();
   const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
 
@@ -59,7 +62,6 @@ export default function App() {
     if (initial.gameId) fetchGame(initial.gameId);
   }, [fetchGame]);
 
-  // Persist state to URL hash whenever it changes.
   useEffect(() => {
     if (!hydratedRef.current) return;
     writeHashToLocation({
@@ -70,11 +72,6 @@ export default function App() {
     });
   }, [ledgerState.gameId, adjustments, isolations, unitOverride]);
 
-  /**
-   * Parse the raw CSV with the strongest unit signal available:
-   *   user override > worker hint > parser heuristic.
-   * Re-parsed automatically on csv / hint / override changes.
-   */
   const parsedLedger: ParsedLedger | null = useMemo(() => {
     if (!ledgerState.csv) return null;
     const effectiveHint = unitOverride ?? ledgerState.headerUnit;
@@ -90,18 +87,15 @@ export default function App() {
           : err instanceof Error
             ? err.message
             : 'Unknown parse error';
-      // Defer setState to next tick so we don't dispatch during render.
       queueMicrotask(() => setParseError(message));
       return null;
     }
   }, [ledgerState.csv, ledgerState.headerUnit, unitOverride]);
 
-  // Reset any stale parse error when fetch state changes.
   useEffect(() => {
     if (ledgerState.status !== 'success') setParseError(null);
   }, [ledgerState.status]);
 
-  // Drop adjustments / isolation rules referencing players that no longer exist.
   useEffect(() => {
     if (!parsedLedger) return;
     const validIds = new Set(parsedLedger.rows.map((r) => r.playerId));
@@ -137,6 +131,33 @@ export default function App() {
     return computePlan(parsedLedger.rows, adjustments, isolations);
   }, [parsedLedger, adjustments, isolations]);
 
+  const ticker: TickerItem[] | undefined = useMemo(() => {
+    if (!parsedLedger) return undefined;
+    const totalMoved = plan.txns.reduce((acc, t) => acc + t.amountCents, 0);
+    const biggestWinner = balances.reduce<typeof balances[number] | null>(
+      (best, b) =>
+        b.effectiveNetCents > 0 &&
+        (!best || b.effectiveNetCents > best.effectiveNetCents)
+          ? b
+          : best,
+      null
+    );
+    return [
+      { label: 'players', value: String(parsedLedger.rows.length) },
+      { label: 'payments', value: String(plan.txns.length), tone: 'accent' },
+      { label: 'total', value: formatDollars(totalMoved) },
+      ...(biggestWinner
+        ? ([
+            {
+              label: 'top',
+              value: `${biggestWinner.nickname} ${formatDollars(biggestWinner.effectiveNetCents)}`,
+              tone: 'gain',
+            },
+          ] satisfies TickerItem[])
+        : []),
+    ];
+  }, [parsedLedger, balances, plan]);
+
   const handleAddAdjustment = useCallback((adj: Adjustment) => {
     setAdjustments((current) => [...current, adj]);
   }, []);
@@ -147,7 +168,6 @@ export default function App() {
 
   const handleSubmitGameId = useCallback(
     (id: string) => {
-      // Reset all derived state when switching to a fresh game.
       setAdjustments([]);
       setIsolations([]);
       setUnitOverride(null);
@@ -186,7 +206,7 @@ export default function App() {
         pushToast('shared.', 'success');
         break;
       case 'copied':
-        pushToast('copied — paste anywhere', 'success');
+        pushToast('image copied — paste anywhere', 'success');
         break;
       case 'downloaded':
         pushToast('png downloaded', 'success');
@@ -206,7 +226,13 @@ export default function App() {
 
   return (
     <div className="min-h-full">
-      <Masthead onReset={handleReset} showReset={showHeader} />
+      <Masthead
+        theme={theme}
+        onThemeToggle={toggleTheme}
+        onReset={handleReset}
+        showReset={showHeader}
+        ticker={ticker}
+      />
 
       {ledgerState.status === 'idle' && (
         <EmptyState onSubmit={handleSubmitGameId} loading={false} />
@@ -234,10 +260,9 @@ export default function App() {
             playerCount={balances.length}
           />
 
-          <main className="mx-auto max-w-5xl px-5 sm:px-8 py-6 sm:py-10 pb-24">
-            {/* Desktop: two-column broadsheet, vertical rule between */}
-            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x-2 lg:divide-ink">
-              <div className="space-y-6 lg:pr-8">
+          <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-6">
+              <div className="space-y-5">
                 <LedgerPanel
                   rows={parsedLedger.rows}
                   effectiveBalances={balances}
@@ -261,7 +286,7 @@ export default function App() {
                   onRemove={handleRemoveAdjustment}
                 />
               </div>
-              <div className="lg:sticky lg:top-6 lg:self-start space-y-6 lg:pl-8">
+              <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
                 <SettlementPanel
                   plan={plan}
                   balances={balances}
@@ -272,7 +297,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Mobile: tabbed */}
             <div className="lg:hidden space-y-5">
               {activeTab === 'plan' && (
                 <SettlementPanel
@@ -312,7 +336,7 @@ export default function App() {
         </>
       )}
 
-      {/* Off-screen share card. Kept rendered so html-to-image can read computed styles. */}
+      {/* Off-screen share card. Always rendered so html-to-image can snapshot. */}
       <div
         aria-hidden="true"
         style={{
@@ -340,19 +364,17 @@ export default function App() {
 
 function Colophon() {
   return (
-    <aside className="border-2 border-ink p-5 font-mono text-[12px] leading-relaxed text-ink-2">
-      <p className="text-[10px] uppercase tracking-masthead font-bold text-mute mb-2">
-        ¶ how it works
-      </p>
+    <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
+      <p className="ticker-label-strong mb-2">¶ how it works</p>
       <p>
-        <span className="font-bold text-ink">Greedy max-creditor↔max-debtor.</span>
+        <span className="text-fg font-semibold">Greedy max-creditor↔max-debtor.</span>
         {' '}The biggest winner is matched against the biggest loser, repeatedly,
         until everyone settles. ≤ N−1 payments for N players, often fewer.
       </p>
-      <div className="dotted my-3" />
+      <hr className="hr my-3" />
       <p>
-        <span className="font-bold text-ink">URL hash state.</span> Every adjustment
-        and isolation rule encodes into the URL. Share the link, share the plan.
+        <span className="text-fg font-semibold">URL hash state.</span> Every adjustment,
+        isolation rule, and unit override encodes into the URL. Share the link, share the plan.
       </p>
     </aside>
   );

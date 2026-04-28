@@ -31,20 +31,21 @@ export function Toast({ toast, onDismiss }: ToastProps) {
     <div
       role={toast.variant === 'error' ? 'alert' : 'status'}
       className={cn(
-        'pointer-events-auto bg-paper border-2 border-ink',
-        'flex items-center gap-3 min-w-[260px] max-w-[420px]',
-        'px-4 py-3 font-mono',
-        toast.variant === 'error' && 'border-loss text-loss bg-paper'
+        'pointer-events-auto flex items-center gap-3 min-w-[260px] max-w-[420px]',
+        'px-3.5 py-2.5 font-sans bg-surface border',
+        toast.variant === 'success' && 'border-gain/60 text-gain',
+        toast.variant === 'error' && 'border-loss/60 text-loss',
+        toast.variant === 'info' && 'border-line-strong text-fg'
       )}
     >
-      <span className="text-[14px] font-extrabold w-4 flex-shrink-0">{prefix}</span>
-      <span className="text-[12px] uppercase tracking-all font-bold flex-1 normal-case">
+      <span className="text-[14px] font-bold w-4 flex-shrink-0">{prefix}</span>
+      <span className="text-[12.5px] font-semibold flex-1 leading-tight">
         {toast.message}
       </span>
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
-        className="text-[14px] hover:text-loss flex-shrink-0"
+        className="text-[14px] hover:text-loss flex-shrink-0 opacity-60 hover:opacity-100"
         aria-label="Dismiss"
       >
         ✕

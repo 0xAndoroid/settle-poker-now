@@ -4,20 +4,21 @@ interface LoadingViewProps {
 
 export function LoadingView({ gameId }: LoadingViewProps) {
   return (
-    <div className="mx-auto max-w-3xl px-5 sm:px-8 py-12">
-      <div className="slab">
-        <div className="slab-heading">
-          <span>fetching ledger</span>
-          <span className="font-mono normal-case tracking-normal text-[10px] text-mute">
-            game/{gameId}
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
+      <div className="card">
+        <div className="card-header">
+          <span className="ticker-label-strong">
+            <span className="live-dot mr-2 align-middle" aria-hidden="true" />
+            fetching ledger
           </span>
+          <span className="ticker-label">game/{gameId}</span>
         </div>
-        <div className="px-6 py-10 text-center">
-          <p className="font-mono text-[14px] font-bold uppercase tracking-masthead">
+        <div className="px-6 py-12 text-center">
+          <p className="font-sans font-bold text-[14px] text-fg uppercase tracking-ticker">
             <Dots /> printing
           </p>
-          <p className="text-[11px] uppercase tracking-all text-mute mt-3">
-            proxy → pokernow.com → ledger.csv → cents → settle
+          <p className="ticker-label mt-3 text-fg-mute">
+            proxy → pokernow.com → ledger.csv → cents-detect → settle
           </p>
         </div>
       </div>

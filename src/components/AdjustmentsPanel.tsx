@@ -54,20 +54,21 @@ export function AdjustmentsPanel({
   };
 
   return (
-    <section aria-labelledby="adj-heading" className="slab">
-      <div className="slab-heading">
-        <span id="adj-heading">prior payments</span>
-        <span className="text-mute font-normal normal-case tracking-normal text-[10.5px]">
-          {adjustments.length} recorded
+    <section aria-labelledby="adj-heading" className="card">
+      <div className="card-header">
+        <span id="adj-heading" className="ticker-label-strong">
+          prior payments
         </span>
+        <span className="ticker-label">{adjustments.length} recorded</span>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-5 py-5 border-b border-hairline bg-paper-2 space-y-4">
-        <p className="text-[12px] leading-relaxed text-ink-2">
+      <form onSubmit={handleSubmit} className="px-4 py-4 border-b border-line bg-surface-2 space-y-3">
+        <p className="text-[12.5px] leading-relaxed text-fg-dim">
           Record cash that already changed hands. The plan recomputes
           automatically.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
           <FieldSelect
             id="adj-from"
             label="from"
@@ -75,7 +76,7 @@ export function AdjustmentsPanel({
             onChange={setFromId}
             balances={sortedBalances}
           />
-          <span aria-hidden="true" className="hidden sm:block text-center text-mute pb-2">→</span>
+          <span aria-hidden="true" className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute font-mono">↦</span>
           <FieldSelect
             id="adj-to"
             label="to"
@@ -84,13 +85,14 @@ export function AdjustmentsPanel({
             balances={sortedBalances}
           />
         </div>
-        <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
           <div>
-            <label htmlFor="adj-amount" className="block text-[10px] uppercase tracking-masthead font-bold mb-1">
-              amount
+            <label htmlFor="adj-amount" className="ticker-label block mb-1.5">
+              amount usd
             </label>
-            <div className="flex items-baseline gap-2">
-              <span aria-hidden="true" className="font-mono font-bold text-ink/60 select-none">$</span>
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-fg-mute font-mono select-none">$</span>
               <input
                 id="adj-amount"
                 name="adj-amount"
@@ -102,7 +104,7 @@ export function AdjustmentsPanel({
                   if (error) setError(null);
                 }}
                 placeholder="40.00"
-                className="field flex-1 font-mono text-[14px]"
+                className="field flex-1 font-mono num text-[14px]"
                 aria-label="Amount in dollars"
               />
             </div>
@@ -111,43 +113,50 @@ export function AdjustmentsPanel({
             record ›
           </button>
         </div>
+
         {error && (
-          <p className="text-[12px] uppercase tracking-all font-bold text-loss" role="alert">
-            ⚠ {error}
+          <p className="text-[12px] text-loss font-semibold flex items-center gap-2" role="alert">
+            <span className="pill pill-loss">err</span>
+            {error}
           </p>
         )}
       </form>
 
       {adjustments.length > 0 ? (
-        <ul role="list" className="font-mono">
+        <ul role="list">
           {adjustments.map((adj, idx) => (
             <li
               key={adj.id}
-              className="px-5 py-3 flex items-center gap-3 border-t border-hairline first:border-t-0"
+              className="px-4 py-2.5 flex items-center gap-3 border-b border-line/60 last:border-b-0 text-[13px]"
             >
-              <span className="text-mute text-[11px] tabular-nums w-5 flex-shrink-0">
+              <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
                 {String(idx + 1).padStart(2, '0')}
               </span>
-              <div className="flex-1 min-w-0 text-[13px]">
-                <span className="font-bold">{nameById.get(adj.fromId) ?? adj.fromId}</span>
-                <span aria-hidden="true" className="text-mute mx-2">→</span>
-                <span className="font-bold">{nameById.get(adj.toId) ?? adj.toId}</span>
-                <span className="text-mute mx-2">·</span>
-                <span className="font-extrabold tabular-nums">{formatDollars(adj.amountCents)}</span>
+              <div className="flex-1 min-w-0 flex items-center gap-2 font-sans">
+                <span className="font-semibold text-fg truncate">
+                  {nameById.get(adj.fromId) ?? adj.fromId}
+                </span>
+                <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">↦</span>
+                <span className="font-semibold text-fg truncate">
+                  {nameById.get(adj.toId) ?? adj.toId}
+                </span>
               </div>
+              <span className="font-mono num font-bold text-fg flex-shrink-0">
+                {formatDollars(adj.amountCents)}
+              </span>
               <button
                 type="button"
                 onClick={() => onRemove(adj.id)}
                 className="btn btn-ghost btn-sm"
                 aria-label="Remove this payment record"
               >
-                ✕ remove
+                ✕
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="px-5 py-4 text-center text-[11.5px] text-mute uppercase tracking-all">
+        <div className="px-4 py-3 text-center text-[11px] text-fg-mute uppercase tracking-ticker">
           — no payments recorded —
         </div>
       )}
@@ -166,7 +175,7 @@ interface FieldSelectProps {
 function FieldSelect({ id, label, value, onChange, balances }: FieldSelectProps) {
   return (
     <div>
-      <label htmlFor={id} className="block text-[10px] uppercase tracking-masthead font-bold mb-1">
+      <label htmlFor={id} className="ticker-label block mb-1.5">
         {label}
       </label>
       <select
@@ -174,7 +183,14 @@ function FieldSelect({ id, label, value, onChange, balances }: FieldSelectProps)
         name={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="field font-mono font-bold text-[14px]"
+        className="field font-sans font-semibold text-[14px] pr-8"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 12px center',
+          appearance: 'none',
+        }}
       >
         <option value="">— pick {label} —</option>
         {balances.map((b) => (

@@ -20,10 +20,10 @@ export function MobileTabs({ active, onChange, txnCount, playerCount }: MobileTa
     <div
       role="tablist"
       aria-label="Switch sections"
-      className="lg:hidden sticky top-0 z-20 bg-paper border-b-2 border-ink"
+      className="lg:hidden sticky top-12 z-20 bg-bg border-b border-line"
     >
-      <div className="mx-auto max-w-5xl px-5 sm:px-8 flex border-l-2 border-r-2 border-paper">
-        {tabs.map((t, i) => (
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 flex">
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -31,22 +31,26 @@ export function MobileTabs({ active, onChange, txnCount, playerCount }: MobileTa
             aria-selected={active === t.key}
             onClick={() => onChange(t.key)}
             className={cn(
-              'flex-1 min-h-[48px] py-3 font-mono text-[11px] font-extrabold uppercase tracking-masthead',
-              'border-ink relative',
-              i > 0 && 'border-l-2',
+              'flex-1 min-h-[44px] py-2.5 font-sans text-[11px] font-bold uppercase tracking-ticker relative',
               active === t.key
-                ? 'bg-ink text-paper'
-                : 'text-ink-2 hover:bg-paper-2'
+                ? 'text-fg'
+                : 'text-fg-mute hover:text-fg-dim'
             )}
           >
             <span className="inline-flex items-baseline gap-2">
               <span>{t.label}</span>
               {t.badge !== null && (
-                <span className="font-mono tabular-nums text-[10px]">
+                <span className="font-mono num text-[10px] text-fg-mute">
                   [{t.badge}]
                 </span>
               )}
             </span>
+            {active === t.key && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-12 bg-accent"
+              />
+            )}
           </button>
         ))}
       </div>

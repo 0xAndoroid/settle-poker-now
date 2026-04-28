@@ -6,13 +6,9 @@ import { cn } from '@/lib/cn';
 interface LedgerPanelProps {
   rows: LedgerRow[];
   effectiveBalances: EffectiveBalance[];
-  /** Active unit the values are interpreted in. */
   unit: LedgerUnit;
-  /** True when `unit` came from the parser heuristic (no auth signal). */
   unitWasInferred: boolean;
-  /** True when the user has manually overridden the unit (else: auto). */
   hasUserOverride: boolean;
-  /** Set to a unit to override, or `null` to clear the override and revert to auto. */
   onUnitChange?: (unit: LedgerUnit | null) => void;
   highlightedPlayerId?: string | null;
   onHighlight?: (playerId: string | null) => void;
@@ -35,20 +31,18 @@ export function LedgerPanel({
   );
 
   return (
-    <section aria-labelledby="ledger-heading" className="slab">
-      <div className="slab-heading">
-        <span id="ledger-heading">
-          balance sheet
-          <span className="ml-3 text-mute">— {rows.length}{rows.length === 1 ? ' player' : ' players'}</span>
-          {hasAdjustments && <span className="ml-2 text-mute">(adj.)</span>}
+    <section aria-labelledby="ledger-heading" className="card">
+      <div className="card-header">
+        <span id="ledger-heading" className="ticker-label-strong">
+          ledger
+          <span className="text-fg-mute font-normal ml-2">
+            · {rows.length} player{rows.length === 1 ? '' : 's'}
+            {hasAdjustments && ' · adj'}
+          </span>
         </span>
         {!ledgerCheck.isBalanced && (
-          <span
-            role="alert"
-            className="cell border-loss text-loss"
-            title={`Ledger off by ${formatNet(ledgerCheck.sumCents)}`}
-          >
-            ⚠ off by {formatNet(ledgerCheck.sumCents)}
+          <span role="alert" className="pill pill-loss" title={`Off by ${formatNet(ledgerCheck.sumCents)}`}>
+            off · {formatNet(ledgerCheck.sumCents)}
           </span>
         )}
       </div>
@@ -62,12 +56,19 @@ export function LedgerPanel({
         />
       )}
 
-      <table className="w-full font-mono text-[13px]">
+      <table className="w-full font-mono num text-[13px]">
         <colgroup>
-          <col className="w-[12px]" />
+          <col className="w-[40px]" />
           <col />
           <col className="w-[120px]" />
         </colgroup>
+        <thead>
+          <tr className="border-b border-line bg-surface-2">
+            <th className="text-left ticker-label py-2 pl-4 pr-1 font-sans">#</th>
+            <th className="text-left ticker-label py-2 px-2 font-sans">player</th>
+            <th className="text-right ticker-label py-2 pr-4 pl-2 font-sans">net</th>
+          </tr>
+        </thead>
         <tbody>
           {effectiveBalances
             .slice()
@@ -90,27 +91,29 @@ export function LedgerPanel({
                   onMouseEnter={() => onHighlight?.(b.playerId)}
                   onMouseLeave={() => onHighlight?.(null)}
                   className={cn(
-                    'border-t border-hairline',
-                    idx === 0 && 'border-t-0',
-                    isHighlighted && 'bg-paper-2'
+                    'border-b border-line/60 last:border-b-0 transition-colors',
+                    isHighlighted && 'bg-surface-2'
                   )}
                 >
-                  <td className="pl-4 pr-1 py-3 text-mute text-[11px] tabular-nums align-top">
+                  <td className="pl-4 pr-1 py-3 text-fg-mute text-[11px] num align-top">
                     {String(idx + 1).padStart(2, '0')}
                   </td>
-                  <td className="py-3 align-top">
-                    <div className="font-bold leading-tight">{b.nickname}</div>
+                  <td className="py-3 px-2 align-top">
+                    <div className="font-sans font-semibold text-[14px] text-fg leading-tight">
+                      {b.nickname}
+                    </div>
                     {adjusted && original && (
-                      <div className="text-[10.5px] text-mute mt-0.5 uppercase tracking-all">
-                        adj. from {formatNet(original.originalNetCents)}
+                      <div className="ticker-label mt-1 text-fg-mute">
+                        adj · was {formatNet(original.originalNetCents)}
                       </div>
                     )}
                   </td>
                   <td
                     className={cn(
-                      'pr-4 py-3 text-right font-bold tabular-nums leading-tight align-top',
+                      'pr-4 pl-2 py-3 text-right font-mono num font-semibold leading-tight align-top',
+                      isWin && 'text-gain',
                       isLoss && 'text-loss',
-                      !isWin && !isLoss && 'text-mute'
+                      !isWin && !isLoss && 'text-fg-mute'
                     )}
                   >
                     {formatNet(b.effectiveNetCents)}
@@ -120,14 +123,14 @@ export function LedgerPanel({
             })}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-ink">
-            <td colSpan={2} className="px-4 py-2 text-[10px] uppercase tracking-masthead font-bold">
+          <tr className="border-t border-line-strong bg-surface-2">
+            <td colSpan={2} className="py-2.5 pl-4 pr-2 ticker-label-strong">
               total
             </td>
             <td
               className={cn(
-                'pr-4 py-2 text-right font-extrabold tabular-nums text-[13px]',
-                ledgerCheck.isBalanced ? 'text-ink' : 'text-loss'
+                'pr-4 pl-2 py-2.5 text-right font-mono num font-bold text-[14px]',
+                ledgerCheck.isBalanced ? 'text-fg' : 'text-loss'
               )}
             >
               {formatNet(ledgerCheck.sumCents)}
@@ -146,12 +149,6 @@ interface UnitSwitchProps {
   onUnitChange: (unit: LedgerUnit | null) => void;
 }
 
-/**
- * Two-position typewriter switch for unit override. Sits just under the
- * Balance Sheet heading. The active option is a filled black chip, the
- * other is outlined. Below the chips, a one-liner reports provenance and
- * exposes a "revert to auto" link if the user overrode the unit.
- */
 function UnitSwitch({
   unit,
   unitWasInferred,
@@ -161,14 +158,12 @@ function UnitSwitch({
   const provenance = hasUserOverride
     ? 'manual override'
     : unitWasInferred
-      ? 'auto-detected from ledger magnitudes'
+      ? 'auto-detected'
       : 'reported by pokernow';
 
   return (
-    <div className="px-4 py-3 border-b border-hairline bg-paper-2 flex flex-wrap items-center gap-3">
-      <span className="text-[10px] uppercase tracking-masthead font-bold text-mute">
-        unit
-      </span>
+    <div className="px-4 py-2.5 border-b border-line bg-surface-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span className="ticker-label">unit</span>
       <div role="radiogroup" aria-label="Ledger value unit" className="flex">
         <UnitButton
           label="dollars"
@@ -181,15 +176,13 @@ function UnitSwitch({
           onClick={() => onUnitChange('cents')}
         />
       </div>
-      <span className="text-[11px] italic text-mute leading-tight">
-        ↳ {provenance}
-      </span>
+      <span className="ticker-label">↳ {provenance}</span>
       {hasUserOverride && (
         <button
           type="button"
           onClick={() => onUnitChange(null)}
-          className="text-[11px] uppercase tracking-all font-bold underline underline-offset-4 decoration-2 hover:bg-ink hover:text-paper hover:no-underline px-1"
-          aria-label="Revert unit override and use auto-detection"
+          className="text-[10px] uppercase tracking-ticker font-bold text-accent hover:underline underline-offset-4"
+          aria-label="Revert unit override"
         >
           revert
         </button>
@@ -212,11 +205,11 @@ function UnitButton({ label, active, onClick }: UnitButtonProps) {
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        'min-h-[36px] px-3 font-mono text-[11px] uppercase tracking-all font-bold border-2 border-ink',
-        '-ml-[2px] first:ml-0 first:border-r-[1px] last:border-l-[1px]',
+        'min-h-[28px] px-2.5 font-sans text-[10px] uppercase tracking-ticker font-bold border border-line-strong',
+        '-ml-px first:ml-0',
         active
-          ? 'bg-ink text-paper'
-          : 'bg-paper text-ink hover:bg-paper-3'
+          ? 'bg-accent text-white border-accent'
+          : 'bg-surface text-fg-dim hover:text-fg hover:border-line-strong'
       )}
     >
       {label}

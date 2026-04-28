@@ -1,7 +1,7 @@
 # settle.andrew.ee
 
-> Minimum-payment settlement for PokerNow home games. Renders the plan as a
-> printable receipt.
+> Minimum-payment settlement for PokerNow home games. Trading-terminal
+> aesthetic, exportable as a 4:5 image.
 
 Paste a [PokerNow](https://www.pokernow.club/) game URL → fetch the ledger →
 compute the optimized settlement plan → copy individual payments or share the
@@ -36,8 +36,8 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
 ## Stack
 
 - **Vite** + **React 19** + **TypeScript** (strict mode)
-- **Tailwind CSS** with a custom paper-receipt palette (no dark mode —
-  receipts don't have dark mode)
+- **Tailwind CSS** with a charcoal trading-terminal palette
+  (dark mode default, light mode opt-in via top-right sun/moon toggle)
 - **Cloudflare Pages** for hosting + a Pages Function for the CSV proxy
 - **Vitest** — 38 tests covering settlement, isolation chains + cycle
   detection, CSV parsing, URL parsing, money helpers, hash state

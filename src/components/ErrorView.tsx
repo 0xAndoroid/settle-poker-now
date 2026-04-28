@@ -7,21 +7,18 @@ interface ErrorViewProps {
 
 export function ErrorView({ message, gameId, onRetry, onReset }: ErrorViewProps) {
   return (
-    <div className="mx-auto max-w-2xl px-5 sm:px-8 py-12">
-      <div className="slab" style={{ borderColor: '#a8201a' }}>
-        <div
-          className="slab-heading"
-          style={{ background: '#fbeae8', color: '#a8201a', borderColor: '#a8201a' }}
-        >
-          <span>void · could not print</span>
+    <div className="mx-auto max-w-2xl px-4 sm:px-6 py-12">
+      <div className="card border-loss/60">
+        <div className="card-header bg-loss/10 border-b-loss/40">
+          <span className="ticker-label-strong text-loss">
+            ⚠ void · could not print
+          </span>
           {gameId && (
-            <span className="font-mono normal-case tracking-normal text-[10px]">
-              game/{gameId}
-            </span>
+            <span className="ticker-label">game/{gameId}</span>
           )}
         </div>
-        <div className="px-6 py-8 sm:px-8 sm:py-10 space-y-5">
-          <p className="font-mono text-[15px] leading-relaxed">{message}</p>
+        <div className="px-6 py-7 sm:px-8 sm:py-9 space-y-5">
+          <p className="font-sans text-[15px] leading-relaxed text-fg">{message}</p>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onReset} className="btn">
               new url

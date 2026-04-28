@@ -44,14 +44,14 @@ export function SettlementPanel({
   const totalSettled = plan.txns.reduce((acc, t) => acc + t.amountCents, 0);
 
   return (
-    <section aria-labelledby="settlement-heading" className="slab">
-      <div className="slab-heading">
-        <span id="settlement-heading">
-          payments due
-          <span className="ml-3 text-mute">
-            — {plan.txns.length === 0
+    <section aria-labelledby="settlement-heading" className="card">
+      <div className="card-header">
+        <span id="settlement-heading" className="ticker-label-strong">
+          payments
+          <span className="text-fg-mute font-normal ml-2">
+            · {plan.txns.length === 0
               ? 'none'
-              : `${plan.txns.length} payment${plan.txns.length === 1 ? '' : 's'}`}
+              : `${plan.txns.length} txn${plan.txns.length === 1 ? '' : 's'}`}
           </span>
         </span>
         <div className="flex items-center gap-1.5">
@@ -77,31 +77,34 @@ export function SettlementPanel({
       </div>
 
       {hasCycle && (
-        <div className="px-5 py-4 border-b border-ink bg-paper-2">
-          <p className="text-[10px] uppercase tracking-masthead font-bold text-loss mb-1.5">
-            ⚠ isolation cycle detected
-          </p>
-          <p className="text-[12.5px] leading-relaxed text-ink-2">
-            <span className="font-bold">{cycleNames.join(' → ')}</span>
+        <div className="px-4 py-3 border-b border-line bg-loss/5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="pill pill-loss">cycle</span>
+            <span className="ticker-label-strong text-loss">
+              isolation cycle detected
+            </span>
+          </div>
+          <p className="text-[12.5px] text-fg-dim leading-relaxed">
+            <span className="text-fg font-semibold">{cycleNames.join(' → ')}</span>
             {' '}form a cycle of isolation rules. Break the cycle in
-            “private ledgers” to settle these players.
+            “private rules” to settle these players.
           </p>
         </div>
       )}
 
       {plan.txns.length === 0 ? (
-        <div className="px-6 py-8 text-center">
-          <p className="font-bold text-[13px] uppercase tracking-all">
+        <div className="px-6 py-10 text-center">
+          <p className="ticker-label-strong text-fg">
             {hasCycle ? '— pending —' : 'already settled.'}
           </p>
           {!hasCycle && (
-            <p className="text-[11.5px] text-mute mt-1">
+            <p className="text-[12px] text-fg-mute mt-1.5">
               No payments necessary. Everybody&apos;s even.
             </p>
           )}
         </div>
       ) : (
-        <ol className="font-mono">
+        <ol>
           {plan.txns.map((t, i) => (
             <SettlementRow
               key={`${t.fromId}-${t.toId}-${i}`}
@@ -117,9 +120,9 @@ export function SettlementPanel({
       )}
 
       {plan.txns.length > 0 && (
-        <div className="border-t-2 border-ink px-5 py-3 flex items-baseline justify-between">
-          <span className="text-[10px] uppercase tracking-masthead font-bold">total moved</span>
-          <span className="font-mono font-extrabold text-[15px] tabular-nums">
+        <div className="border-t border-line-strong bg-surface-2 px-4 py-2.5 flex items-baseline justify-between">
+          <span className="ticker-label-strong">total moved</span>
+          <span className="font-mono num font-bold text-[15px] text-fg">
             {formatDollars(totalSettled)}
           </span>
         </div>
@@ -157,45 +160,45 @@ function SettlementRow({
   };
 
   return (
-    <li className="border-b border-hairline last:border-b-0">
+    <li className="border-b border-line/60 last:border-b-0">
       <button
         type="button"
         onClick={handleCopy}
         onMouseEnter={() => onHover?.(true)}
         onMouseLeave={() => onHover?.(false)}
         className={cn(
-          'group w-full text-left py-3 px-5 flex items-center gap-3 sm:gap-4',
+          'group w-full text-left py-3 px-4 flex items-center gap-3',
           'transition-colors duration-100',
-          'hover:bg-paper-2 active:bg-paper-3',
+          'hover:bg-surface-2 active:bg-surface-3',
           'min-h-[52px]'
         )}
         aria-label={`Copy: ${text}`}
       >
-        <span className="text-mute text-[11px] tabular-nums w-5 flex-shrink-0">
+        <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
           {String(index).padStart(2, '0')}
         </span>
-        <span className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-[13px] sm:text-[14px]">
-          <span className="font-bold truncate flex-shrink min-w-0 underline decoration-loss decoration-1 underline-offset-[3px]">
+        <span className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 font-sans text-[14px]">
+          <span className="font-semibold text-loss truncate flex-shrink min-w-0">
             {fromName}
           </span>
-          <span aria-hidden="true" className="text-mute flex-shrink-0">→</span>
-          <span className="font-bold truncate flex-shrink min-w-0">
+          <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">↦</span>
+          <span className="font-semibold text-gain truncate flex-shrink min-w-0">
             {toName}
           </span>
           {forced && (
-            <span className="cell text-[9px] tracking-masthead py-0 hidden sm:inline-flex">
+            <span className="pill pill-accent shrink-0 hidden sm:inline-flex">
               isolated
             </span>
           )}
         </span>
-        <span className="font-extrabold text-[14px] sm:text-[15px] tabular-nums flex-shrink-0">
+        <span className="font-mono num font-bold text-[14px] sm:text-[15px] text-fg flex-shrink-0">
           {formatDollars(amountCents)}
         </span>
         <span
           className={cn(
-            'text-[10px] uppercase tracking-all w-12 text-right text-mute',
+            'ticker-label w-12 text-right',
             'opacity-0 group-hover:opacity-100 transition-opacity',
-            copied && 'opacity-100 text-ink font-bold'
+            copied && 'opacity-100 text-gain'
           )}
           aria-hidden="true"
         >
