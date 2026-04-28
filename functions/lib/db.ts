@@ -94,15 +94,16 @@ export interface DbAlias {
   createdBy: string | null;
 }
 
-export type ZelleHandleKind = 'email' | 'phone';
-
 export interface DbPaymentMethod {
   playerId: string;
   /** Without leading '@'. */
   venmoUsername: string | null;
-  /** Email address or US phone — discriminated by `zelleHandleKind`. */
+  /**
+   * Free-text Zelle handle — email, US phone, anything Zelle will accept.
+   * The user pastes whatever their bank app expects; we don't try to
+   * discriminate (it caused fiddly UI in the identity prompt).
+   */
   zelleHandle: string | null;
-  zelleHandleKind: ZelleHandleKind | null;
   updatedAt: number;
   updatedBy: string | null;
 }
@@ -232,8 +233,6 @@ function rowToPaymentMethod(row: Record<string, unknown>): DbPaymentMethod {
     playerId: row.player_id as string,
     venmoUsername: (row.venmo_username as string | null) ?? null,
     zelleHandle: (row.zelle_handle as string | null) ?? null,
-    zelleHandleKind:
-      (row.zelle_handle_kind as ZelleHandleKind | null) ?? null,
     updatedAt: row.updated_at as number,
     updatedBy: (row.updated_by as string | null) ?? null,
   };
@@ -1182,7 +1181,6 @@ export async function setPaymentMethods(
     playerId: string;
     venmoUsername: string | null;
     zelleHandle: string | null;
-    zelleHandleKind: ZelleHandleKind | null;
     actorLabel: string | null;
   }
 ): Promise<DbGameSnapshot> {
@@ -1204,43 +1202,31 @@ export async function setPaymentMethods(
     );
   }
 
-  // Both halves of the Zelle handle must agree on null-ness.
-  if (
-    (args.zelleHandle === null) !== (args.zelleHandleKind === null)
-  ) {
-    throw new PaymentMethodValidationError(
-      'zelleHandle and zelleHandleKind must both be null or both set.'
-    );
-  }
-
   const venmoUsername = args.venmoUsername?.trim().replace(/^@/, '') ?? null;
   const zelleHandle = args.zelleHandle?.trim() ?? null;
   const venmoFinal =
     venmoUsername && venmoUsername.length > 0 ? venmoUsername : null;
   const zelleFinal =
     zelleHandle && zelleHandle.length > 0 ? zelleHandle : null;
-  const zelleKind = zelleFinal ? args.zelleHandleKind : null;
 
   const now = Date.now();
   await db.batch([
     db
       .prepare(
         `INSERT INTO player_payment_methods
-          (game_id, player_id, venmo_username, zelle_handle, zelle_handle_kind, updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+          (game_id, player_id, venmo_username, zelle_handle, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(game_id, player_id) DO UPDATE SET
-           venmo_username    = excluded.venmo_username,
-           zelle_handle      = excluded.zelle_handle,
-           zelle_handle_kind = excluded.zelle_handle_kind,
-           updated_at        = excluded.updated_at,
-           updated_by        = excluded.updated_by`
+           venmo_username = excluded.venmo_username,
+           zelle_handle   = excluded.zelle_handle,
+           updated_at     = excluded.updated_at,
+           updated_by     = excluded.updated_by`
       )
       .bind(
         args.gameId,
         args.playerId,
         venmoFinal,
         zelleFinal,
-        zelleKind,
         now,
         args.actorLabel
       ),

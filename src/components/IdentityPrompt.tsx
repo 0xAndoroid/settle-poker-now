@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   PersistedPaymentMethod,
   PersistedPlayer,
-  ZelleHandleKind,
 } from '@/lib/types';
 import { cn } from '@/lib/cn';
 
@@ -16,7 +15,6 @@ export interface IdentityPickResult {
   paymentMethods: {
     venmoUsername: string | null;
     zelleHandle: string | null;
-    zelleHandleKind: ZelleHandleKind | null;
   } | null;
 }
 
@@ -24,7 +22,10 @@ interface IdentityPromptProps {
   players: ReadonlyArray<PersistedPlayer>;
   /**
    * Existing payment methods on file (so the form pre-fills if the user
-   * had registered Venmo/Zelle in a prior session).
+   * had registered Venmo/Zelle in a prior session). The Map identity
+   * changes on every poll tick of the parent — we ref-pin it so the
+   * pre-fill effect only fires when `pendingId` changes (otherwise an 8s
+   * poll resets the Venmo / Zelle inputs mid-typing).
    */
   paymentMethodsByPlayerId?: ReadonlyMap<string, PersistedPaymentMethod>;
   onPick: (result: IdentityPickResult) => void;
@@ -36,6 +37,12 @@ interface IdentityPromptProps {
  * roster (or chooses spectator), and — if they're a player — registers
  * optional Venmo / Zelle handles so settlement rows targeting them can
  * surface deep-link icons.
+ *
+ * Form-state policy: Venmo / Zelle inputs are plain `useState` (single
+ * source of truth) and are NOT mirrored to localStorage on every keystroke.
+ * The values flow upward only on confirm — `handleConfirm` →
+ * `onPick(...)` → parent persists to D1. This prevents a parent re-render
+ * (e.g. from the 8s game-poll tick) from clobbering in-flight typing.
  */
 export function IdentityPrompt({
   players,
@@ -45,28 +52,34 @@ export function IdentityPrompt({
   const [pendingId, setPendingId] = useState<string>('');
   const [venmo, setVenmo] = useState('');
   const [zelle, setZelle] = useState('');
-  const [zelleKind, setZelleKind] = useState<ZelleHandleKind>('email');
   const [error, setError] = useState<string | null>(null);
+
+  // Ref-pin the prop so the pre-fill effect doesn't fire on every parent
+  // re-render. The Map's identity changes on every poll tick (parent
+  // reconstructs it via `useMemo([game])`); without the ref the effect
+  // would call `setVenmo('')` mid-typing every 8 seconds.
+  const paymentMethodsRef = useRef(paymentMethodsByPlayerId);
+  paymentMethodsRef.current = paymentMethodsByPlayerId;
 
   const sorted = players
     .slice()
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
 
   // Pre-fill Venmo / Zelle from any existing record for the chosen player.
+  // ONLY re-runs when `pendingId` changes — paymentMethodsByPlayerId is
+  // read through the ref so a parent re-render doesn't reset typing.
   useEffect(() => {
     if (pendingId === '' || pendingId === '__spectator') {
       setVenmo('');
       setZelle('');
-      setZelleKind('email');
       setError(null);
       return;
     }
-    const existing = paymentMethodsByPlayerId?.get(pendingId);
+    const existing = paymentMethodsRef.current?.get(pendingId);
     setVenmo(existing?.venmoUsername ?? '');
     setZelle(existing?.zelleHandle ?? '');
-    setZelleKind(existing?.zelleHandleKind ?? 'email');
     setError(null);
-  }, [pendingId, paymentMethodsByPlayerId]);
+  }, [pendingId]);
 
   const handleConfirm = () => {
     if (pendingId === '__spectator') {
@@ -82,15 +95,9 @@ export function IdentityPrompt({
       setError('Venmo username must be 1–30 letters, digits, hyphens, or underscores.');
       return;
     }
-    if (zelleTrimmed) {
-      if (zelleKind === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(zelleTrimmed)) {
-        setError('Zelle email looks malformed.');
-        return;
-      }
-      if (zelleKind === 'phone' && !/^[0-9+()\-.\s]{7,}$/.test(zelleTrimmed)) {
-        setError('Zelle phone looks malformed.');
-        return;
-      }
+    if (zelleTrimmed.length > 128) {
+      setError('Zelle handle is too long.');
+      return;
     }
 
     const hasMethods = venmoTrimmed.length > 0 || zelleTrimmed.length > 0;
@@ -100,14 +107,12 @@ export function IdentityPrompt({
         ? {
             venmoUsername: venmoTrimmed.length > 0 ? venmoTrimmed : null,
             zelleHandle: zelleTrimmed.length > 0 ? zelleTrimmed : null,
-            zelleHandleKind: zelleTrimmed.length > 0 ? zelleKind : null,
           }
         : null,
     });
   };
 
-  const isPlayer =
-    pendingId !== '' && pendingId !== '__spectator';
+  const isPlayer = pendingId !== '' && pendingId !== '__spectator';
 
   return (
     <section
@@ -188,43 +193,22 @@ export function IdentityPrompt({
             </div>
             <div>
               <label htmlFor="identity-zelle" className="ticker-label block mb-1.5">
-                zelle (optional)
+                zelle (email or phone, optional)
               </label>
-              <div className="flex items-center gap-1.5">
-                <select
-                  value={zelleKind}
-                  onChange={(e) => setZelleKind(e.target.value as ZelleHandleKind)}
-                  className="field font-sans font-semibold text-[13px] pr-7"
-                  style={{
-                    backgroundImage:
-                      "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 8px center',
-                    appearance: 'none',
-                    width: 78,
-                  }}
-                  aria-label="Zelle handle kind"
-                >
-                  <option value="email">email</option>
-                  <option value="phone">phone</option>
-                </select>
-                <input
-                  id="identity-zelle"
-                  type={zelleKind === 'email' ? 'email' : 'tel'}
-                  value={zelle}
-                  onChange={(e) => {
-                    setZelle(e.target.value);
-                    if (error) setError(null);
-                  }}
-                  placeholder={
-                    zelleKind === 'email' ? 'kev@example.com' : '+1 555 0100'
-                  }
-                  className="field flex-1 font-mono text-[13px]"
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                />
-              </div>
+              <input
+                id="identity-zelle"
+                type="text"
+                value={zelle}
+                onChange={(e) => {
+                  setZelle(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="kev@example.com or +1 555 0100"
+                className="field w-full font-mono text-[13px]"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
             </div>
           </div>
         )}

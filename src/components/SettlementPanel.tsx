@@ -266,11 +266,8 @@ function SettlementRow({
   };
 
   const handleZelleClick = async () => {
-    if (!recipientMethod?.zelleHandle || !recipientMethod.zelleHandleKind) return;
-    const display = formatZelleHandle({
-      handle: recipientMethod.zelleHandle,
-      kind: recipientMethod.zelleHandleKind,
-    });
+    if (!recipientMethod?.zelleHandle) return;
+    const display = formatZelleHandle(recipientMethod.zelleHandle);
     const ok = await copyText(display);
     pushToast?.(
       ok ? `zelle handle copied — paste in your bank app: ${display}` : 'could not copy zelle handle',

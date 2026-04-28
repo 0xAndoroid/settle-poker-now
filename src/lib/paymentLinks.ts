@@ -47,21 +47,12 @@ export function composeVenmoPayUrl({
   return `venmo://paycharge?${params.toString()}`;
 }
 
-export interface ZelleHandleDescriptor {
-  handle: string;
-  kind: 'email' | 'phone';
-}
-
 /**
  * Display string for a Zelle handle — used in toast messages so the user
- * sees what got copied to their clipboard. Trims whitespace; for phone
- * handles we present them verbatim (no auto-format; users have varying
- * regional conventions).
+ * sees what got copied to their clipboard. Just trims whitespace; we
+ * don't try to discriminate email vs phone (users may register either or
+ * neither — see migration 0005 for context on the collapsed schema).
  */
-export function formatZelleHandle({
-  handle,
-  kind,
-}: ZelleHandleDescriptor): string {
-  const trimmed = handle.trim();
-  return kind === 'email' ? trimmed : trimmed;
+export function formatZelleHandle(handle: string): string {
+  return handle.trim();
 }

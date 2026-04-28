@@ -6,7 +6,7 @@
  * server records audit trail entries.
  */
 
-import type { PersistedGameSnapshot, ZelleHandleKind } from './types';
+import type { PersistedGameSnapshot } from './types';
 
 const ACTOR_HEADER = 'X-Actor-Label';
 
@@ -326,9 +326,11 @@ export interface PaymentMethodInput {
   playerId: string;
   /** Without leading '@'. Pass `null` to clear. */
   venmoUsername: string | null;
-  /** Email or US phone — discriminated by `zelleHandleKind`. */
+  /**
+   * Free-text Zelle handle — email, US phone, or whatever the
+   * recipient's bank app accepts. Pass `null` to clear.
+   */
   zelleHandle: string | null;
-  zelleHandleKind: ZelleHandleKind | null;
   actorLabel: string | null;
 }
 
@@ -348,7 +350,6 @@ export async function setPaymentMethodsRemote(
       body: JSON.stringify({
         venmoUsername: args.venmoUsername,
         zelleHandle: args.zelleHandle,
-        zelleHandleKind: args.zelleHandleKind,
       }),
     }
   );

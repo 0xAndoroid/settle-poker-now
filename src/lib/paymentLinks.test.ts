@@ -69,14 +69,14 @@ describe('composeVenmoPayUrl', () => {
 
 describe('formatZelleHandle', () => {
   it('returns the trimmed email handle as-is', () => {
-    expect(formatZelleHandle({ handle: '  kev@example.com  ', kind: 'email' })).toBe(
-      'kev@example.com'
-    );
+    expect(formatZelleHandle('  kev@example.com  ')).toBe('kev@example.com');
   });
 
   it('returns the trimmed phone handle as-is (no auto-format)', () => {
-    expect(formatZelleHandle({ handle: '+1 (555) 010-0000', kind: 'phone' })).toBe(
-      '+1 (555) 010-0000'
-    );
+    expect(formatZelleHandle('+1 (555) 010-0000')).toBe('+1 (555) 010-0000');
+  });
+
+  it('returns empty string for an all-whitespace handle', () => {
+    expect(formatZelleHandle('   \t  ')).toBe('');
   });
 });

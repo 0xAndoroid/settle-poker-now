@@ -173,8 +173,6 @@ export interface PersistedAlias {
   createdBy: string | null;
 }
 
-export type ZelleHandleKind = 'email' | 'phone';
-
 /**
  * Per-game Venmo / Zelle handles for a player. Used to render
  * deep-link icons next to settlement rows where this player is the
@@ -184,9 +182,11 @@ export interface PersistedPaymentMethod {
   playerId: string;
   /** Without leading '@'. */
   venmoUsername: string | null;
-  /** Email or US phone — discriminated by `zelleHandleKind`. */
+  /**
+   * Free-text Zelle handle (email, US phone, or whatever the recipient's
+   * bank app accepts). Stored verbatim — we don't try to discriminate.
+   */
   zelleHandle: string | null;
-  zelleHandleKind: ZelleHandleKind | null;
   updatedAt: number;
   updatedBy: string | null;
 }
