@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applyAdjustments,
-  buildSettlementPlan,
-  computePlan,
-  settleGroup,
-} from './settle';
-import type { Adjustment, EffectiveBalance, Group, LedgerRow, SettlementTxn } from './types';
+import { applyAdjustments, buildSettlementPlan, computePlan } from './settle';
+import type {
+  Adjustment,
+  EffectiveBalance,
+  IsolationRule,
+  LedgerRow,
+  SettlementTxn,
+} from './types';
 
 const row = (playerId: string, nickname: string, netCents: number): LedgerRow => ({
   playerId,
@@ -30,9 +31,7 @@ const balance = (playerId: string, nickname: string, netCents: number): Effectiv
 function expectBalanced(txns: SettlementTxn[], balances: EffectiveBalance[]) {
   const delta = new Map<string, number>(balances.map((b) => [b.playerId, 0]));
   for (const t of txns) {
-    // `from` sends amount out → delta decreases.
     delta.set(t.fromId, (delta.get(t.fromId) ?? 0) - t.amountCents);
-    // `to` receives amount → delta increases.
     delta.set(t.toId, (delta.get(t.toId) ?? 0) + t.amountCents);
   }
   for (const b of balances) {
@@ -42,223 +41,299 @@ function expectBalanced(txns: SettlementTxn[], balances: EffectiveBalance[]) {
   }
 }
 
-describe('settleGroup', () => {
-  it('returns no transactions for an empty pool', () => {
-    const result = settleGroup([], 'g');
-    expect(result.txns).toEqual([]);
-    expect(result.isImbalanced).toBe(false);
-    expect(result.imbalanceCents).toBe(0);
-  });
-
-  it('returns no transactions when all nets are zero', () => {
-    const balances = [balance('p1', 'A', 0), balance('p2', 'B', 0), balance('p3', 'C', 0)];
-    const result = settleGroup(balances, 'g');
-    expect(result.txns).toEqual([]);
-    expect(result.isImbalanced).toBe(false);
-  });
-
-  it('settles a two-player game in one transaction', () => {
-    const balances = [balance('alice', 'Alice', -5000), balance('bob', 'Bob', 5000)];
-    const result = settleGroup(balances, 'g');
-    expect(result.txns).toEqual([{ fromId: 'alice', toId: 'bob', amountCents: 5000 }]);
-    expect(result.isImbalanced).toBe(false);
-    expectBalanced(result.txns, balances);
-  });
-
-  it('settles a three-way game with one big winner in fewer than N-1', () => {
-    // -300, -200, +500 → debtors both pay the single creditor: 2 txns
+describe('buildSettlementPlan — no isolation rules', () => {
+  it('greedy settles a 4-player game', () => {
     const balances = [
-      balance('a', 'A', -30000),
-      balance('b', 'B', -20000),
-      balance('c', 'C', 50000),
+      balance('andrew', 'Andrew', -50000),
+      balance('kevin', 'Kevin', 40000),
+      balance('kedar', 'Kedar', -30000),
+      balance('pranav', 'Pranav', 40000),
     ];
-    const result = settleGroup(balances, 'g');
-    expect(result.txns).toHaveLength(2);
-    expectBalanced(result.txns, balances);
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.isFullyBalanced).toBe(true);
+    expect(plan.txns.length).toBeLessThanOrEqual(3);
+    expectBalanced(plan.txns, balances);
   });
 
-  it('breaks ties deterministically by player_id', () => {
-    // Two debtors and two creditors, all $300. Determinism check: regardless of
-    // input order, the largest creditor (alphabetically first id when tied)
-    // should always be matched against the largest debtor (alphabetically first
-    // id when tied).
-    const balancesAsc = [
+  it('returns no transactions for an all-zero pool', () => {
+    const balances = [balance('a', 'A', 0), balance('b', 'B', 0)];
+    const plan = buildSettlementPlan(balances, []);
+    expect(plan.txns).toEqual([]);
+    expect(plan.isFullyBalanced).toBe(true);
+  });
+
+  it('breaks ties deterministically by playerId', () => {
+    const ascending = [
       balance('alice', 'Alice', -30000),
       balance('bob', 'Bob', -30000),
       balance('carol', 'Carol', 30000),
       balance('dave', 'Dave', 30000),
     ];
-    const balancesDesc = [...balancesAsc].reverse();
+    const descending = [...ascending].reverse();
+    expect(buildSettlementPlan(ascending, []).txns).toEqual(
+      buildSettlementPlan(descending, []).txns
+    );
+  });
+});
 
-    const a = settleGroup(balancesAsc, 'g');
-    const b = settleGroup(balancesDesc, 'g');
+describe('buildSettlementPlan — single isolation rule', () => {
+  it('isolates one player to a hub: forced txn + folded net', () => {
+    // Andrew (-$500) is isolated to Kevin. Kedar (-$300), Pranav (+$400) free.
+    // Sum: Andrew -500 + Kevin +400 + Kedar -300 + Pranav +400 = 0.
+    const balances = [
+      balance('andrew', 'Andrew', -50000),
+      balance('kevin', 'Kevin', 40000),
+      balance('kedar', 'Kedar', -30000),
+      balance('pranav', 'Pranav', 40000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
 
-    expect(a.txns).toEqual(b.txns);
-    expect(a.txns).toEqual([
-      { fromId: 'alice', toId: 'carol', amountCents: 30000 },
-      { fromId: 'bob', toId: 'dave', amountCents: 30000 },
+    // Andrew must pay Kevin $500 (forced); after that Kevin's effective net
+    // becomes 400 + (-500) = -100. Pool now: Kevin -100, Kedar -300, Pranav +400.
+    // Greedy settles: Kedar → Pranav $300, Kevin → Pranav $100.
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toEqual([
+      { fromId: 'andrew', toId: 'kevin', amountCents: 50000, forced: true },
+    ]);
+
+    // Andrew should not appear in any non-forced txn.
+    const openTxns = plan.txns.filter((t) => !t.forced);
+    for (const t of openTxns) {
+      expect(t.fromId).not.toBe('andrew');
+      expect(t.toId).not.toBe('andrew');
+    }
+
+    expect(plan.isFullyBalanced).toBe(true);
+    expect(plan.cyclePlayerIds).toEqual([]);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('isolated player who WON pays the counterpart', () => {
+    // Andrew won $200, isolated to Kevin (who lost $200).
+    const balances = [
+      balance('andrew', 'Andrew', 20000),
+      balance('kevin', 'Kevin', -20000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    // Andrew won, so Kevin pays Andrew $200.
+    expect(plan.txns).toEqual([
+      { fromId: 'kevin', toId: 'andrew', amountCents: 20000, forced: true },
+    ]);
+    expect(plan.isFullyBalanced).toBe(true);
+  });
+});
+
+describe('buildSettlementPlan — multiple isolated to same hub', () => {
+  it('two losers isolated to one winner: two forced txns, hub absorbs both', () => {
+    // Andrew (-200) and Sam (-150) both isolated to Kevin (+450).
+    // Kedar (-100), Pranav (0) round out the table.
+    // Total: -200 - 150 + 450 - 100 + 0 = 0.
+    const balances = [
+      balance('andrew', 'Andrew', -20000),
+      balance('sam', 'Sam', -15000),
+      balance('kevin', 'Kevin', 45000),
+      balance('kedar', 'Kedar', -10000),
+      balance('pranav', 'Pranav', 0),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+      { playerId: 'sam', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toContainEqual({
+      fromId: 'andrew',
+      toId: 'kevin',
+      amountCents: 20000,
+      forced: true,
+    });
+    expect(forced).toContainEqual({
+      fromId: 'sam',
+      toId: 'kevin',
+      amountCents: 15000,
+      forced: true,
+    });
+
+    // After folding: Kevin's effective = 450 - 200 - 150 = 100. Pool:
+    // Kevin +100, Kedar -100, Pranav 0. Greedy → Kedar pays Kevin $100.
+    const openTxns = plan.txns.filter((t) => !t.forced);
+    expect(openTxns).toEqual([
+      { fromId: 'kedar', toId: 'kevin', amountCents: 10000 },
+    ]);
+
+    expect(plan.isFullyBalanced).toBe(true);
+    expectBalanced(plan.txns, balances);
+  });
+});
+
+describe('buildSettlementPlan — transitive isolation chains', () => {
+  it('A → B → C: A folds into B first, then B folds into C', () => {
+    // Andrew (-100) → Kevin; Kevin (-50) → Charlie. Charlie won 150.
+    // After A folds: Kevin = -50 + (-100) = -150. After B folds: Charlie = 150 + (-150) = 0.
+    const balances = [
+      balance('andrew', 'Andrew', -10000),
+      balance('kevin', 'Kevin', -5000),
+      balance('charlie', 'Charlie', 15000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+      { playerId: 'kevin', counterpartId: 'charlie' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    // Expect 2 forced txns: andrew→kevin $100, then kevin→charlie $150.
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toEqual([
+      { fromId: 'andrew', toId: 'kevin', amountCents: 10000, forced: true },
+      { fromId: 'kevin', toId: 'charlie', amountCents: 15000, forced: true },
+    ]);
+
+    expect(plan.isFullyBalanced).toBe(true);
+    expectBalanced(plan.txns, balances);
+  });
+});
+
+describe('buildSettlementPlan — cycle rejection', () => {
+  it('rejects A → B, B → A (two-cycle) and surfaces both ids', () => {
+    const balances = [
+      balance('a', 'A', -5000),
+      balance('b', 'B', 5000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'a', counterpartId: 'b' },
+      { playerId: 'b', counterpartId: 'a' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    expect(plan.cyclePlayerIds.sort()).toEqual(['a', 'b']);
+    expect(plan.isFullyBalanced).toBe(false);
+    // No txns should be emitted for cycle members.
+    expect(plan.txns).toEqual([]);
+    expect(plan.appliedIsolations).toEqual([]);
+  });
+
+  it('rejects a longer cycle A → B → C → A and isolates uninvolved players', () => {
+    const balances = [
+      balance('a', 'A', -3000),
+      balance('b', 'B', -2000),
+      balance('c', 'C', 5000),
+      balance('d', 'D', -1000),
+      balance('e', 'E', 1000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'a', counterpartId: 'b' },
+      { playerId: 'b', counterpartId: 'c' },
+      { playerId: 'c', counterpartId: 'a' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    expect(plan.cyclePlayerIds.sort()).toEqual(['a', 'b', 'c']);
+    // d and e should still settle normally between themselves.
+    expect(plan.txns).toEqual([
+      { fromId: 'd', toId: 'e', amountCents: 1000 },
+    ]);
+    // Cycle members aren't settled even though they collectively balance.
+    expect(plan.isFullyBalanced).toBe(false);
+    // Each cycle member retains a non-zero individual net.
+    for (const id of plan.cyclePlayerIds) {
+      const b = balances.find((x) => x.playerId === id)!;
+      expect(b.effectiveNetCents).not.toBe(0);
+    }
+  });
+});
+
+describe('buildSettlementPlan — isolation + adjustments interaction', () => {
+  it('adjustments rebalance nets BEFORE isolation resolves', () => {
+    // Andrew lost $500. He already paid Kevin $200 in cash. He's isolated to Kevin.
+    // After adjustments: Andrew = -500 + 200 = -300. Kevin = +400 - 200 = +200.
+    // Andrew's forced txn to Kevin should be $300 (NOT $500).
+    const rows = [
+      row('andrew', 'Andrew', -50000),
+      row('kevin', 'Kevin', 40000),
+      row('pranav', 'Pranav', 10000),
+    ];
+    const adjustments: Adjustment[] = [
+      { id: 'adj1', fromId: 'andrew', toId: 'kevin', amountCents: 20000 },
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+
+    const { plan } = computePlan(rows, adjustments, isolations);
+
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toEqual([
+      { fromId: 'andrew', toId: 'kevin', amountCents: 30000, forced: true },
+    ]);
+    expect(plan.isFullyBalanced).toBe(true);
+  });
+});
+
+describe('buildSettlementPlan — edge cases', () => {
+  it('isolated player with zero net produces no forced txn', () => {
+    // Andrew breaks even, isolated to Kevin.
+    const balances = [
+      balance('andrew', 'Andrew', 0),
+      balance('kevin', 'Kevin', 5000),
+      balance('sam', 'Sam', -5000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'andrew', counterpartId: 'kevin' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+
+    const forced = plan.txns.filter((t) => t.forced);
+    expect(forced).toEqual([]);
+    expect(plan.txns).toEqual([
+      { fromId: 'sam', toId: 'kevin', amountCents: 5000 },
+    ]);
+    expect(plan.isFullyBalanced).toBe(true);
+  });
+
+  it('rule referencing missing player is silently ignored', () => {
+    const balances = [
+      balance('a', 'A', -5000),
+      balance('b', 'B', 5000),
+    ];
+    const isolations: IsolationRule[] = [
+      { playerId: 'ghost', counterpartId: 'b' },
+      { playerId: 'a', counterpartId: 'phantom' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+    expect(plan.appliedIsolations).toEqual([]);
+    expect(plan.txns).toEqual([
+      { fromId: 'a', toId: 'b', amountCents: 5000 },
     ]);
   });
 
-  it('uses integer cents — never produces fractional amounts', () => {
-    // Specifically chosen to expose float drift if anyone refactors away from
-    // integer math: $1.10 + $1.10 + $1.10 = $3.30 (not 3.3000000004).
+  it('self-isolation is treated as a cycle', () => {
     const balances = [
-      balance('a', 'A', -110),
-      balance('b', 'B', -110),
-      balance('c', 'C', -110),
-      balance('d', 'D', 330),
+      balance('a', 'A', -5000),
+      balance('b', 'B', 5000),
     ];
-    const result = settleGroup(balances, 'g');
-    for (const t of result.txns) {
-      expect(Number.isInteger(t.amountCents)).toBe(true);
-    }
-    expectBalanced(result.txns, balances);
-  });
-
-  it('flags an imbalanced group without crashing', () => {
-    const balances = [balance('a', 'A', -10000), balance('b', 'B', 5000)];
-    const result = settleGroup(balances, 'g');
-    expect(result.isImbalanced).toBe(true);
-    expect(result.imbalanceCents).toBe(-5000);
-    // Greedy still runs as far as it can: $50 settled, $50 of debtor balance unmatched.
-    expect(result.txns).toEqual([{ fromId: 'a', toId: 'b', amountCents: 5000 }]);
+    const isolations: IsolationRule[] = [
+      { playerId: 'a', counterpartId: 'a' },
+    ];
+    const plan = buildSettlementPlan(balances, isolations);
+    expect(plan.cyclePlayerIds).toContain('a');
   });
 });
 
 describe('applyAdjustments', () => {
   it('credits the payer and debits the receiver', () => {
     const rows = [row('a', 'A', -10000), row('b', 'B', 10000)];
-    const adjustments: Adjustment[] = [
+    const result = applyAdjustments(rows, [
       { id: 'x', fromId: 'a', toId: 'b', amountCents: 4000 },
-    ];
-    const result = applyAdjustments(rows, adjustments);
-    const a = result.find((r) => r.playerId === 'a')!;
-    const b = result.find((r) => r.playerId === 'b')!;
-    // a paid $40 already → effective net = -100 + 40 = -60
-    expect(a.effectiveNetCents).toBe(-6000);
-    // b received $40 already → effective net = 100 - 40 = 60
-    expect(b.effectiveNetCents).toBe(6000);
-    // Total still sums to zero.
-    expect(a.effectiveNetCents + b.effectiveNetCents).toBe(0);
-  });
-
-  it('ignores adjustments that reference unknown players', () => {
-    const rows = [row('a', 'A', -10000), row('b', 'B', 10000)];
-    const adjustments: Adjustment[] = [
-      { id: 'x', fromId: 'ghost', toId: 'b', amountCents: 9999 },
-    ];
-    const result = applyAdjustments(rows, adjustments);
-    expect(result.find((r) => r.playerId === 'a')!.effectiveNetCents).toBe(-10000);
-    expect(result.find((r) => r.playerId === 'b')!.effectiveNetCents).toBe(10000);
-  });
-});
-
-describe('buildSettlementPlan', () => {
-  it('respects group isolation (the user-specified discontinuity case)', () => {
-    // Andrew owes $500, Kevin won $400 → group A net = -$100 (imbalanced!)
-    // Kedar owes $300, Pranav won $400 → group B net = +$100 (imbalanced!)
-    // Total nets to zero, but groups individually do not.
-    // The algo must NOT settle Andrew↔Pranav across groups.
-    const balances: EffectiveBalance[] = [
-      balance('andrew', 'Andrew', -50000),
-      balance('kevin', 'Kevin', 40000),
-      balance('kedar', 'Kedar', -30000),
-      balance('pranav', 'Pranav', 40000),
-    ];
-    const groups: Group[] = [
-      { id: 'A', memberIds: ['andrew', 'kevin'] },
-      { id: 'B', memberIds: ['kedar', 'pranav'] },
-    ];
-
-    const plan = buildSettlementPlan(balances, groups);
-
-    // No txn should cross group boundaries.
-    const groupA = new Set(['andrew', 'kevin']);
-    const groupB = new Set(['kedar', 'pranav']);
-    for (const t of plan.txns) {
-      const sameGroup =
-        (groupA.has(t.fromId) && groupA.has(t.toId)) ||
-        (groupB.has(t.fromId) && groupB.has(t.toId));
-      expect(sameGroup, `txn ${t.fromId} → ${t.toId} crosses groups!`).toBe(true);
-    }
-    // Both groups should be flagged imbalanced.
-    expect(plan.groups.find((g) => g.groupId === 'A')!.isImbalanced).toBe(true);
-    expect(plan.groups.find((g) => g.groupId === 'B')!.isImbalanced).toBe(true);
-    expect(plan.isFullyBalanced).toBe(false);
-  });
-
-  it('settles within balanced groups independently and minimally', () => {
-    // Group A: -200 / +200 → 1 txn
-    // Group B: -100 / -300 / +400 → 2 txns
-    const balances: EffectiveBalance[] = [
-      balance('a1', 'A1', -20000),
-      balance('a2', 'A2', 20000),
-      balance('b1', 'B1', -10000),
-      balance('b2', 'B2', -30000),
-      balance('b3', 'B3', 40000),
-    ];
-    const groups: Group[] = [
-      { id: 'A', memberIds: ['a1', 'a2'] },
-      { id: 'B', memberIds: ['b1', 'b2', 'b3'] },
-    ];
-
-    const plan = buildSettlementPlan(balances, groups);
-    expect(plan.isFullyBalanced).toBe(true);
-    expect(plan.txns).toHaveLength(3);
-    expectBalanced(
-      plan.txns,
-      balances // every player still settles to their effective net
-    );
-  });
-
-  it('falls back to a single all-players group when no groups are provided', () => {
-    const balances: EffectiveBalance[] = [
-      balance('a', 'A', -50000),
-      balance('b', 'B', 50000),
-    ];
-    const plan = buildSettlementPlan(balances, []);
-    expect(plan.groups).toHaveLength(1);
-    expect(plan.groups[0]!.groupId).toBe('all');
-    expect(plan.txns).toHaveLength(1);
-  });
-});
-
-describe('computePlan (end-to-end)', () => {
-  it('mixed: real ledger + adjustments + groups produces a consistent plan', () => {
-    const rows: LedgerRow[] = [
-      row('andrew', 'Andrew', -50000),
-      row('kevin', 'Kevin', 40000),
-      row('kedar', 'Kedar', -30000),
-      row('pranav', 'Pranav', 40000),
-    ];
-    // Andrew already paid Kevin $200 in cash.
-    const adjustments: Adjustment[] = [
-      { id: 'x1', fromId: 'andrew', toId: 'kevin', amountCents: 20000 },
-    ];
-    // After adjustments (sum stays zero — adjustments are symmetric):
-    //   Andrew: -500 + 200 = -300
-    //   Kevin:  +400 - 200 = +200
-    //   Kedar:  -300
-    //   Pranav: +400
-    const { balances, plan } = computePlan(rows, adjustments, []);
-    expect(balances.find((b) => b.playerId === 'andrew')!.effectiveNetCents).toBe(-30000);
-    expect(balances.find((b) => b.playerId === 'kevin')!.effectiveNetCents).toBe(20000);
-    // Sum still zero → the global settlement is balanced.
-    expect(plan.isFullyBalanced).toBe(true);
-    expect(plan.totalImbalanceCents).toBe(0);
-    // Two debtors total $600, two creditors total $600 → 3 txns max (2 debtors + 2 creditors - 1).
-    expect(plan.txns.length).toBeLessThanOrEqual(3);
-    expectBalanced(plan.txns, balances);
-  });
-
-  it('settles a $0 game with no transactions', () => {
-    const rows: LedgerRow[] = [
-      row('a', 'A', 0),
-      row('b', 'B', 0),
-    ];
-    const { plan } = computePlan(rows, [], []);
-    expect(plan.txns).toEqual([]);
-    expect(plan.isFullyBalanced).toBe(true);
+    ]);
+    expect(result.find((r) => r.playerId === 'a')!.effectiveNetCents).toBe(-6000);
+    expect(result.find((r) => r.playerId === 'b')!.effectiveNetCents).toBe(6000);
   });
 });

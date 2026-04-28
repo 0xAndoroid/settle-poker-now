@@ -3,21 +3,21 @@
  * and refresh-safe. State persisted:
  *   - gameId
  *   - adjustments (already-paid transfers)
- *   - groups (player partition)
+ *   - isolations (per-player "settle only with X" rules)
  *
  * The encoded payload is a base64url-encoded JSON blob (no compression — the
  * payload is small for typical 2–10-player games).
  */
 
-import type { Adjustment, Group } from './types';
+import type { Adjustment, IsolationRule } from './types';
 
 export interface HashState {
   gameId: string | null;
   adjustments: Adjustment[];
-  groups: Group[];
+  isolations: IsolationRule[];
 }
 
-const EMPTY: HashState = { gameId: null, adjustments: [], groups: [] };
+const EMPTY: HashState = { gameId: null, adjustments: [], isolations: [] };
 
 function toBase64Url(input: string): string {
   // btoa requires latin-1; encode UTF-8 first.
@@ -37,8 +37,7 @@ function fromBase64Url(input: string): string {
 }
 
 export function encodeHash(state: HashState): string {
-  // Skip empty hash for cleanliness.
-  if (!state.gameId && state.adjustments.length === 0 && state.groups.length === 0) {
+  if (!state.gameId && state.adjustments.length === 0 && state.isolations.length === 0) {
     return '';
   }
   const payload = {
@@ -49,7 +48,7 @@ export function encodeHash(state: HashState): string {
       t: a.toId,
       c: a.amountCents,
     })),
-    gr: state.groups.map((g) => ({ i: g.id, m: g.memberIds })),
+    iso: state.isolations.map((r) => ({ p: r.playerId, c: r.counterpartId })),
   };
   return toBase64Url(JSON.stringify(payload));
 }
@@ -63,11 +62,17 @@ export function decodeHash(hash: string): HashState {
     const parsed = JSON.parse(json) as {
       g?: string | null;
       a?: { i: string; f: string; t: string; c: number }[];
-      gr?: { i: string; m: string[] }[];
+      iso?: { p: string; c: string }[];
     };
 
     const adjustments: Adjustment[] = (parsed.a ?? [])
-      .filter((row) => typeof row.i === 'string' && typeof row.f === 'string' && typeof row.t === 'string' && Number.isFinite(row.c))
+      .filter(
+        (row) =>
+          typeof row.i === 'string' &&
+          typeof row.f === 'string' &&
+          typeof row.t === 'string' &&
+          Number.isFinite(row.c)
+      )
       .map((row) => ({
         id: row.i,
         fromId: row.f,
@@ -75,17 +80,14 @@ export function decodeHash(hash: string): HashState {
         amountCents: Math.trunc(row.c),
       }));
 
-    const groups: Group[] = (parsed.gr ?? [])
-      .filter((row) => typeof row.i === 'string' && Array.isArray(row.m))
-      .map((row) => ({
-        id: row.i,
-        memberIds: row.m.filter((m): m is string => typeof m === 'string'),
-      }));
+    const isolations: IsolationRule[] = (parsed.iso ?? [])
+      .filter((row) => typeof row.p === 'string' && typeof row.c === 'string')
+      .map((row) => ({ playerId: row.p, counterpartId: row.c }));
 
     return {
       gameId: typeof parsed.g === 'string' ? parsed.g : null,
       adjustments,
-      groups,
+      isolations,
     };
   } catch {
     return { ...EMPTY };
@@ -101,7 +103,7 @@ export function writeHashToLocation(state: HashState): void {
   if (typeof window === 'undefined') return;
   const encoded = encodeHash(state);
   const next = encoded ? `#${encoded}` : '';
-  // Avoid pushState — replaceState keeps history clean and prevents back-button spam.
+  // replaceState keeps history clean and prevents back-button spam.
   const target = `${window.location.pathname}${window.location.search}${next}`;
   window.history.replaceState(null, '', target);
 }

@@ -20,9 +20,9 @@ export function AdjustmentsPanel({
     .slice()
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
 
-  const [fromId, setFromId] = useState<string>('');
-  const [toId, setToId] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
+  const [fromId, setFromId] = useState('');
+  const [toId, setToId] = useState('');
+  const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const nameById = new Map(balances.map((b) => [b.playerId, b.nickname]));
@@ -34,7 +34,7 @@ export function AdjustmentsPanel({
       return;
     }
     if (fromId === toId) {
-      setError('From and to must be different.');
+      setError('From and to must differ.');
       return;
     }
     let cents: number;
@@ -54,146 +54,135 @@ export function AdjustmentsPanel({
   };
 
   return (
-    <section
-      aria-labelledby="adjustments-heading"
-      className="surface rounded-2xl overflow-hidden"
-    >
-      <header className="px-5 py-4 border-b border-[var(--border)]">
-        <h2 id="adjustments-heading" className="text-[15px] font-semibold tracking-tight">
-          Already paid
-        </h2>
-        <p className="text-xs text-[var(--fg-dim)] mt-0.5">
-          Record cash that already changed hands. The plan recomputes automatically.
-        </p>
-      </header>
+    <section aria-labelledby="adj-heading" className="slab">
+      <div className="slab-heading">
+        <span id="adj-heading">prior payments</span>
+        <span className="text-mute font-normal normal-case tracking-normal text-[10.5px]">
+          {adjustments.length} recorded
+        </span>
+      </div>
 
-      <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 border-b border-[var(--border)]">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-          <PlayerSelect
+      <form onSubmit={handleSubmit} className="px-5 py-5 border-b border-hairline bg-paper-2 space-y-4">
+        <p className="text-[12px] leading-relaxed text-ink-2">
+          Record cash that already changed hands. The plan recomputes
+          automatically.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-end">
+          <FieldSelect
+            id="adj-from"
+            label="from"
             value={fromId}
             onChange={setFromId}
             balances={sortedBalances}
-            label="From"
           />
-          <div
-            className="hidden sm:flex items-center justify-center text-[var(--fg-mute)]"
-            aria-hidden="true"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
-          </div>
-          <PlayerSelect
+          <span aria-hidden="true" className="hidden sm:block text-center text-mute pb-2">→</span>
+          <FieldSelect
+            id="adj-to"
+            label="to"
             value={toId}
             onChange={setToId}
             balances={sortedBalances}
-            label="To"
           />
         </div>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <span
-              aria-hidden="true"
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--fg-mute)] text-sm font-mono"
-            >
-              $
-            </span>
-            <input
-              id="adj-amount"
-              name="adj-amount"
-              type="text"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                setAmount(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="40.00"
-              className="input-field pl-8 font-mono"
-              aria-label="Amount in dollars"
-            />
+        <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+          <div>
+            <label htmlFor="adj-amount" className="block text-[10px] uppercase tracking-masthead font-bold mb-1">
+              amount
+            </label>
+            <div className="flex items-baseline gap-2">
+              <span aria-hidden="true" className="font-mono font-bold text-ink/60 select-none">$</span>
+              <input
+                id="adj-amount"
+                name="adj-amount"
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="40.00"
+                className="field flex-1 font-mono text-[14px]"
+                aria-label="Amount in dollars"
+              />
+            </div>
           </div>
-          <button type="submit" className="btn-primary px-4 sm:px-5">
-            Add
+          <button type="submit" className="btn btn-fill">
+            record ›
           </button>
         </div>
         {error && (
-          <p className="text-sm text-loss animate-fade-in" role="alert">
-            {error}
+          <p className="text-[12px] uppercase tracking-all font-bold text-loss" role="alert">
+            ⚠ {error}
           </p>
         )}
       </form>
 
       {adjustments.length > 0 ? (
-        <ul role="list" className="divide-y divide-[var(--border)]">
-          {adjustments.map((adj) => (
+        <ul role="list" className="font-mono">
+          {adjustments.map((adj, idx) => (
             <li
               key={adj.id}
-              className="px-5 py-3 flex items-center justify-between gap-3"
+              className="px-5 py-3 flex items-center gap-3 border-t border-hairline first:border-t-0"
             >
-              <div className="flex items-center gap-2 font-mono text-[13px] min-w-0">
-                <span className="font-medium truncate">
-                  {nameById.get(adj.fromId) ?? adj.fromId}
-                </span>
-                <span className="text-[var(--fg-mute)]" aria-hidden="true">
-                  →
-                </span>
-                <span className="font-medium truncate">
-                  {nameById.get(adj.toId) ?? adj.toId}
-                </span>
-                <span className="text-[var(--fg-dim)]">·</span>
-                <span className="tabular-nums">{formatDollars(adj.amountCents)}</span>
+              <span className="text-mute text-[11px] tabular-nums w-5 flex-shrink-0">
+                {String(idx + 1).padStart(2, '0')}
+              </span>
+              <div className="flex-1 min-w-0 text-[13px]">
+                <span className="font-bold">{nameById.get(adj.fromId) ?? adj.fromId}</span>
+                <span aria-hidden="true" className="text-mute mx-2">→</span>
+                <span className="font-bold">{nameById.get(adj.toId) ?? adj.toId}</span>
+                <span className="text-mute mx-2">·</span>
+                <span className="font-extrabold tabular-nums">{formatDollars(adj.amountCents)}</span>
               </div>
               <button
                 type="button"
                 onClick={() => onRemove(adj.id)}
-                className="btn-ghost px-2"
-                aria-label="Remove this adjustment"
+                className="btn btn-ghost btn-sm"
+                aria-label="Remove this payment record"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                ✕ remove
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="px-5 py-4 text-xs text-[var(--fg-mute)] text-center">
-          No payments recorded yet.
+        <div className="px-5 py-4 text-center text-[11.5px] text-mute uppercase tracking-all">
+          — no payments recorded —
         </div>
       )}
     </section>
   );
 }
 
-interface PlayerSelectProps {
+interface FieldSelectProps {
+  id: string;
+  label: string;
   value: string;
   onChange: (v: string) => void;
   balances: EffectiveBalance[];
-  label: string;
 }
 
-function PlayerSelect({ value, onChange, balances, label }: PlayerSelectProps) {
-  const id = `adj-${label.toLowerCase()}`;
+function FieldSelect({ id, label, value, onChange, balances }: FieldSelectProps) {
   return (
-    <label className="block" htmlFor={id}>
-      <span className="sr-only">{label}</span>
+    <div>
+      <label htmlFor={id} className="block text-[10px] uppercase tracking-masthead font-bold mb-1">
+        {label}
+      </label>
       <select
         id={id}
         name={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="input-field appearance-none pr-9 bg-[image:url('data:image/svg+xml;utf8,<svg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%238d97ab%22><path%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%20fill-rule%3D%22evenodd%22%2F><%2Fsvg>')] bg-no-repeat bg-[right_0.75rem_center] bg-[length:18px_18px]"
+        className="field font-mono font-bold text-[14px]"
       >
-        <option value="">{label}…</option>
+        <option value="">— pick {label} —</option>
         {balances.map((b) => (
           <option key={b.playerId} value={b.playerId}>
             {b.nickname}
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }

@@ -8,7 +8,10 @@ describe('hashState', () => {
       adjustments: [
         { id: 'a1', fromId: 'andrew', toId: 'kevin', amountCents: 40000 },
       ],
-      groups: [{ id: 'g1', memberIds: ['andrew', 'kevin', 'kedar'] }],
+      isolations: [
+        { playerId: 'andrew', counterpartId: 'kevin' },
+        { playerId: 'sam', counterpartId: 'kevin' },
+      ],
     };
     const encoded = encodeHash(state);
     expect(encoded).not.toContain('+');
@@ -19,21 +22,21 @@ describe('hashState', () => {
   });
 
   it('produces an empty string for empty state', () => {
-    expect(encodeHash({ gameId: null, adjustments: [], groups: [] })).toBe('');
+    expect(encodeHash({ gameId: null, adjustments: [], isolations: [] })).toBe('');
   });
 
   it('returns empty state for invalid hash', () => {
     const decoded = decodeHash('not-base64-not-json');
     expect(decoded.gameId).toBeNull();
     expect(decoded.adjustments).toEqual([]);
-    expect(decoded.groups).toEqual([]);
+    expect(decoded.isolations).toEqual([]);
   });
 
   it('handles unicode in nicknames safely', () => {
     const state: HashState = {
       gameId: 'g',
       adjustments: [{ id: 'unicode-id-✨', fromId: 'a-é', toId: 'b-π', amountCents: 100 }],
-      groups: [],
+      isolations: [],
     };
     const decoded = decodeHash(encodeHash(state));
     expect(decoded).toEqual(state);

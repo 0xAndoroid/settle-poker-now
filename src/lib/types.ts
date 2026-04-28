@@ -38,11 +38,22 @@ export interface Adjustment {
   amountCents: number;
 }
 
-/** A constrained-settlement group: members may transact only within the group. */
-export interface Group {
-  id: string;
-  /** Player IDs assigned to this group. */
-  memberIds: string[];
+/**
+ * Per-player isolation rule.
+ *
+ * "Player {playerId} only settles with {counterpartId}." The isolated player
+ * is removed from the open settlement pool and their net is folded into the
+ * counterpart's net (the counterpart absorbs the obligation). Hub-and-spoke
+ * topology: many isolated players can orbit a single counterpart, who then
+ * settles freely with everyone else.
+ *
+ * Cycles (A → B, B → A; or A → B → C → A) are rejected by the planner.
+ */
+export interface IsolationRule {
+  /** The player being isolated. Each player can have at most one rule. */
+  playerId: string;
+  /** Counterpart who absorbs this player's net. */
+  counterpartId: string;
 }
 
 /** A single settlement transaction proposed by the algorithm. */
@@ -50,25 +61,21 @@ export interface SettlementTxn {
   fromId: string;
   toId: string;
   amountCents: number;
+  /** Provenance — was this transaction forced by an isolation rule? */
+  forced?: boolean;
 }
 
-export interface GroupSettlement {
-  groupId: string;
-  /** True if sum of nets in group ≠ 0 → cannot be settled internally. */
-  isImbalanced: boolean;
-  /** Net imbalance in cents (sum of nets within the group). */
-  imbalanceCents: number;
-  txns: SettlementTxn[];
-}
-
+/** Output of the planner. */
 export interface SettlementPlan {
-  groups: GroupSettlement[];
-  /** Flat union of all txns across all groups. */
   txns: SettlementTxn[];
-  /** True if every group balances to zero. */
+  /** True if the plan settles every player to zero net. */
   isFullyBalanced: boolean;
-  /** Total cents that cannot be settled because of group imbalance. */
-  totalImbalanceCents: number;
+  /** Any unsettleable residue (cents) — non-zero only when the ledger itself doesn't balance. */
+  residueCents: number;
+  /** Players involved in cyclic isolation chains — rejected before settlement. */
+  cyclePlayerIds: string[];
+  /** Isolation rules that were applied (no cycles, both players exist). */
+  appliedIsolations: IsolationRule[];
 }
 
 /** Effective per-player balances after applying adjustments. */

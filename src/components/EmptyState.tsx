@@ -6,7 +6,7 @@ interface EmptyStateProps {
   loading?: boolean;
 }
 
-const PLACEHOLDER = 'https://www.pokernow.club/games/abc123';
+const PLACEHOLDER = 'pokernow.club/games/abc123';
 
 export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
   const [value, setValue] = useState('');
@@ -16,7 +16,7 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
     e.preventDefault();
     const gameId = extractGameId(value);
     if (!gameId) {
-      setError('That doesn’t look like a PokerNow game URL. Try the full URL.');
+      setError('Not a recognized PokerNow game URL.');
       return;
     }
     setError(null);
@@ -24,164 +24,122 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 sm:px-6 pt-12 sm:pt-20 pb-24 animate-slide-up">
-      <div className="text-center mb-8 sm:mb-10">
-        <div className="inline-flex items-center gap-2 pill bg-accent/10 text-accent mb-5 border border-accent/20">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-soft" />
-          PokerNow settlement, simplified
+    <div className="mx-auto max-w-3xl px-5 sm:px-8 py-10 sm:py-14">
+      {/* Slab 1: lede */}
+      <div className="slab">
+        <div className="px-6 py-8 sm:px-10 sm:py-12">
+          <h2 className="font-mono font-extrabold text-balance text-[34px] sm:text-[52px] leading-[0.95] tracking-tight">
+            settle the night
+            <br />
+            in the fewest
+            <br />
+            possible payments.
+          </h2>
+          <p className="mt-6 max-w-[44ch] text-[14px] sm:text-[15px] leading-relaxed text-ink-2">
+            Greedy debt simplification. Player groups optional. State lives in
+            the URL hash, no accounts. Plan exports as a printable receipt.
+          </p>
         </div>
-        <h1 className="text-3xl sm:text-5xl font-semibold tracking-tight text-balance leading-[1.05] mb-4">
-          Settle your home game in the <span className="text-accent">fewest</span> payments.
-        </h1>
-        <p className="text-[var(--fg-dim)] text-base sm:text-lg max-w-xl mx-auto text-balance">
-          Paste your PokerNow game URL. We&apos;ll fetch the ledger, compute the
-          minimum-transaction settlement, and give you a copyable plan.
-        </p>
+
+        {/* Form section, separated by a heavy rule */}
+        <div className="border-t-[3px] border-ink bg-paper-2">
+          <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-10 sm:py-7">
+            <label
+              htmlFor="game-url"
+              className="block text-[10px] uppercase tracking-masthead font-bold mb-2"
+            >
+              game url
+            </label>
+            <div className="flex items-end gap-3 sm:gap-4">
+              <span aria-hidden="true" className="font-mono text-ink/60 pb-3 select-none hidden sm:inline">
+                &raquo;
+              </span>
+              <input
+                id="game-url"
+                name="game-url"
+                type="text"
+                inputMode="url"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={PLACEHOLDER}
+                disabled={loading}
+                className="field flex-1 font-mono text-[14px] sm:text-[16px]"
+                aria-invalid={error ? 'true' : 'false'}
+                aria-describedby={error ? 'game-url-error' : undefined}
+              />
+              <button
+                type="submit"
+                disabled={loading || !value.trim()}
+                className="btn btn-fill min-w-[128px]"
+              >
+                {loading ? '· · ·' : '[ settle › ]'}
+              </button>
+            </div>
+            {error && (
+              <p
+                id="game-url-error"
+                className="mt-3 text-[12px] uppercase tracking-all font-bold text-loss"
+                role="alert"
+              >
+                ⚠ {error}
+              </p>
+            )}
+            <div className="mt-5 flex items-center gap-3 text-[12px]">
+              <span className="text-mute">no game handy?</span>
+              <button
+                type="button"
+                onClick={() => onSubmit('demo')}
+                disabled={loading}
+                className="font-bold uppercase tracking-all underline underline-offset-4 decoration-2 hover:bg-ink hover:text-paper px-1"
+              >
+                run with demo data
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <label htmlFor="game-url" className="sr-only">
-          PokerNow game URL
-        </label>
-        <div className="relative">
-          <input
-            id="game-url"
-            name="game-url"
-            type="text"
-            inputMode="url"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder={PLACEHOLDER}
-            disabled={loading}
-            className="input-field pr-32 sm:pr-36 font-mono text-[13px] sm:text-sm"
-            aria-invalid={error ? 'true' : 'false'}
-            aria-describedby={error ? 'game-url-error' : undefined}
-          />
-          <button
-            type="submit"
-            disabled={loading || !value.trim()}
-            className="btn-primary absolute right-1.5 top-1/2 -translate-y-1/2 px-4 py-2 min-h-0 h-[40px] text-sm"
+      {/* Three rules block — three "FAQ" entries laid out like an editorial sidebar */}
+      <div className="mt-10 grid sm:grid-cols-3 gap-0 border-2 border-ink">
+        {RULES.map((r, i) => (
+          <div
+            key={r.title}
+            className={`p-5 ${
+              i > 0 ? 'border-t-2 sm:border-t-0 sm:border-l-2 border-ink' : ''
+            }`}
           >
-            {loading ? (
-              <>
-                <Spinner />
-                <span className="hidden sm:inline">Loading</span>
-              </>
-            ) : (
-              <>
-                <span>Settle</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </>
-            )}
-          </button>
-        </div>
-        {error && (
-          <p
-            id="game-url-error"
-            className="text-sm text-loss flex items-start gap-1.5 animate-fade-in"
-            role="alert"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            {error}
-          </p>
-        )}
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={() => onSubmit('demo')}
-            disabled={loading}
-            className="text-[13px] text-[var(--fg-mute)] hover:text-accent transition-colors underline-offset-4 hover:underline"
-          >
-            or try with demo data →
-          </button>
-        </div>
-      </form>
-
-      <FeatureGrid />
+            <p className="text-[10px] uppercase tracking-masthead font-bold text-mute mb-2">
+              ¶ {String(i + 1).padStart(2, '0')}
+            </p>
+            <h3 className="font-mono font-extrabold text-[16px] mb-2 leading-tight">
+              {r.title}
+            </h3>
+            <p className="text-[12.5px] leading-relaxed text-ink-2">{r.body}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function Spinner() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      className="animate-spin"
-      aria-hidden="true"
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
-
-function FeatureGrid() {
-  return (
-    <div className="mt-12 grid sm:grid-cols-3 gap-3">
-      {FEATURES.map((f) => (
-        <div
-          key={f.title}
-          className="surface rounded-2xl p-4 hover:border-[var(--border-strong)] transition-colors"
-        >
-          <div className="text-accent mb-2.5">{f.icon}</div>
-          <h3 className="font-medium text-[15px] mb-1">{f.title}</h3>
-          <p className="text-[13px] text-[var(--fg-dim)] leading-relaxed">{f.desc}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const FEATURES: { title: string; desc: string; icon: React.ReactNode }[] = [
+const RULES: { title: string; body: string }[] = [
   {
-    title: 'Min-transaction algo',
-    desc: 'Greedy debt simplification matches the biggest winner with the biggest loser, repeatedly.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-      </svg>
-    ),
+    title: 'Min-transactions',
+    body: 'Greedy max-creditor↔max-debtor. ≤ N−1 payments for N players, often fewer. Integer cents only — no float drift.',
   },
   {
-    title: 'Group constraints',
-    desc: 'Friends pay friends. Partition players into groups so settlements stay within trusted circles.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="8.5" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87M17 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
+    title: 'Isolated players',
+    body: 'Mark "Andrew settles only with Kevin." Hub-and-spoke. Cycles get rejected with a clear error.',
   },
   {
-    title: 'Share as image',
-    desc: 'One tap → branded settlement card to AirDrop, Telegram, or Messages. Looks great in previews.',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="18" cy="5" r="3" />
-        <circle cx="6" cy="12" r="3" />
-        <circle cx="18" cy="19" r="3" />
-        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-      </svg>
-    ),
+    title: 'Print + share',
+    body: 'Tap any payment to copy. Hit SHARE for a 4:5 receipt PNG — clipboard on desktop, native share sheet on mobile.',
   },
 ];

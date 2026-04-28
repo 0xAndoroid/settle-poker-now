@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { formatDollars, formatNet } from '@/lib/money';
-import type { EffectiveBalance, GroupSettlement, SettlementPlan } from '@/lib/types';
+import { formatDollars } from '@/lib/money';
+import type { EffectiveBalance, SettlementPlan } from '@/lib/types';
 import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
 
 interface SettlementPanelProps {
   plan: SettlementPlan;
   balances: EffectiveBalance[];
-  /** Total number of groups configured by user (for labelling). */
-  groupLabels?: Record<string, string>;
   onShareAsImage: () => void;
   onHighlight?: (playerId: string | null) => void;
 }
@@ -16,139 +14,137 @@ interface SettlementPanelProps {
 export function SettlementPanel({
   plan,
   balances,
-  groupLabels,
   onShareAsImage,
   onHighlight,
 }: SettlementPanelProps) {
   const nameById = new Map(balances.map((b) => [b.playerId, b.nickname]));
+
   const txnLine = (fromId: string, toId: string, cents: number) =>
     `${nameById.get(fromId) ?? fromId} → ${nameById.get(toId) ?? toId}: ${formatDollars(cents)}`;
 
+  const allLines = plan.txns
+    .map((t) => txnLine(t.fromId, t.toId, t.amountCents))
+    .join('\n');
+
   const [copyAllState, setCopyAllState] = useState<'idle' | 'copied'>('idle');
-
-  const allLines = plan.txns.map((t) => txnLine(t.fromId, t.toId, t.amountCents)).join('\n');
-
   const handleCopyAll = async () => {
     if (!allLines) return;
     const ok = await copyText(allLines);
     if (ok) {
       setCopyAllState('copied');
-      setTimeout(() => setCopyAllState('idle'), 1600);
+      setTimeout(() => setCopyAllState('idle'), 1500);
     }
   };
 
-  const renderGroup = (group: GroupSettlement) => {
-    const label =
-      groupLabels?.[group.groupId] ??
-      (group.groupId === 'all' ? 'Settlement' : `Group ${group.groupId.slice(0, 6)}`);
+  const hasCycle = plan.cyclePlayerIds.length > 0;
+  const cycleNames = plan.cyclePlayerIds.map(
+    (id) => nameById.get(id) ?? id
+  );
 
-    return (
-      <div key={group.groupId} className="space-y-3">
-        {(plan.groups.length > 1 || group.isImbalanced) && (
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-[13px] font-semibold text-[var(--fg-dim)] uppercase tracking-wide">
-              {label}
-            </h3>
-            {group.isImbalanced && (
-              <div className="pill bg-loss/10 text-loss border border-loss/20">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                Off by {formatNet(group.imbalanceCents)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {group.txns.length === 0 ? (
-          <div className="surface-2 rounded-xl p-4 text-center text-sm text-[var(--fg-dim)]">
-            {group.isImbalanced
-              ? 'Group cannot settle — fix imbalance.'
-              : 'Already settled. ✨'}
-          </div>
-        ) : (
-          <ul role="list" className="space-y-2">
-            {group.txns.map((t, i) => (
-              <SettlementRow
-                key={`${group.groupId}-${i}`}
-                fromName={nameById.get(t.fromId) ?? t.fromId}
-                toName={nameById.get(t.toId) ?? t.toId}
-                amountCents={t.amountCents}
-                onHover={(hover) => onHighlight?.(hover ? t.fromId : null)}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  };
+  const totalSettled = plan.txns.reduce((acc, t) => acc + t.amountCents, 0);
 
   return (
-    <section
-      aria-labelledby="settlement-heading"
-      className="surface rounded-2xl overflow-hidden"
-    >
-      <header className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between gap-3">
-        <div>
-          <h2 id="settlement-heading" className="text-[15px] font-semibold tracking-tight">
-            Settlement plan
-          </h2>
-          <p className="text-xs text-[var(--fg-dim)] mt-0.5">
-            {plan.txns.length === 0
-              ? 'Nothing to settle'
+    <section aria-labelledby="settlement-heading" className="slab">
+      <div className="slab-heading">
+        <span id="settlement-heading">
+          payments due
+          <span className="ml-3 text-mute">
+            — {plan.txns.length === 0
+              ? 'none'
               : `${plan.txns.length} payment${plan.txns.length === 1 ? '' : 's'}`}
-          </p>
-        </div>
+          </span>
+        </span>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleCopyAll}
             disabled={plan.txns.length === 0}
-            className="btn-ghost"
+            className="btn btn-ghost btn-sm"
             aria-label="Copy all settlement instructions to clipboard"
           >
-            {copyAllState === 'copied' ? (
-              <>
-                <CheckIcon />
-                <span className="hidden sm:inline">Copied</span>
-              </>
-            ) : (
-              <>
-                <CopyIcon />
-                <span className="hidden sm:inline">Copy all</span>
-              </>
-            )}
+            {copyAllState === 'copied' ? '✓ copied' : 'copy all'}
           </button>
           <button
             type="button"
             onClick={onShareAsImage}
             disabled={plan.txns.length === 0}
-            className="btn-primary px-3 py-2 min-h-[40px] text-sm"
+            className="btn btn-fill btn-sm"
             aria-label="Share settlement plan as image"
           >
-            <ShareIcon />
-            <span>Share</span>
+            share ›
           </button>
         </div>
-      </header>
-
-      <div className="p-5 space-y-6">
-        {plan.groups.map(renderGroup)}
       </div>
+
+      {hasCycle && (
+        <div className="px-5 py-4 border-b border-ink bg-paper-2">
+          <p className="text-[10px] uppercase tracking-masthead font-bold text-loss mb-1.5">
+            ⚠ isolation cycle detected
+          </p>
+          <p className="text-[12.5px] leading-relaxed text-ink-2">
+            <span className="font-bold">{cycleNames.join(' → ')}</span>
+            {' '}form a cycle of isolation rules. Break the cycle in
+            “private ledgers” to settle these players.
+          </p>
+        </div>
+      )}
+
+      {plan.txns.length === 0 ? (
+        <div className="px-6 py-8 text-center">
+          <p className="font-bold text-[13px] uppercase tracking-all">
+            {hasCycle ? '— pending —' : 'already settled.'}
+          </p>
+          {!hasCycle && (
+            <p className="text-[11.5px] text-mute mt-1">
+              No payments necessary. Everybody&apos;s even.
+            </p>
+          )}
+        </div>
+      ) : (
+        <ol className="font-mono">
+          {plan.txns.map((t, i) => (
+            <SettlementRow
+              key={`${t.fromId}-${t.toId}-${i}`}
+              index={i + 1}
+              fromName={nameById.get(t.fromId) ?? t.fromId}
+              toName={nameById.get(t.toId) ?? t.toId}
+              amountCents={t.amountCents}
+              forced={t.forced}
+              onHover={(hover) => onHighlight?.(hover ? t.fromId : null)}
+            />
+          ))}
+        </ol>
+      )}
+
+      {plan.txns.length > 0 && (
+        <div className="border-t-2 border-ink px-5 py-3 flex items-baseline justify-between">
+          <span className="text-[10px] uppercase tracking-masthead font-bold">total moved</span>
+          <span className="font-mono font-extrabold text-[15px] tabular-nums">
+            {formatDollars(totalSettled)}
+          </span>
+        </div>
+      )}
     </section>
   );
 }
 
 interface SettlementRowProps {
+  index: number;
   fromName: string;
   toName: string;
   amountCents: number;
+  forced?: boolean;
   onHover?: (hovering: boolean) => void;
 }
 
-function SettlementRow({ fromName, toName, amountCents, onHover }: SettlementRowProps) {
+function SettlementRow({
+  index,
+  fromName,
+  toName,
+  amountCents,
+  forced,
+  onHover,
+}: SettlementRowProps) {
   const [copied, setCopied] = useState(false);
   const text = `${fromName} → ${toName}: ${formatDollars(amountCents)}`;
 
@@ -156,84 +152,56 @@ function SettlementRow({ fromName, toName, amountCents, onHover }: SettlementRow
     const ok = await copyText(text);
     if (ok) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
+      setTimeout(() => setCopied(false), 1300);
     }
   };
 
   return (
-    <li>
+    <li className="border-b border-hairline last:border-b-0">
       <button
         type="button"
         onClick={handleCopy}
         onMouseEnter={() => onHover?.(true)}
         onMouseLeave={() => onHover?.(false)}
         className={cn(
-          'group w-full text-left rounded-xl px-4 py-3 surface-2',
-          'flex items-center gap-3 sm:gap-4',
-          'transition-all duration-150',
-          'hover:border-accent/40 hover:bg-accent/5',
-          'active:scale-[0.99]',
-          'min-h-[56px]'
+          'group w-full text-left py-3 px-5 flex items-center gap-3 sm:gap-4',
+          'transition-colors duration-100',
+          'hover:bg-paper-2 active:bg-paper-3',
+          'min-h-[52px]'
         )}
         aria-label={`Copy: ${text}`}
       >
-        <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 font-mono text-[13px] sm:text-[14px]">
-          <span className="font-medium text-loss truncate flex-shrink min-w-0">{fromName}</span>
-          <ArrowIcon />
-          <span className="font-medium text-win truncate flex-shrink min-w-0">{toName}</span>
-        </div>
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <span className="font-mono font-semibold text-[14px] sm:text-[15px] tabular-nums">
-            {formatDollars(amountCents)}
+        <span className="text-mute text-[11px] tabular-nums w-5 flex-shrink-0">
+          {String(index).padStart(2, '0')}
+        </span>
+        <span className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-[13px] sm:text-[14px]">
+          <span className="font-bold truncate flex-shrink min-w-0 underline decoration-loss decoration-1 underline-offset-[3px]">
+            {fromName}
           </span>
-          <span
-            className={cn(
-              'w-7 h-7 rounded-md inline-flex items-center justify-center',
-              'opacity-0 group-hover:opacity-100 transition-opacity',
-              copied && 'opacity-100 text-win'
-            )}
-            aria-hidden="true"
-          >
-            {copied ? <CheckIcon /> : <CopyIcon />}
+          <span aria-hidden="true" className="text-mute flex-shrink-0">→</span>
+          <span className="font-bold truncate flex-shrink min-w-0">
+            {toName}
           </span>
-        </div>
+          {forced && (
+            <span className="cell text-[9px] tracking-masthead py-0 hidden sm:inline-flex">
+              isolated
+            </span>
+          )}
+        </span>
+        <span className="font-extrabold text-[14px] sm:text-[15px] tabular-nums flex-shrink-0">
+          {formatDollars(amountCents)}
+        </span>
+        <span
+          className={cn(
+            'text-[10px] uppercase tracking-all w-12 text-right text-mute',
+            'opacity-0 group-hover:opacity-100 transition-opacity',
+            copied && 'opacity-100 text-ink font-bold'
+          )}
+          aria-hidden="true"
+        >
+          {copied ? '✓ copy' : 'copy'}
+        </span>
       </button>
     </li>
-  );
-}
-
-function ArrowIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--fg-mute)] flex-shrink-0" aria-hidden="true">
-      <line x1="5" y1="12" x2="19" y2="12" />
-      <polyline points="12 5 19 12 12 19" />
-    </svg>
-  );
-}
-
-function CopyIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <polyline points="16 6 12 2 8 6" />
-      <line x1="12" y1="2" x2="12" y2="15" />
-    </svg>
   );
 }

@@ -11,19 +11,19 @@ interface MobileTabsProps {
 
 export function MobileTabs({ active, onChange, txnCount, playerCount }: MobileTabsProps) {
   const tabs: { key: TabKey; label: string; badge: number | null }[] = [
-    { key: 'plan', label: 'Plan', badge: txnCount > 0 ? txnCount : null },
-    { key: 'ledger', label: 'Ledger', badge: playerCount > 0 ? playerCount : null },
-    { key: 'config', label: 'Configure', badge: null },
+    { key: 'plan', label: 'payments', badge: txnCount > 0 ? txnCount : null },
+    { key: 'ledger', label: 'ledger', badge: playerCount > 0 ? playerCount : null },
+    { key: 'config', label: 'rules', badge: null },
   ];
 
   return (
     <div
       role="tablist"
-      aria-label="Switch between plan, ledger and configuration"
-      className="lg:hidden sticky top-[57px] z-20 bg-[var(--bg)]/85 backdrop-blur-md border-b border-[var(--border)]"
+      aria-label="Switch sections"
+      className="lg:hidden sticky top-0 z-20 bg-paper border-b-2 border-ink"
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 flex">
-        {tabs.map((t) => (
+      <div className="mx-auto max-w-5xl px-5 sm:px-8 flex border-l-2 border-r-2 border-paper">
+        {tabs.map((t, i) => (
           <button
             key={t.key}
             type="button"
@@ -31,33 +31,22 @@ export function MobileTabs({ active, onChange, txnCount, playerCount }: MobileTa
             aria-selected={active === t.key}
             onClick={() => onChange(t.key)}
             className={cn(
-              'flex-1 min-h-[48px] py-3 text-sm font-medium relative transition-colors',
+              'flex-1 min-h-[48px] py-3 font-mono text-[11px] font-extrabold uppercase tracking-masthead',
+              'border-ink relative',
+              i > 0 && 'border-l-2',
               active === t.key
-                ? 'text-[var(--fg)]'
-                : 'text-[var(--fg-mute)] hover:text-[var(--fg-dim)]'
+                ? 'bg-ink text-paper'
+                : 'text-ink-2 hover:bg-paper-2'
             )}
           >
-            <span className="inline-flex items-center gap-1.5">
-              {t.label}
+            <span className="inline-flex items-baseline gap-2">
+              <span>{t.label}</span>
               {t.badge !== null && (
-                <span
-                  className={cn(
-                    'pill border h-5 px-1.5 min-w-[20px] justify-center',
-                    active === t.key
-                      ? 'bg-accent/15 text-accent border-accent/30'
-                      : 'bg-[var(--bg-elev-2)] text-[var(--fg-mute)] border-[var(--border)]'
-                  )}
-                >
-                  {t.badge}
+                <span className="font-mono tabular-nums text-[10px]">
+                  [{t.badge}]
                 </span>
               )}
             </span>
-            {active === t.key && (
-              <span
-                aria-hidden="true"
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-12 bg-accent rounded-full"
-              />
-            )}
           </button>
         ))}
       </div>

@@ -76,7 +76,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
         redirect: 'follow',
         headers: {
           // Identify ourselves but mimic a browser-friendly Accept header.
-          'User-Agent': 'settle-poker-now/0.1 (+https://settle-poker-now.pages.dev)',
+          'User-Agent': 'settle.andrew.ee/0.2 (+https://settle.andrew.ee)',
           Accept: 'text/csv, text/plain;q=0.9, */*;q=0.5',
         },
         cf: {

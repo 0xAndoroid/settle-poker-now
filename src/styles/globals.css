@@ -4,26 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
-    --bg: #f7f8fa;
-    --bg-elev: #ffffff;
-    --bg-elev-2: #eef0f4;
-    --border: #dde1e9;
-    --border-strong: #bcc3d0;
-    --fg: #10131f;
-    --fg-dim: #5d6883;
-    --fg-mute: #8d97ab;
-  }
-
-  .dark {
-    --bg: #0a0c14;
-    --bg-elev: #10131f;
-    --bg-elev-2: #1d2237;
-    --border: #2d3550;
-    --border-strong: #414b65;
-    --fg: #f7f8fa;
-    --fg-dim: #bcc3d0;
-    --fg-mute: #8d97ab;
+    color-scheme: light only;
   }
 
   html,
@@ -32,40 +13,42 @@
     height: 100%;
   }
 
+  html {
+    /* Slightly off-white paper, with a faint vertical-line "ledger paper"
+       texture rendered as repeating linear gradients — costs no extra HTTP. */
+    background-color: #faf6ed;
+    background-image:
+      /* faint horizontal rule lines, one per ~36px (the row height we use) */
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 35px,
+        rgba(20, 20, 20, 0.04) 35px,
+        rgba(20, 20, 20, 0.04) 36px
+      ),
+      /* a hint of paper grain */
+      radial-gradient(circle at 30% 10%, rgba(154, 122, 38, 0.06), transparent 60%),
+      radial-gradient(circle at 80% 110%, rgba(20, 20, 20, 0.04), transparent 60%);
+    background-attachment: fixed;
+  }
+
   body {
-    background: var(--bg);
-    color: var(--fg);
-    font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02';
+    color: #141414;
+    font-family:
+      'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-feature-settings: 'tnum' on, 'lnum' on, 'ss01' on;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
   }
 
-  /* Subtle ambient gradient */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background:
-      radial-gradient(circle at 12% -20%, rgba(124, 92, 255, 0.18), transparent 45%),
-      radial-gradient(circle at 92% 110%, rgba(34, 197, 94, 0.12), transparent 50%);
-    pointer-events: none;
-  }
-
-  .dark body::before {
-    background:
-      radial-gradient(circle at 12% -20%, rgba(124, 92, 255, 0.22), transparent 45%),
-      radial-gradient(circle at 92% 110%, rgba(34, 197, 94, 0.10), transparent 50%);
-  }
-
   *::selection {
-    background: rgba(124, 92, 255, 0.35);
-    color: inherit;
+    background: #141414;
+    color: #faf6ed;
   }
 
-  /* Custom scrollbar (subtle) */
+  /* Custom scrollbar — subtle, paper-aged */
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -74,98 +57,206 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 6px;
+    background: rgba(20, 20, 20, 0.18);
     border: 2px solid transparent;
     background-clip: content-box;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: var(--border-strong);
-    border: 2px solid transparent;
+    background: rgba(20, 20, 20, 0.32);
     background-clip: content-box;
+    border: 2px solid transparent;
   }
 
   button,
-  [role='button'] {
+  [role='button'],
+  a {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     -webkit-appearance: none;
     appearance: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
   }
 
   input:focus-visible,
   button:focus-visible,
   [role='button']:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid theme('colors.accent.DEFAULT');
+  textarea:focus-visible,
+  select:focus-visible,
+  a:focus-visible {
+    outline: 2px solid #141414;
     outline-offset: 2px;
-    border-radius: 8px;
+  }
+
+  /* Set a base for headings so they don't get browser defaults that fight the masthead. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 700;
   }
 }
 
 @layer components {
-  .surface {
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
+  /* The defining slab — bordered "card" used for every panel.
+     Two pixels solid black on top, hairline elsewhere. Echoes the rule above
+     a column total on a printed ledger. */
+  .slab {
+    background: #faf6ed;
+    border: 1px solid #141414;
+    border-top-width: 3px;
+    position: relative;
   }
 
-  .surface-2 {
-    background: var(--bg-elev-2);
-    border: 1px solid var(--border);
+  .slab-section + .slab-section {
+    border-top: 1px solid #141414;
   }
 
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
-      transition-all duration-150
-      bg-accent text-white shadow-[0_0_0_0_rgba(124,92,255,0.5)]
-      hover:bg-accent-glow hover:shadow-[0_0_20px_-2px_rgba(124,92,255,0.6)]
-      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-      min-h-[44px];
+  /* Section heading inside a slab. */
+  .slab-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #141414;
+    background: #f1ebda;
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
   }
 
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
-      transition-all duration-150
-      bg-[var(--bg-elev-2)] text-[var(--fg)] border border-[var(--border)]
-      hover:border-[var(--border-strong)] hover:bg-[var(--bg-elev)]
-      active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
-      min-h-[44px];
+  /* Dotted divider — the single quintessential receipt-design move. */
+  .dotted {
+    height: 1px;
+    background-image: radial-gradient(circle, #141414 1px, transparent 1.4px);
+    background-size: 6px 1px;
+    background-repeat: repeat-x;
+    background-position: center;
+  }
+
+  /* Buttons — hard edges, invert on hover. No gradients, no shadow, no radius. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 18px;
+    height: 44px;
+    border: 2px solid #141414;
+    background: #faf6ed;
+    color: #141414;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+      background 80ms linear,
+      color 80ms linear;
+  }
+  .btn:hover:not(:disabled) {
+    background: #141414;
+    color: #faf6ed;
+  }
+  .btn:active:not(:disabled) {
+    transform: translate(1px, 1px);
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-fill {
+    background: #141414;
+    color: #faf6ed;
+  }
+  .btn-fill:hover:not(:disabled) {
+    background: #faf6ed;
+    color: #141414;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
-      transition-colors duration-150 text-[var(--fg-dim)]
-      hover:bg-[var(--bg-elev-2)] hover:text-[var(--fg)]
-      active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed
-      min-h-[36px];
+    border-color: transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: #141414;
+    color: #faf6ed;
+    border-color: #141414;
   }
 
-  .input-field {
-    @apply w-full rounded-xl px-4 py-3 text-sm bg-[var(--bg-elev)] border border-[var(--border)]
-      placeholder:text-[var(--fg-mute)]
-      focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none
-      transition-colors duration-150
-      min-h-[48px];
+  .btn-sm {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 11px;
   }
 
-  .pill {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  /* Typewriter input — bottom rule only, no border box. */
+  .field {
+    display: block;
+    width: 100%;
+    padding: 12px 4px;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid #141414;
+    font-family: inherit;
+    font-size: 14px;
+    color: #141414;
+    min-height: 48px;
+  }
+  .field::placeholder {
+    color: #928b7d;
+    text-transform: lowercase;
+  }
+  .field:focus {
+    outline: none;
+    background: rgba(20, 20, 20, 0.04);
   }
 
-  .skeleton {
-    @apply rounded-md;
-    background: linear-gradient(
-      90deg,
-      var(--bg-elev-2) 0%,
-      var(--bg-elev) 50%,
-      var(--bg-elev-2) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.6s linear infinite;
+  .field-boxed {
+    border: 2px solid #141414;
+    padding: 12px 14px;
+  }
+  .field-boxed:focus {
+    background: rgba(20, 20, 20, 0.06);
+  }
+
+  /* "Cell" — small bordered chip used in headers/labels. */
+  .cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border: 1px solid #141414;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Highlight a stamp — used for "DRAFT" or status pills, NEVER on data. */
+  .stamp {
+    border: 2px solid #141414;
+    padding: 4px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+    font-weight: 800;
+    transform: rotate(-2deg);
+    display: inline-block;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }
 
@@ -176,12 +267,43 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
   .text-balance {
     text-wrap: balance;
   }
-  .grid-stack > * {
-    grid-area: 1 / 1;
+
+  /* Serrated bottom edge — used on share cards and panels that "tear off". */
+  .serrated-bottom {
+    --teeth: 14px;
+    --depth: 7px;
+    -webkit-mask-image:
+      linear-gradient(to bottom, #000 calc(100% - var(--depth)), transparent calc(100% - var(--depth))),
+      linear-gradient(135deg, transparent 50%, #000 50%),
+      linear-gradient(45deg, transparent 50%, #000 50%);
+    -webkit-mask-size:
+      100% calc(100% - var(--depth)),
+      var(--teeth) var(--depth),
+      var(--teeth) var(--depth);
+    -webkit-mask-position:
+      0 0,
+      0 100%,
+      calc(var(--teeth) / 2) 100%;
+    -webkit-mask-repeat: no-repeat, repeat-x, repeat-x;
+    mask-image:
+      linear-gradient(to bottom, #000 calc(100% - var(--depth)), transparent calc(100% - var(--depth))),
+      linear-gradient(135deg, transparent 50%, #000 50%),
+      linear-gradient(45deg, transparent 50%, #000 50%);
+    mask-size:
+      100% calc(100% - var(--depth)),
+      var(--teeth) var(--depth),
+      var(--teeth) var(--depth);
+    mask-position:
+      0 0,
+      0 100%,
+      calc(var(--teeth) / 2) 100%;
+    mask-repeat: no-repeat, repeat-x, repeat-x;
   }
+
   .safe-bottom {
     padding-bottom: max(env(safe-area-inset-bottom), 1rem);
   }

@@ -1,52 +1,52 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Header } from './components/Header';
+import { Masthead } from './components/Masthead';
 import { EmptyState } from './components/EmptyState';
 import { LedgerPanel } from './components/LedgerPanel';
 import { SettlementPanel } from './components/SettlementPanel';
-import { GroupsPanel, GROUP_LABEL_FOR } from './components/GroupsPanel';
+import { IsolationPanel } from './components/IsolationPanel';
 import { AdjustmentsPanel } from './components/AdjustmentsPanel';
 import { LoadingView } from './components/LoadingView';
 import { ErrorView } from './components/ErrorView';
 import { ShareCard } from './components/ShareCard';
 import { ToastViewport } from './components/Toast';
 import { MobileTabs, type TabKey } from './components/MobileTabs';
-import { useTheme } from './hooks/useTheme';
 import { useLedger } from './hooks/useLedger';
 import { useToast } from './hooks/useToast';
 import { computePlan } from './lib/settle';
 import { readHashFromLocation, writeHashToLocation } from './lib/hashState';
-import type { Adjustment, Group } from './lib/types';
+import type { Adjustment, IsolationRule } from './lib/types';
 import { shareNodeAsImage } from './lib/shareImage';
 
 function formatGameDate(start: Date | null): string | undefined {
   if (!start) return undefined;
-  return start.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return start
+    .toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    .toLowerCase();
 }
 
 export default function App() {
-  const { theme, toggle: toggleTheme } = useTheme();
   const { state: ledgerState, fetchGame, reset: resetLedger } = useLedger();
   const { toasts, push: pushToast, dismiss: dismissToast } = useToast();
 
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [isolations, setIsolations] = useState<IsolationRule[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('plan');
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
 
   const shareCardRef = useRef<HTMLDivElement | null>(null);
 
-  // Hydrate initial state from URL hash exactly once.
+  // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     const initial = readHashFromLocation();
     if (initial.adjustments.length > 0) setAdjustments(initial.adjustments);
-    if (initial.groups.length > 0) setGroups(initial.groups);
+    if (initial.isolations.length > 0) setIsolations(initial.isolations);
     if (initial.gameId) fetchGame(initial.gameId);
   }, [fetchGame]);
 
@@ -56,12 +56,11 @@ export default function App() {
     writeHashToLocation({
       gameId: ledgerState.gameId,
       adjustments,
-      groups,
+      isolations,
     });
-  }, [ledgerState.gameId, adjustments, groups]);
+  }, [ledgerState.gameId, adjustments, isolations]);
 
-  // Drop adjustments / group memberships that reference players who no longer
-  // exist (e.g. after switching games).
+  // Drop adjustments / isolation rules referencing players that no longer exist.
   useEffect(() => {
     if (!ledgerState.ledger) return;
     const validIds = new Set(ledgerState.ledger.rows.map((r) => r.playerId));
@@ -73,34 +72,29 @@ export default function App() {
       return filtered.length === current.length ? current : filtered;
     });
 
-    setGroups((current) => {
-      const filtered = current
-        .map((g) => ({
-          ...g,
-          memberIds: g.memberIds.filter((id) => validIds.has(id)),
-        }))
-        .filter((g) => g.memberIds.length > 0);
-      return filtered.length === current.length &&
-        filtered.every((g, i) => g.memberIds.length === current[i]?.memberIds.length)
-        ? current
-        : filtered;
+    setIsolations((current) => {
+      const filtered = current.filter(
+        (r) => validIds.has(r.playerId) && validIds.has(r.counterpartId)
+      );
+      return filtered.length === current.length ? current : filtered;
     });
   }, [ledgerState.ledger]);
 
   const { balances, plan } = useMemo(() => {
     if (!ledgerState.ledger) {
-      return { balances: [], plan: { groups: [], txns: [], isFullyBalanced: true, totalImbalanceCents: 0 } };
+      return {
+        balances: [],
+        plan: {
+          txns: [],
+          isFullyBalanced: true,
+          residueCents: 0,
+          cyclePlayerIds: [],
+          appliedIsolations: [],
+        },
+      };
     }
-    return computePlan(ledgerState.ledger.rows, adjustments, groups);
-  }, [ledgerState.ledger, adjustments, groups]);
-
-  const groupLabels = useMemo(() => {
-    const labels: Record<string, string> = {};
-    for (const g of plan.groups) {
-      labels[g.groupId] = GROUP_LABEL_FOR(groups, g.groupId);
-    }
-    return labels;
-  }, [plan.groups, groups]);
+    return computePlan(ledgerState.ledger.rows, adjustments, isolations);
+  }, [ledgerState.ledger, adjustments, isolations]);
 
   const handleAddAdjustment = useCallback((adj: Adjustment) => {
     setAdjustments((current) => [...current, adj]);
@@ -112,9 +106,9 @@ export default function App() {
 
   const handleSubmitGameId = useCallback(
     (id: string) => {
-      // Reset adjustments/groups when switching to a fresh game.
+      // Reset adjustments/isolations when switching to a fresh game.
       setAdjustments([]);
-      setGroups([]);
+      setIsolations([]);
       fetchGame(id);
     },
     [fetchGame]
@@ -123,36 +117,34 @@ export default function App() {
   const handleReset = useCallback(() => {
     resetLedger();
     setAdjustments([]);
-    setGroups([]);
-    writeHashToLocation({ gameId: null, adjustments: [], groups: [] });
+    setIsolations([]);
+    writeHashToLocation({ gameId: null, adjustments: [], isolations: [] });
   }, [resetLedger]);
 
   const handleShareAsImage = useCallback(async () => {
     if (!shareCardRef.current) {
-      pushToast('Share card not ready, try again in a moment.', 'error');
+      pushToast('share card not ready, try again', 'error');
       return;
     }
     const result = await shareNodeAsImage(shareCardRef.current, {
       filename: `settle-${ledgerState.gameId ?? 'plan'}.png`,
-      title: 'Settlement plan',
-      text: 'Settlement plan generated by settle-poker-now',
+      title: 'settle.andrew.ee — settlement',
+      text: 'Settlement plan from settle.andrew.ee',
     });
     switch (result.kind) {
       case 'shared':
-        // Native share sheet — usually visible feedback enough.
-        pushToast('Shared.', 'success');
+        pushToast('shared.', 'success');
         break;
       case 'copied':
-        pushToast('Image copied — paste into chat.', 'success');
+        pushToast('copied — paste anywhere', 'success');
         break;
       case 'downloaded':
-        pushToast('PNG downloaded.', 'success');
+        pushToast('png downloaded', 'success');
         break;
       case 'cancelled':
-        // Don't toast on user cancel.
         break;
       case 'failed':
-        pushToast(result.detail ?? 'Share failed.', 'error');
+        pushToast(result.detail ?? 'share failed', 'error');
         break;
     }
   }, [ledgerState.gameId, pushToast]);
@@ -161,12 +153,7 @@ export default function App() {
 
   return (
     <div className="min-h-full">
-      <Header
-        theme={theme}
-        onThemeToggle={toggleTheme}
-        onReset={handleReset}
-        showReset={showHeader}
-      />
+      <Masthead onReset={handleReset} showReset={showHeader} />
 
       {ledgerState.status === 'idle' && (
         <EmptyState onSubmit={handleSubmitGameId} loading={false} />
@@ -178,7 +165,7 @@ export default function App() {
 
       {ledgerState.status === 'error' && (
         <ErrorView
-          message={ledgerState.error ?? 'Unknown error'}
+          message={ledgerState.error ?? 'unknown error'}
           gameId={ledgerState.gameId}
           onRetry={() => ledgerState.gameId && fetchGame(ledgerState.gameId)}
           onReset={handleReset}
@@ -194,16 +181,22 @@ export default function App() {
             playerCount={balances.length}
           />
 
-          <main className="mx-auto max-w-6xl px-4 sm:px-6 py-5 sm:py-8 pb-24">
-            <div className="hidden lg:grid lg:grid-cols-2 lg:gap-6">
-              <div className="space-y-6">
+          <main className="mx-auto max-w-5xl px-5 sm:px-8 py-6 sm:py-10 pb-24">
+            {/* Desktop: two-column broadsheet, vertical rule between */}
+            <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x-2 lg:divide-ink">
+              <div className="space-y-6 lg:pr-8">
                 <LedgerPanel
                   rows={ledgerState.ledger.rows}
                   effectiveBalances={balances}
                   highlightedPlayerId={highlightedPlayerId}
                   onHighlight={setHighlightedPlayerId}
                 />
-                <GroupsPanel balances={balances} groups={groups} onChange={setGroups} />
+                <IsolationPanel
+                  balances={balances}
+                  isolations={isolations}
+                  cyclePlayerIds={plan.cyclePlayerIds}
+                  onChange={setIsolations}
+                />
                 <AdjustmentsPanel
                   balances={balances}
                   adjustments={adjustments}
@@ -211,25 +204,23 @@ export default function App() {
                   onRemove={handleRemoveAdjustment}
                 />
               </div>
-              <div className="lg:sticky lg:top-20 lg:self-start space-y-4">
+              <div className="lg:sticky lg:top-6 lg:self-start space-y-6 lg:pl-8">
                 <SettlementPanel
                   plan={plan}
                   balances={balances}
-                  groupLabels={groupLabels}
                   onShareAsImage={handleShareAsImage}
                   onHighlight={setHighlightedPlayerId}
                 />
-                <DesktopHelpCard txnCount={plan.txns.length} />
+                <Colophon />
               </div>
             </div>
 
-            {/* Mobile: tab-switched single column */}
+            {/* Mobile: tabbed */}
             <div className="lg:hidden space-y-5">
               {activeTab === 'plan' && (
                 <SettlementPanel
                   plan={plan}
                   balances={balances}
-                  groupLabels={groupLabels}
                   onShareAsImage={handleShareAsImage}
                 />
               )}
@@ -241,10 +232,11 @@ export default function App() {
               )}
               {activeTab === 'config' && (
                 <>
-                  <GroupsPanel
+                  <IsolationPanel
                     balances={balances}
-                    groups={groups}
-                    onChange={setGroups}
+                    isolations={isolations}
+                    cyclePlayerIds={plan.cyclePlayerIds}
+                    onChange={setIsolations}
                   />
                   <AdjustmentsPanel
                     balances={balances}
@@ -259,7 +251,7 @@ export default function App() {
         </>
       )}
 
-      {/* Off-screen share card. Kept rendered (not display:none) so html-to-image can read computed styles. */}
+      {/* Off-screen share card. Kept rendered so html-to-image can read computed styles. */}
       <div
         aria-hidden="true"
         style={{
@@ -275,7 +267,6 @@ export default function App() {
             ref={shareCardRef}
             plan={plan}
             balances={balances}
-            groups={groups}
             dateLabel={formatGameDate(ledgerState.ledger.startedAt)}
           />
         )}
@@ -286,39 +277,22 @@ export default function App() {
   );
 }
 
-interface DesktopHelpCardProps {
-  txnCount: number;
-}
-
-function DesktopHelpCard({ txnCount }: DesktopHelpCardProps) {
+function Colophon() {
   return (
-    <aside className="surface rounded-2xl p-5 hidden lg:block animate-fade-in">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center flex-shrink-0 mt-0.5">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
-          </svg>
-        </div>
-        <div className="space-y-2 text-[13px] text-[var(--fg-dim)] leading-relaxed">
-          <p>
-            <span className="font-medium text-[var(--fg)]">How it works.</span>{' '}
-            Greedy max-creditor-meets-max-debtor — the biggest winner is matched
-            against the biggest loser, repeatedly, until everyone settles.
-            Produces ≤ N-1 payments for N players.
-          </p>
-          {txnCount > 0 && (
-            <p>
-              <span className="font-medium text-[var(--fg)]">Settled in {txnCount}.</span>{' '}
-              Tap any row to copy. Use <span className="font-mono text-[12px] px-1.5 py-0.5 rounded-md bg-[var(--bg-elev-2)] border border-[var(--border)]">Already paid</span> to record cash that already changed hands.
-            </p>
-          )}
-          <p className="text-[var(--fg-mute)] text-[12px]">
-            All state lives in the URL hash — share the link to share the plan.
-          </p>
-        </div>
-      </div>
+    <aside className="border-2 border-ink p-5 font-mono text-[12px] leading-relaxed text-ink-2">
+      <p className="text-[10px] uppercase tracking-masthead font-bold text-mute mb-2">
+        ¶ how it works
+      </p>
+      <p>
+        <span className="font-bold text-ink">Greedy max-creditor↔max-debtor.</span>
+        {' '}The biggest winner is matched against the biggest loser, repeatedly,
+        until everyone settles. ≤ N−1 payments for N players, often fewer.
+      </p>
+      <div className="dotted my-3" />
+      <p>
+        <span className="font-bold text-ink">URL hash state.</span> Every adjustment
+        and isolation rule encodes into the URL. Share the link, share the plan.
+      </p>
     </aside>
   );
 }
