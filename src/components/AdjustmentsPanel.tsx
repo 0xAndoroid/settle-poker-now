@@ -100,6 +100,8 @@ export function AdjustmentsPanel({
               $
             </span>
             <input
+              id="adj-amount"
+              name="adj-amount"
               type="text"
               inputMode="decimal"
               value={amount}
@@ -174,10 +176,13 @@ interface PlayerSelectProps {
 }
 
 function PlayerSelect({ value, onChange, balances, label }: PlayerSelectProps) {
+  const id = `adj-${label.toLowerCase()}`;
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="sr-only">{label}</span>
       <select
+        id={id}
+        name={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="input-field appearance-none pr-9 bg-[image:url('data:image/svg+xml;utf8,<svg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%238d97ab%22><path%20d%3D%22M5.293%207.293a1%201%200%20011.414%200L10%2010.586l3.293-3.293a1%201%200%20111.414%201.414l-4%204a1%201%200%2001-1.414%200l-4-4a1%201%200%20010-1.414z%22%20clip-rule%3D%22evenodd%22%20fill-rule%3D%22evenodd%22%2F><%2Fsvg>')] bg-no-repeat bg-[right_0.75rem_center] bg-[length:18px_18px]"

@@ -46,6 +46,7 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
         <div className="relative">
           <input
             id="game-url"
+            name="game-url"
             type="text"
             inputMode="url"
             autoComplete="off"
