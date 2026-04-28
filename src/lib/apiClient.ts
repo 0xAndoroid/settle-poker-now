@@ -89,7 +89,7 @@ export async function setPaymentCompleted(
     actorLabel: string | null;
   },
   signal?: AbortSignal
-): Promise<void> {
+): Promise<PersistedGameSnapshot> {
   const res = await fetch(
     `/api/games/${encodeURIComponent(args.gameId)}/payments/${encodeURIComponent(args.paymentId)}`,
     {
@@ -103,6 +103,7 @@ export async function setPaymentCompleted(
     }
   );
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
 }
 
 export async function addAdjustmentRemote(

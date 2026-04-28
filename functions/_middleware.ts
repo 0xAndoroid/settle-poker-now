@@ -57,6 +57,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 interface PageMeta {
   title: string;
   description: string;
+  ogImage: string;
   ogUrl: string;
 }
 
@@ -70,10 +71,11 @@ function buildMeta(
     return {
       title: 'settle.andrew.ee · poker night settlement',
       description: 'A persistent settlement plan for a PokerNow game.',
+      ogImage: `${origin}/og/${gameId}.png`,
       ogUrl,
     };
   }
-  const { players, payments } = snapshot;
+  const { game, players, payments } = snapshot;
   const settled = payments.filter((p) => p.completedAt !== null).length;
   const outstanding = payments.length - settled;
   const total = payments.reduce((acc, p) => acc + p.amountCents, 0);
@@ -92,7 +94,11 @@ function buildMeta(
       ? `All settled. ${totalUsd} moved across ${players.length} players. settle.andrew.ee`
       : `${settled}/${payments.length} payments settled · ${totalUsd} moved · settle.andrew.ee`;
 
-  return { title, description, ogUrl };
+  // Cache-bust the OG image whenever the snapshot changes so unfurl
+  // crawlers always see a fresh render after a payment is marked.
+  const ogImage = `${origin}/og/${game.id}.png?v=${game.updatedAt}`;
+
+  return { title, description, ogImage, ogUrl };
 }
 
 /* ──────── HTMLRewriter handlers ──────── */
@@ -124,9 +130,14 @@ class HeadInjector {
       `<meta property="og:url" content="${escapeHtml(this.meta.ogUrl)}">`,
       `<meta property="og:type" content="website">`,
       `<meta property="og:site_name" content="settle.andrew.ee">`,
-      `<meta name="twitter:card" content="summary">`,
+      `<meta property="og:image" content="${escapeHtml(this.meta.ogImage)}">`,
+      `<meta property="og:image:width" content="1200">`,
+      `<meta property="og:image:height" content="630">`,
+      `<meta property="og:image:type" content="image/png">`,
+      `<meta name="twitter:card" content="summary_large_image">`,
       `<meta name="twitter:title" content="${escapeHtml(this.meta.title)}">`,
       `<meta name="twitter:description" content="${escapeHtml(this.meta.description)}">`,
+      `<meta name="twitter:image" content="${escapeHtml(this.meta.ogImage)}">`,
     ];
     for (const tag of tags) el.append(tag, { html: true });
   }

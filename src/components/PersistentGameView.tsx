@@ -51,7 +51,9 @@ export function PersistentGameView({
     removeAdjustment,
     setIsolation,
     clearIsolation,
-  } = usePersistentGame(gameId, actorLabel);
+  } = usePersistentGame(gameId, actorLabel, {
+    onError: (message) => pushToast(message, 'error'),
+  });
 
   const [activeTab, setActiveTab] = useState<TabKey>('plan');
   const shareCardRef = useRef<HTMLDivElement | null>(null);

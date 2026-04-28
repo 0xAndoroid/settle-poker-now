@@ -50,5 +50,8 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   if (!updated) {
     return errorResponse(404, `No payment with id "${paymentId}".`);
   }
-  return jsonResponse({ payment: updated });
+  // Return the full updated snapshot so the client can replace local
+  // state authoritatively without an extra round-trip — closes the
+  // optimistic-vs-poll race window.
+  return jsonResponse({ game: updated });
 };

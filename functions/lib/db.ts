@@ -366,7 +366,13 @@ export async function createGame(
 
 /**
  * Toggle a payment's completion state. Records an audit entry. Bumps
- * `games.updated_at` for cache busting.
+ * `games.updated_at` for cache busting. Returns the full updated game
+ * snapshot so the caller can hand it to the client authoritatively
+ * (avoiding a race where polling fetches stale state between the PATCH
+ * commit and a follow-up GET).
+ *
+ * Returns `null` only when no row matched the (gameId, paymentId) pair
+ * — i.e. the payment doesn't exist for that game.
  */
 export async function setPaymentCompleted(
   db: D1Database,
@@ -376,8 +382,16 @@ export async function setPaymentCompleted(
     completed: boolean;
     actorLabel: string | null;
   }
-): Promise<DbPayment | null> {
+): Promise<DbGameSnapshot | null> {
   const now = Date.now();
+  // First confirm the payment exists; if not, short-circuit with null so
+  // the route handler can return 404 without firing UPDATE/INSERT writes.
+  const existing = await db
+    .prepare('SELECT id FROM payments WHERE id = ? AND game_id = ?')
+    .bind(args.paymentId, args.gameId)
+    .first<Record<string, unknown>>();
+  if (!existing) return null;
+
   const update = args.completed
     ? db
         .prepare(
@@ -404,11 +418,11 @@ export async function setPaymentCompleted(
     }),
   ]);
 
-  const row = await db
-    .prepare('SELECT * FROM payments WHERE id = ? AND game_id = ?')
-    .bind(args.paymentId, args.gameId)
-    .first<Record<string, unknown>>();
-  return row ? rowToPayment(row) : null;
+  const refreshed = await loadGame(db, args.gameId);
+  if (!refreshed) {
+    throw new Error(`Game ${args.gameId} vanished during payment toggle`);
+  }
+  return refreshed;
 }
 
 /**
