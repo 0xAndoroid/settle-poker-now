@@ -98,3 +98,76 @@ export interface EffectiveBalance {
   /** Net after adjustments are applied. */
   effectiveNetCents: number;
 }
+
+/* ──────── Persistent game — wire types shared with the worker ──────── */
+
+export type UnitProvenance = 'header' | 'heuristic' | 'user';
+
+export interface PersistedGame {
+  id: string;
+  pokernowGameId: string;
+  sourceUnit: LedgerUnit;
+  unitProvenance: UnitProvenance;
+  startedAt: number | null;
+  endedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PersistedPlayer {
+  playerId: string;
+  nickname: string;
+  netCents: number;
+}
+
+export interface PersistedPayment {
+  id: string;
+  fromPlayerId: string;
+  toPlayerId: string;
+  amountCents: number;
+  forced: boolean;
+  position: number;
+  completedAt: number | null;
+  completedBy: string | null;
+}
+
+export interface PersistedAdjustment {
+  id: string;
+  fromPlayerId: string;
+  toPlayerId: string;
+  amountCents: number;
+  createdAt: number;
+  createdBy: string | null;
+}
+
+export interface PersistedIsolation {
+  playerId: string;
+  counterpartId: string;
+  createdAt: number;
+}
+
+export type AuditAction =
+  | 'create_game'
+  | 'complete_payment'
+  | 'reopen_payment'
+  | 'add_adjustment'
+  | 'remove_adjustment'
+  | 'set_isolation'
+  | 'clear_isolation';
+
+export interface PersistedAuditEntry {
+  id: string;
+  action: AuditAction;
+  actorLabel: string | null;
+  payload: unknown;
+  createdAt: number;
+}
+
+export interface PersistedGameSnapshot {
+  game: PersistedGame;
+  players: PersistedPlayer[];
+  payments: PersistedPayment[];
+  adjustments: PersistedAdjustment[];
+  isolations: PersistedIsolation[];
+  audit: PersistedAuditEntry[];
+}

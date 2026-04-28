@@ -2,26 +2,53 @@ import { useState, type FormEvent } from 'react';
 import { extractGameId } from '@/lib/pokernow';
 
 interface EmptyStateProps {
-  onSubmit: (gameId: string) => void;
+  /** Ephemeral flow: parse hash + render in-memory. */
+  onAnalyze: (gameId: string) => void;
+  /** Persistent flow: POST to /api/games, then navigate to /g/<id>. */
+  onCreateLink: (pokernowUrl: string) => Promise<void>;
   loading?: boolean;
 }
 
 const PLACEHOLDER = 'pokernow.club/games/abc123…';
 
-export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
+export function EmptyState({ onAnalyze, onCreateLink, loading = false }: EmptyStateProps) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<'analyze' | 'persist' | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  const trimmed = value.trim();
+  const valid = !!extractGameId(trimmed);
+
+  const handleAnalyze = (e: FormEvent) => {
     e.preventDefault();
-    const gameId = extractGameId(value);
+    const gameId = extractGameId(trimmed);
     if (!gameId) {
       setError('Not a recognized PokerNow game URL.');
       return;
     }
     setError(null);
-    onSubmit(gameId);
+    setSubmitting('analyze');
+    onAnalyze(gameId);
+    // The parent handles state transition; resetting the local flag on
+    // unmount or via the loading prop change is enough.
   };
+
+  const handlePersist = async () => {
+    if (!extractGameId(trimmed)) {
+      setError('Not a recognized PokerNow game URL.');
+      return;
+    }
+    setError(null);
+    setSubmitting('persist');
+    try {
+      await onCreateLink(trimmed);
+    } catch (err) {
+      setSubmitting(null);
+      setError((err as Error).message);
+    }
+  };
+
+  const isLoading = loading || submitting !== null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
@@ -29,25 +56,26 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
       <div className="mb-10 sm:mb-12">
         <p className="ticker-label text-accent mb-4">
           <span className="live-dot mr-2 align-middle" aria-hidden="true" />
-          poker night settlement · v0.3
+          poker night settlement · v0.4
         </p>
         <h2 className="font-sans font-bold text-[40px] sm:text-[60px] leading-[0.98] tracking-tight-3 text-balance max-w-[18ch]">
           Settle the night in the fewest possible payments.
         </h2>
         <p className="mt-5 text-fg-dim text-[15px] sm:text-[16px] leading-relaxed max-w-[52ch]">
-          Greedy debt simplification. Per-player isolation rules. Already-paid
-          adjustments. State lives in the URL hash. Plan exports as a 4:5 image
-          for chat.
+          Greedy debt simplification. Per-player isolation rules. Mark
+          payments settled together. State lives in the URL hash for
+          ad-hoc games — or persist with a shareable link that updates as
+          your group pays.
         </p>
       </div>
 
       {/* URL input — terminal-style entry */}
-      <form onSubmit={handleSubmit} className="card">
+      <form onSubmit={handleAnalyze} className="card">
         <div className="card-header">
           <span className="ticker-label-strong">› paste game url</span>
           <span className="ticker-label hidden sm:inline">step 01 / 03</span>
         </div>
-        <div className="p-4 sm:p-5">
+        <div className="p-4 sm:p-5 space-y-4">
           <div className="flex items-stretch gap-2 sm:gap-3">
             <span
               aria-hidden="true"
@@ -70,35 +98,48 @@ export function EmptyState({ onSubmit, loading = false }: EmptyStateProps) {
                 if (error) setError(null);
               }}
               placeholder={PLACEHOLDER}
-              disabled={loading}
+              disabled={isLoading}
               className="field flex-1 font-mono text-[14px]"
               aria-invalid={error ? 'true' : 'false'}
               aria-describedby={error ? 'game-url-error' : undefined}
             />
+          </div>
+
+          {/* Two side-by-side actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-stretch">
+            <button
+              type="button"
+              onClick={handlePersist}
+              disabled={isLoading || !valid}
+              className="btn btn-fill h-12 text-[13px]"
+            >
+              {submitting === 'persist' ? 'creating…' : 'create persistent link ›'}
+            </button>
             <button
               type="submit"
-              disabled={loading || !value.trim()}
-              className="btn btn-fill min-w-[120px]"
+              disabled={isLoading || !valid}
+              className="btn h-12 text-[13px]"
             >
-              {loading ? 'loading…' : 'settle ›'}
+              {submitting === 'analyze' ? 'loading…' : 'analyze (ephemeral)'}
             </button>
           </div>
+
           {error && (
             <p
               id="game-url-error"
-              className="mt-3 text-loss text-[12px] font-semibold flex items-center gap-2"
+              className="text-loss text-[12px] font-semibold flex items-center gap-2"
               role="alert"
             >
               <span className="pill pill-loss">err</span>
               {error}
             </p>
           )}
-          <div className="mt-4 flex items-center gap-2 text-[12px] text-fg-mute">
+          <div className="flex items-center gap-2 text-[12px] text-fg-mute">
             <span>no game?</span>
             <button
               type="button"
-              onClick={() => onSubmit('demo')}
-              disabled={loading}
+              onClick={() => onAnalyze('demo')}
+              disabled={isLoading}
               className="text-accent hover:underline underline-offset-4 font-semibold"
             >
               run with demo data ›
@@ -132,13 +173,13 @@ const RULES: { tag: string; title: string; body: string }[] = [
     body: 'Greedy max-creditor↔max-debtor. ≤ N−1 payments for N players. Integer cents only — no float drift.',
   },
   {
-    tag: 'rules',
-    title: 'isolated-player rules',
-    body: '“Andrew settles only with Kevin.” Hub-and-spoke. Cycles get caught and surfaced.',
+    tag: 'persist',
+    title: 'shareable persistent links',
+    body: 'Hit “create link”, drop it in chat, watch payments tick off as your group pays. Live preview in iMessage / Telegram unfurls.',
   },
   {
-    tag: 'export',
-    title: 'tap-to-copy + image share',
-    body: 'Tap any payment to copy. Hit SHARE for a 4:5 PNG — clipboard on desktop, native sheet on mobile.',
+    tag: 'rules',
+    title: 'isolated-player + adjustments',
+    body: '“Andrew settles only with Kevin.” Already paid in cash? Record it. The plan recomputes.',
   },
 ];

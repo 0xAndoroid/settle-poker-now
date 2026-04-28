@@ -1,3 +1,11 @@
 name = "settle-poker-now"
 compatibility_date = "2025-01-15"
 pages_build_output_dir = "./dist"
+
+# D1 — persistent shareable game ledgers.
+# Bound as `DB` inside Pages Functions (`ctx.env.DB`).
+[[d1_databases]]
+binding = "DB"
+database_name = "settle-poker-now-db"
+database_id = "bdd16eec-dc1b-4f72-bde0-84dabea7650a"
+migrations_dir = "./migrations"

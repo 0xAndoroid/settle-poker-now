@@ -306,6 +306,44 @@
     color: rgb(var(--accent));
   }
 
+  /* Hard-edged custom checkbox in the trading-terminal palette. Native
+     <input type=checkbox> styling reset, then drawn manually. Matches the
+     accent magenta when checked. */
+  .checkbox-poker {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid rgb(var(--line-strong));
+    background: rgb(var(--surface));
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      border-color 80ms linear,
+      background 80ms linear;
+  }
+  .checkbox-poker:hover:not(:disabled) {
+    border-color: rgb(var(--accent));
+  }
+  .checkbox-poker:checked {
+    background: rgb(var(--gain));
+    border-color: rgb(var(--gain));
+  }
+  .checkbox-poker:checked::after {
+    content: '';
+    width: 10px;
+    height: 6px;
+    border-left: 2px solid rgb(var(--bg));
+    border-bottom: 2px solid rgb(var(--bg));
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .checkbox-poker:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   /* Live blip — small dot that pulses to signal "fresh data".
      Static for users who request reduced motion. */
   .live-dot {
