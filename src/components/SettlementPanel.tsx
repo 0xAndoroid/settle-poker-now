@@ -37,6 +37,11 @@ interface SettlementPanelProps {
   finalizing?: boolean;
   /** Persistent flow: per-player Venmo / Zelle handles. Drives row icons. */
   paymentMethodsByPlayerId?: ReadonlyMap<string, PersistedPaymentMethod>;
+  /**
+   * Per-game note threaded into the Venmo `note=` query param. Empty /
+   * null falls back to "poker night".
+   */
+  gameNote?: string | null;
   /** Toast hook so row icon clicks can surface confirmations. */
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
@@ -53,6 +58,7 @@ export function SettlementPanel({
   onFinalize,
   finalizing = false,
   paymentMethodsByPlayerId,
+  gameNote,
   pushToast,
   onHighlight,
 }: SettlementPanelProps) {
@@ -181,6 +187,7 @@ export function SettlementPanel({
                 completedBy={completion?.completedBy ?? null}
                 onTogglePayment={onTogglePayment}
                 recipientMethod={recipientMethod}
+                gameNote={gameNote ?? null}
                 pushToast={pushToast}
                 onHover={(hover) => onHighlight?.(hover ? t.fromId : null)}
               />
@@ -216,6 +223,8 @@ interface SettlementRowProps {
   completedBy: string | null;
   onTogglePayment?: (paymentId: string, next: boolean) => void | Promise<void>;
   recipientMethod: PersistedPaymentMethod | null;
+  /** Threaded into the Venmo deep-link `note=` query param. */
+  gameNote: string | null;
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHover?: (hovering: boolean) => void;
 }
@@ -231,6 +240,7 @@ function SettlementRow({
   completedBy,
   onTogglePayment,
   recipientMethod,
+  gameNote,
   pushToast,
   onHover,
 }: SettlementRowProps) {
@@ -249,13 +259,12 @@ function SettlementRow({
       const url = composeVenmoPayUrl({
         recipientUsername: recipientMethod.venmoUsername,
         amountCents,
+        note: gameNote,
       });
-      // Anchor element click is more reliable than `window.location.href = url`
-      // for custom-scheme URLs on iOS Safari.
-      const a = document.createElement('a');
-      a.href = url;
-      a.rel = 'noopener noreferrer';
-      a.click();
+      // Universal HTTPS URL — open in a new tab on desktop (browser
+      // navigates to venmo.com with the prefilled form), and let mobile
+      // OSes intercept and hand off to the installed Venmo app.
+      window.open(url, '_blank', 'noopener,noreferrer');
       pushToast?.(
         `opening venmo to pay @${recipientMethod.venmoUsername} ${formatDollars(amountCents)}`,
         'info'
@@ -335,22 +344,27 @@ function SettlementRow({
               </span>
             )}
           </span>
+          {/*
+           * Fixed-width 64px icon slot. Always rendered so the amount
+           * column lines up across rows regardless of how many handles
+           * (0, 1, or 2) the recipient has. When the row is complete the
+           * slot is rendered but icons are hidden — keeps alignment.
+           */}
+          <PaymentMethodIcons
+            recipientName={toName}
+            method={recipientMethod}
+            visible={!isCompleted}
+            onVenmoClick={handleVenmoClick}
+            onZelleClick={handleZelleClick}
+          />
           <span
             className={cn(
-              'font-mono num font-bold text-[14px] sm:text-[15px] flex-shrink-0',
+              'font-mono num font-bold text-[14px] sm:text-[15px] flex-shrink-0 text-right',
               isCompleted ? 'text-fg-dim line-through' : 'text-fg'
             )}
           >
             {formatDollars(amountCents)}
           </span>
-          {recipientMethod && !isCompleted && (
-            <PaymentMethodIcons
-              recipientName={toName}
-              method={recipientMethod}
-              onVenmoClick={handleVenmoClick}
-              onZelleClick={handleZelleClick}
-            />
-          )}
         </div>
       </div>
 
@@ -376,40 +390,47 @@ function SettlementRow({
 
 interface PaymentMethodIconsProps {
   recipientName: string;
-  method: PersistedPaymentMethod;
+  method: PersistedPaymentMethod | null;
+  /** When false, the slot is rendered (for layout) but icons are hidden. */
+  visible: boolean;
   onVenmoClick: () => void;
   onZelleClick: () => void;
 }
 
+/**
+ * Fixed-width slot for Venmo / Zelle icons. The slot itself is always
+ * 64px wide (set in CSS via `.payment-icons-slot`) so the amount column
+ * lines up across rows regardless of how many handles the recipient has.
+ */
 function PaymentMethodIcons({
   recipientName,
   method,
+  visible,
   onVenmoClick,
   onZelleClick,
 }: PaymentMethodIconsProps) {
-  const hasVenmo = !!method.venmoUsername;
-  const hasZelle = !!method.zelleHandle;
-  if (!hasVenmo && !hasZelle) return null;
+  const hasVenmo = !!method?.venmoUsername;
+  const hasZelle = !!method?.zelleHandle;
   return (
-    <span className="flex items-center gap-1 shrink-0">
-      {hasVenmo && (
+    <span className="payment-icons-slot">
+      {visible && hasVenmo && (
         <button
           type="button"
           onClick={onVenmoClick}
           className="payment-icon"
-          aria-label={`Open Venmo to pay ${recipientName} (@${method.venmoUsername})`}
-          title={`venmo @${method.venmoUsername}`}
+          aria-label={`Open Venmo to pay ${recipientName} (@${method!.venmoUsername})`}
+          title={`venmo @${method!.venmoUsername}`}
         >
           <VenmoMark />
         </button>
       )}
-      {hasZelle && (
+      {visible && hasZelle && (
         <button
           type="button"
           onClick={onZelleClick}
           className="payment-icon"
           aria-label={`Copy ${recipientName}'s Zelle handle to clipboard`}
-          title={`zelle: ${method.zelleHandle}`}
+          title={`zelle: ${method!.zelleHandle}`}
         >
           <ZelleMark />
         </button>
@@ -418,6 +439,11 @@ function PaymentMethodIcons({
   );
 }
 
+/**
+ * Stylised Venmo glyph (the company's circular blue mark, mono-color).
+ * Inherits `currentColor` from `.payment-icon` so light/dark themes
+ * compose correctly.
+ */
 function VenmoMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -429,12 +455,17 @@ function VenmoMark() {
   );
 }
 
+/**
+ * Stylised "Z" mark — Zelle's distinctive logotype shape (top bar →
+ * diagonal → bottom bar). Mono-color via `currentColor` so it follows
+ * the theme accent on hover.
+ */
 function ZelleMark() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
       <path
         fill="currentColor"
-        d="M12 2c5.5 0 10 4.5 10 10s-4.5 10-10 10S2 17.5 2 12 6.5 2 12 2zm-2 5v2H7l-.4.6L11 17h-3v2h6v-2l3.4-7.4.6-.6h-3V7h-5z"
+        d="M5 4h14v2.5l-7 11h7V20H5v-2.5l7-11H5z"
       />
     </svg>
   );

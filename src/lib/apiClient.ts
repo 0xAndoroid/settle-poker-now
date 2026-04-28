@@ -77,6 +77,11 @@ export interface CreateFinalizedGameInput {
   }>;
   isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
   aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+  /**
+   * Free-text per-game note (Venmo deep-link `note=` param). Optional —
+   * the UI falls back to "poker night" when null/empty.
+   */
+  note?: string | null;
 }
 
 /**
@@ -103,6 +108,7 @@ export async function createFinalizedGame(
       adjustments: input.adjustments,
       isolations: input.isolations,
       aliases: input.aliases,
+      note: input.note ?? null,
     }),
   });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
@@ -332,6 +338,30 @@ export interface PaymentMethodInput {
    */
   zelleHandle: string | null;
   actorLabel: string | null;
+}
+
+/**
+ * Patch the per-game note (Venmo deep-link `note=` param). Allowed even
+ * when the game is finalized — purely a UX setting, not game state.
+ */
+export async function setGameNoteRemote(
+  args: { gameId: string; note: string | null; actorLabel: string | null },
+  signal?: AbortSignal
+): Promise<PersistedGameSnapshot> {
+  const res = await fetch(
+    `/api/games/${encodeURIComponent(args.gameId)}/note`,
+    {
+      method: 'PATCH',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...actorHeaders(args.actorLabel),
+      },
+      body: JSON.stringify({ note: args.note }),
+    }
+  );
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+  return ((await res.json()) as GameResponse).game;
 }
 
 export async function setPaymentMethodsRemote(

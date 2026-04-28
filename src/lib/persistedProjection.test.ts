@@ -84,6 +84,7 @@ describe('projectSettlementPlan', () => {
       updatedAt: 0,
       finalizedAt: null,
       finalizedBy: null,
+      note: null,
     },
     players: [
       { playerId: 'a', nickname: 'A', netCents: -5000 },

@@ -3,6 +3,7 @@ import {
   ApiError,
   fetchPersistentGame,
   finalizeGameRemote,
+  setGameNoteRemote,
   setPaymentCompleted,
   setPaymentMethodsRemote,
   type PaymentMethodInput,
@@ -71,6 +72,7 @@ export function usePersistentGame(
   savePaymentMethods: (
     args: Omit<PaymentMethodInput, 'gameId' | 'actorLabel'>
   ) => Promise<void>;
+  saveNote: (note: string | null) => Promise<void>;
   finalizeLegacy: () => Promise<void>;
 } {
   const [state, setState] = useState<PersistentGameState>({
@@ -249,11 +251,26 @@ export function usePersistentGame(
     }
   }, [actorLabel, gameId, markMutation, reportError]);
 
+  const saveNote = useCallback(
+    async (note: string | null) => {
+      markMutation();
+      try {
+        const game = await setGameNoteRemote({ gameId, note, actorLabel });
+        markMutation();
+        setState({ status: 'success', game, error: null });
+      } catch (err) {
+        reportError(err);
+      }
+    },
+    [actorLabel, gameId, markMutation, reportError]
+  );
+
   return {
     state,
     refresh,
     togglePayment,
     savePaymentMethods,
+    saveNote,
     finalizeLegacy,
   };
 }

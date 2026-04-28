@@ -19,6 +19,7 @@ const ACTION_LABEL: Record<string, string> = {
   finalize: 'finalized 🔒',
   unfinalize: 'unfinalized',
   set_payment_methods: 'set payment handles',
+  set_note: 'set venmo note',
 };
 
 export function AuditLogPanel({ entries, players }: AuditLogPanelProps) {

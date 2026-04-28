@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { composeVenmoPayUrl, formatZelleHandle } from './paymentLinks';
 
 describe('composeVenmoPayUrl', () => {
-  it('builds the canonical pay URL with two-decimal amount + default note', () => {
+  it('builds the canonical universal URL with two-decimal amount + default note', () => {
     const url = composeVenmoPayUrl({
       recipientUsername: 'kev-stmts',
       amountCents: 42500,
     });
     expect(url).toBe(
-      'venmo://paycharge?txn=pay&recipients=kev-stmts&amount=425.00&note=settle.andrew.ee'
+      'https://venmo.com/u/kev-stmts?txn=pay&amount=425.00&note=poker+night'
     );
   });
 
@@ -17,7 +17,7 @@ describe('composeVenmoPayUrl', () => {
       recipientUsername: '@kev-stmts',
       amountCents: 100,
     });
-    expect(url).toContain('recipients=kev-stmts');
+    expect(url).toContain('/u/kev-stmts?');
     expect(url).not.toContain('@kev-stmts');
   });
 
@@ -37,9 +37,28 @@ describe('composeVenmoPayUrl', () => {
     const url = composeVenmoPayUrl({
       recipientUsername: 'a',
       amountCents: 100,
-      note: 'poker night & friends!',
+      note: 'poker game 4/27 & friends!',
     });
-    expect(url).toContain('note=poker+night+%26+friends%21');
+    expect(url).toContain('note=poker+game+4%2F27+%26+friends%21');
+  });
+
+  it('falls back to "poker night" when note is null / empty / whitespace', () => {
+    for (const note of [null, '', '   ', '\t  \n'] as const) {
+      const url = composeVenmoPayUrl({
+        recipientUsername: 'a',
+        amountCents: 100,
+        note,
+      });
+      expect(url).toContain('note=poker+night');
+    }
+  });
+
+  it('URL-encodes non-ASCII usernames in the path segment', () => {
+    const url = composeVenmoPayUrl({
+      recipientUsername: 'kévin',
+      amountCents: 100,
+    });
+    expect(url).toContain('/u/k%C3%A9vin?');
   });
 
   it('throws on an empty username', () => {

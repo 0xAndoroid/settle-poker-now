@@ -47,7 +47,7 @@ export function PersistentGameView({
   const { identity, setIdentity } = useGameIdentity(gameId);
   const actorLabel = identity?.nickname ?? null;
 
-  const { state, togglePayment, savePaymentMethods, finalizeLegacy } =
+  const { state, togglePayment, savePaymentMethods, saveNote, finalizeLegacy } =
     usePersistentGame(gameId, actorLabel, {
       onError: (message) => pushToast(message, 'error'),
     });
@@ -258,6 +258,7 @@ export function PersistentGameView({
               onCopyLink={handleCopyLink}
               onShare={handleShare}
               paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+              gameNote={state.game.game.note}
               pushToast={pushToast}
             />
             <AuditLogPanel
@@ -269,6 +270,8 @@ export function PersistentGameView({
               isFinalized={isFinalized}
               finalizedAt={state.game.game.finalizedAt}
               finalizedBy={state.game.game.finalizedBy}
+              note={state.game.game.note}
+              onSaveNote={saveNote}
             />
           </div>
         </div>
@@ -302,6 +305,7 @@ export function PersistentGameView({
               onCopyLink={handleCopyLink}
               onShare={handleShare}
               paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+              gameNote={state.game.game.note}
               pushToast={pushToast}
             />
           )}
@@ -446,6 +450,8 @@ interface PersistentColophonProps {
   isFinalized: boolean;
   finalizedAt: number | null;
   finalizedBy: string | null;
+  note: string | null;
+  onSaveNote: (next: string | null) => Promise<void>;
 }
 
 function PersistentColophon({
@@ -453,6 +459,8 @@ function PersistentColophon({
   isFinalized,
   finalizedAt,
   finalizedBy,
+  note,
+  onSaveNote,
 }: PersistentColophonProps) {
   const stamp = finalizedAt
     ? new Date(finalizedAt).toLocaleString('en-US', {
@@ -485,10 +493,118 @@ function PersistentColophon({
           ) : null}
         </p>
       )}
+      <NoteEditor note={note} onSave={onSaveNote} />
+      <hr className="hr my-3" />
       <p>
         Polling every 8s while this tab is open. Marking a payment refreshes
         all open viewers.
       </p>
     </aside>
+  );
+}
+
+/**
+ * Inline editor for the per-game note (Venmo deep-link `note=` param).
+ * Read-only display by default — click "edit" to swap into a text input
+ * + save/cancel. Local form state stays in `useState` (the parent's note
+ * prop is read into a ref-equivalent on enter-edit so a poll-tick refresh
+ * doesn't clobber typing).
+ */
+function NoteEditor({
+  note,
+  onSave,
+}: {
+  note: string | null;
+  onSave: (next: string | null) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const display = note && note.trim().length > 0 ? note : 'poker night';
+  const isDefault = !note || note.trim().length === 0;
+
+  const enterEdit = () => {
+    setDraft(note ?? '');
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft('');
+  };
+
+  const submit = async () => {
+    setSaving(true);
+    const trimmed = draft.trim();
+    try {
+      await onSave(trimmed.length > 0 ? trimmed : null);
+      setEditing(false);
+      setDraft('');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <p className="flex items-baseline gap-2 flex-wrap">
+        <span className="ticker-label">venmo note ·</span>
+        <span
+          className={
+            isDefault ? 'text-fg-dim italic' : 'text-fg font-semibold'
+          }
+        >
+          {display}
+        </span>
+        <button
+          type="button"
+          onClick={enterEdit}
+          className="ticker-label text-accent hover:text-fg"
+          aria-label="Edit Venmo note"
+        >
+          ✎ edit
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <label htmlFor="note-editor-input" className="ticker-label block">
+        venmo note
+      </label>
+      <input
+        id="note-editor-input"
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="poker night"
+        maxLength={80}
+        className="field w-full font-mono text-[13px]"
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        autoFocus
+      />
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={saving}
+          className="btn btn-fill btn-sm"
+        >
+          {saving ? 'saving…' : 'save ›'}
+        </button>
+        <button
+          type="button"
+          onClick={cancelEdit}
+          disabled={saving}
+          className="btn btn-ghost btn-sm"
+        >
+          cancel
+        </button>
+      </div>
+    </div>
   );
 }

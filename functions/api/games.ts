@@ -67,6 +67,11 @@ interface CreateBody {
   adjustments?: AdjustmentBody[];
   isolations?: IsolationBody[];
   aliases?: AliasBody[];
+  /**
+   * Free-text per-game note (Venmo deep-link `note=` param). Optional —
+   * the UI falls back to "poker night" when null/empty.
+   */
+  note?: string | null;
 }
 
 function isValidAdjustment(x: unknown): x is AdjustmentBody {
@@ -137,6 +142,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return errorResponse(422, 'Ledger has no players.');
   }
 
+  const note = typeof body.note === 'string' ? body.note : null;
+
   if (finalize) {
     try {
       const snapshot = await createGameFinalized(ctx.env.DB, {
@@ -150,6 +157,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         isolations,
         aliases,
         actorLabel: body.actorLabel ?? null,
+        note,
       });
       return jsonResponse(
         { id: snapshot.game.id, game: snapshot },
@@ -171,6 +179,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     endedAt: ledger.endedAt?.getTime() ?? null,
     rows: ledger.rows,
     actorLabel: body.actorLabel ?? null,
+    note,
   });
 
   return jsonResponse(

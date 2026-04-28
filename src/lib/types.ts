@@ -130,6 +130,11 @@ export interface PersistedGame {
   finalizedAt: number | null;
   /** Actor label of whoever finalized; null when not finalized. */
   finalizedBy: string | null;
+  /**
+   * Free-text per-game note (Venmo deep-link `note=` param). Null when
+   * unset; the UI falls back to "poker night".
+   */
+  note: string | null;
 }
 
 export interface PersistedPlayer {
@@ -203,7 +208,8 @@ export type AuditAction =
   | 'remove_alias'
   | 'finalize'
   | 'unfinalize'
-  | 'set_payment_methods';
+  | 'set_payment_methods'
+  | 'set_note';
 
 export interface PersistedAuditEntry {
   id: string;

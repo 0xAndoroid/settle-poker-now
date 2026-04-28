@@ -53,6 +53,7 @@ export function EphemeralView({
   const [activeTab, setActiveTab] = useState<EphemeralTabKey>('ledger');
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
   const [finalizing, setFinalizing] = useState(false);
+  const [note, setNote] = useState('');
 
   // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
@@ -273,10 +274,13 @@ export function EphemeralView({
       pushToast('break the isolation cycle first', 'error');
       return;
     }
+    const trimmedNote = note.trim();
+    const noteForConfirm = trimmedNote.length > 0 ? trimmedNote : 'poker night';
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
-        'Finalize this game?\n\nThe settlement plan will lock and a shareable link will be minted. ' +
+        `Finalize this game with note: "${noteForConfirm}"?\n\n` +
+          'The settlement plan will lock and a shareable link will be minted. ' +
           'You can still mark payments complete, but you will not be able to add more aliases / adjustments / private rules.'
       )
     ) {
@@ -304,6 +308,7 @@ export function EphemeralView({
           playerId: a.playerId,
           aliasToPlayerId: a.aliasToPlayerId,
         })),
+        note: trimmedNote.length > 0 ? trimmedNote : null,
       });
       navigate(gamePath(game.game.id));
     } catch (err) {
@@ -316,7 +321,7 @@ export function EphemeralView({
       pushToast(message, 'error');
       setFinalizing(false);
     }
-  }, [adjustments, aliases, isolations, ledgerState.gameId, parsedLedger, plan.cyclePlayerIds.length, pushToast]);
+  }, [adjustments, aliases, isolations, ledgerState.gameId, note, parsedLedger, plan.cyclePlayerIds.length, pushToast]);
 
   const reset = useCallback(() => {
     resetLedger();
@@ -325,6 +330,7 @@ export function EphemeralView({
     setAliases([]);
     setUnitOverride(null);
     setParseError(null);
+    setNote('');
     writeHashToLocation({
       gameId: null,
       adjustments: [],
@@ -404,6 +410,7 @@ export function EphemeralView({
             />
           </div>
           <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
+            <NotePromptCard value={note} onChange={setNote} />
             <SettlementPanel
               plan={plan}
               balances={balances}
@@ -426,6 +433,7 @@ export function EphemeralView({
                 hasUserOverride={unitOverride !== null}
                 onUnitChange={setUnitOverride}
               />
+              <NotePromptCard value={note} onChange={setNote} />
               <SettlementPanel
                 plan={plan}
                 balances={balances}
@@ -459,6 +467,50 @@ export function EphemeralView({
         </div>
       </main>
     </>
+  );
+}
+
+/**
+ * Pre-finalize note input. Lives above the settlement panel; the value
+ * threads into the Venmo deep-link `note=` query param when the game is
+ * finalized. Stored only in component state — no localStorage round-trip
+ * (mirrors the IdentityPrompt fix that prevents poll-driven resets).
+ */
+function NotePromptCard({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <section aria-labelledby="note-prompt-heading" className="card">
+      <div className="card-header">
+        <span id="note-prompt-heading" className="ticker-label-strong">
+          venmo note
+        </span>
+        <span className="ticker-label">used on payment links</span>
+      </div>
+      <div className="px-4 py-4 space-y-2">
+        <p className="text-[12.5px] text-fg-dim leading-relaxed">
+          Customize what shows up in the recipient's Venmo when someone
+          taps to pay. Defaults to <span className="text-fg font-semibold">poker night</span>.
+        </p>
+        <input
+          id="note-prompt-input"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="poker night"
+          maxLength={80}
+          className="field w-full font-mono text-[13px]"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          aria-label="Venmo note (optional)"
+        />
+      </div>
+    </section>
   );
 }
 

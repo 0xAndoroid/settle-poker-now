@@ -1,31 +1,32 @@
 /**
  * Venmo / Zelle payment-link helpers.
  *
- * Both flows are bare-bones — no API integration, just deep-link string
- * composition that hands off to the user's installed wallet app:
+ * **Venmo:** universal HTTPS URL — `https://venmo.com/u/<u>?txn=pay&amount=<x>&note=<n>`.
+ * Mobile devices auto-intercept and hand off to the Venmo app (which
+ * prefills the payment form). Desktop browsers open venmo.com in a tab,
+ * which prompts login if needed and shows the recipient's profile with
+ * the prefilled query params honoured. No UA sniffing, no
+ * `venmo://`-scheme fragility.
  *
- *   - Venmo: `venmo://paycharge?txn=pay&recipients=<u>&amount=<usd>&note=<text>`
- *     The `venmo.com/u/<u>` https fallback is unreliable for amount + note
- *     pre-fill, so we only emit the custom-scheme URL. iOS / Android
- *     intercept it; desktop browsers will refuse to open it (intentional —
- *     Venmo on desktop has no reliable deep-link path; the user has to
- *     paste the username manually).
- *
- *   - Zelle: there is no cross-bank Zelle deep-link. We surface the handle
- *     for the user to paste in their bank app. The icon click copies it.
+ * **Zelle:** there is no cross-bank Zelle deep-link. We surface the
+ * handle for the user to paste in their bank app. The icon click copies
+ * it to clipboard.
  *
  * Both functions are pure + synchronous + thoroughly unit-tested for URL
  * encoding correctness.
  */
 
-const VENMO_NOTE = 'settle.andrew.ee';
+const DEFAULT_NOTE = 'poker night';
 
 export interface VenmoLinkInput {
   /** Venmo username, with or without leading `@` (we strip it). */
   recipientUsername: string;
   amountCents: number;
-  /** Optional override for the note. Defaults to `settle.andrew.ee`. */
-  note?: string;
+  /**
+   * Optional override for the note. Falls back to "poker night" when
+   * unset / empty / whitespace-only. Encoded into the query string.
+   */
+  note?: string | null;
 }
 
 export function composeVenmoPayUrl({
@@ -39,19 +40,20 @@ export function composeVenmoPayUrl({
     throw new Error('Venmo amount must be a positive number of cents.');
   }
   const dollars = (amountCents / 100).toFixed(2);
+  const trimmedNote = (note ?? '').trim();
+  const finalNote = trimmedNote.length > 0 ? trimmedNote : DEFAULT_NOTE;
   const params = new URLSearchParams();
   params.set('txn', 'pay');
-  params.set('recipients', username);
   params.set('amount', dollars);
-  params.set('note', note ?? VENMO_NOTE);
-  return `venmo://paycharge?${params.toString()}`;
+  params.set('note', finalNote);
+  return `https://venmo.com/u/${encodeURIComponent(username)}?${params.toString()}`;
 }
 
 /**
  * Display string for a Zelle handle — used in toast messages so the user
  * sees what got copied to their clipboard. Just trims whitespace; we
- * don't try to discriminate email vs phone (users may register either or
- * neither — see migration 0005 for context on the collapsed schema).
+ * don't try to discriminate email vs phone (free-text since migration
+ * 0005).
  */
 export function formatZelleHandle(handle: string): string {
   return handle.trim();

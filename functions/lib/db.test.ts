@@ -143,4 +143,18 @@ describe('createGameFinalized — validation', () => {
       })
     ).rejects.toBeInstanceOf(CreateFinalizedValidationError);
   });
+
+  it('accepts a note alongside the bundle (validation path)', async () => {
+    // The note is non-validating — the function passes it through to D1
+    // after the validation block. Ensure adding a note doesn't trigger
+    // any spurious validation. We still expect the call to fail at the
+    // first D1 access, but NOT with a CreateFinalizedValidationError.
+    const input = {
+      ...baseInput(),
+      note: 'poker game 4/27',
+    };
+    await expect(createGameFinalized(stubDb, input)).rejects.not.toBeInstanceOf(
+      CreateFinalizedValidationError
+    );
+  });
 });

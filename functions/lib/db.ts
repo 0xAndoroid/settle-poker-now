@@ -51,6 +51,12 @@ export interface DbGame {
   finalizedAt: number | null;
   /** Actor label of whoever finalized; null when not finalized. */
   finalizedBy: string | null;
+  /**
+   * Free-text per-game note. Used as the Venmo deep-link `note=` param
+   * and surfaced in the persistent UI. Null = unset; the application
+   * layer falls back to "poker night".
+   */
+  note: string | null;
 }
 
 export interface DbPlayer {
@@ -128,7 +134,8 @@ export type AuditAction =
   | 'remove_alias'
   | 'finalize'
   | 'unfinalize'
-  | 'set_payment_methods';
+  | 'set_payment_methods'
+  | 'set_note';
 
 export interface DbGameSnapshot {
   game: DbGame;
@@ -139,6 +146,22 @@ export interface DbGameSnapshot {
   aliases: DbAlias[];
   paymentMethods: DbPaymentMethod[];
   audit: DbAuditEntry[];
+}
+
+/* ──────── Note normalisation ──────── */
+
+const NOTE_MAX_LENGTH = 80;
+
+/**
+ * Trim, cap to 80 chars, and collapse to null when empty. Matches the
+ * Venmo `note=` query-param size budget — Venmo silently truncates very
+ * long notes; we cap here so audit payloads + UI displays stay tidy.
+ */
+function normalizeNote(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  return trimmed.slice(0, NOTE_MAX_LENGTH);
 }
 
 /* ──────── Slug generation ──────── */
@@ -176,6 +199,7 @@ function rowToGame(row: Record<string, unknown>): DbGame {
     updatedAt: row.updated_at as number,
     finalizedAt: (row.finalized_at as number | null) ?? null,
     finalizedBy: (row.finalized_by as string | null) ?? null,
+    note: (row.note as string | null) ?? null,
   };
 }
 
@@ -332,6 +356,8 @@ interface CreateGameInput {
   endedAt: number | null;
   rows: LedgerRow[];
   actorLabel?: string | null;
+  /** Free-text per-game note (Venmo `note=` param). Null = use fallback. */
+  note?: string | null;
 }
 
 /**
@@ -356,8 +382,8 @@ export async function createGame(
     stmts.push(
       db
         .prepare(
-          `INSERT INTO games (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO games (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -367,7 +393,8 @@ export async function createGame(
           input.startedAt,
           input.endedAt,
           now,
-          now
+          now,
+          normalizeNote(input.note ?? null)
         )
     );
 
@@ -483,6 +510,7 @@ export async function createGameFinalized(
     isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
     aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
     actorLabel: string | null;
+    note?: string | null;
   }
 ): Promise<DbGameSnapshot> {
   const playerIds = new Set(input.rows.map((r) => r.playerId));
@@ -579,8 +607,8 @@ export async function createGameFinalized(
       db
         .prepare(
           `INSERT INTO games
-            (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -592,7 +620,8 @@ export async function createGameFinalized(
           now,
           now,
           now,
-          input.actorLabel
+          input.actorLabel,
+          normalizeNote(input.note ?? null)
         )
     );
 
@@ -1247,6 +1276,46 @@ export async function setPaymentMethods(
   ]);
   const snap = await loadGame(db, args.gameId);
   if (!snap) throw new Error('Game vanished mid-payment-method-update');
+  return snap;
+}
+
+/* ──────── Game note ──────── */
+
+/**
+ * Update the per-game note (Venmo deep-link `note=` param). Survives
+ * finalize by design — purely a UX setting, not game state. Pass an
+ * empty string or null to clear.
+ *
+ * Returns the full snapshot so the client can replace local state
+ * authoritatively without a follow-up GET.
+ */
+export async function setGameNote(
+  db: D1Database,
+  args: { gameId: string; note: string | null; actorLabel: string | null }
+): Promise<DbGameSnapshot> {
+  const game = await loadGameRow(db, args.gameId);
+  if (!game) {
+    throw new Error(`No game with id "${args.gameId}".`);
+  }
+  const next = normalizeNote(args.note);
+  const now = Date.now();
+  await db.batch([
+    db
+      .prepare('UPDATE games SET note = ?, updated_at = ? WHERE id = ?')
+      .bind(next, now, args.gameId),
+    auditStmt(db, {
+      gameId: args.gameId,
+      action: 'set_note',
+      actorLabel: args.actorLabel,
+      payload: {
+        previous: game.note,
+        next,
+      },
+      createdAt: now,
+    }),
+  ]);
+  const snap = await loadGame(db, args.gameId);
+  if (!snap) throw new Error('Game vanished mid-note-update');
   return snap;
 }
 

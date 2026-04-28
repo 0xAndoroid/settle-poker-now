@@ -344,10 +344,23 @@
     cursor: not-allowed;
   }
 
-  /* Per-row Venmo / Zelle deep-link button. Tiny square — sits next to
-     the recipient's amount in the settlement plan. Tone shifts on hover
-     so the icon reads as actionable without competing visually with the
-     mark-as-settled checkbox. */
+  /* Fixed-width slot for the per-row Venmo / Zelle icons. Always 64px
+     so the amount column lines up across rows regardless of how many
+     icons the recipient has registered (0, 1, or 2). Anchors right —
+     icons hug the amount column. */
+  .payment-icons-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    width: 64px;
+    flex-shrink: 0;
+  }
+
+  /* Per-row Venmo / Zelle deep-link button. Tiny square — sits inside
+     `.payment-icons-slot` next to the recipient's amount. Tone shifts on
+     hover so the icon reads as actionable without competing visually
+     with the mark-as-settled checkbox. */
   .payment-icon {
     display: inline-flex;
     align-items: center;

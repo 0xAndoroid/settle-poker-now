@@ -33,6 +33,7 @@ const SAMPLE_SNAPSHOT: PersistedGameSnapshot = {
     updatedAt: 1,
     finalizedAt: 1,
     finalizedBy: 'Andrew',
+    note: null,
   },
   players: [
     { playerId: 'a', nickname: 'A', netCents: -5000 },
