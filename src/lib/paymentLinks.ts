@@ -23,7 +23,7 @@
  * All functions are pure + synchronous + thoroughly unit-tested.
  */
 
-const DEFAULT_NOTE = 'poker night';
+export const DEFAULT_PAYMENT_NOTE = 'dinner';
 
 export type VenmoPlatform = 'mobile' | 'desktop';
 
@@ -32,7 +32,7 @@ export interface VenmoLinkInput {
   recipientUsername: string;
   amountCents: number;
   /**
-   * Optional override for the note. Falls back to "poker night" when
+   * Optional override for the note. Falls back to "dinner" when
    * unset / empty / whitespace-only. Encoded into the query string.
    */
   note?: string | null;
@@ -53,7 +53,7 @@ export function composeVenmoPayUrl({
   }
   const dollars = (amountCents / 100).toFixed(2);
   const trimmedNote = (note ?? '').trim();
-  const finalNote = trimmedNote.length > 0 ? trimmedNote : DEFAULT_NOTE;
+  const finalNote = trimmedNote.length > 0 ? trimmedNote : DEFAULT_PAYMENT_NOTE;
 
   if (platform === 'mobile') {
     // Custom-scheme — username goes in the `recipients=` query param,

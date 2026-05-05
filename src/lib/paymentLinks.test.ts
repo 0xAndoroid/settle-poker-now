@@ -14,7 +14,7 @@ describe('composeVenmoPayUrl — desktop (universal HTTPS) URL', () => {
       platform: 'desktop',
     });
     expect(url).toBe(
-      'https://venmo.com/u/kev-stmts?txn=pay&amount=425.00&note=poker+night'
+      'https://venmo.com/u/kev-stmts?txn=pay&amount=425.00&note=dinner'
     );
   });
 
@@ -62,7 +62,7 @@ describe('composeVenmoPayUrl — desktop (universal HTTPS) URL', () => {
     expect(url).toContain('note=poker+game+4%2F27+%26+friends%21');
   });
 
-  it('falls back to "poker night" when note is null / empty / whitespace', () => {
+  it('falls back to "dinner" when note is null / empty / whitespace', () => {
     for (const note of [null, '', '   ', '\t  \n'] as const) {
       const url = composeVenmoPayUrl({
         recipientUsername: 'a',
@@ -70,7 +70,7 @@ describe('composeVenmoPayUrl — desktop (universal HTTPS) URL', () => {
         note,
         platform: 'desktop',
       });
-      expect(url).toContain('note=poker+night');
+      expect(url).toContain('note=dinner');
     }
   });
 
@@ -92,7 +92,7 @@ describe('composeVenmoPayUrl — mobile (venmo:// custom scheme)', () => {
       platform: 'mobile',
     });
     expect(url).toBe(
-      'venmo://paycharge?txn=pay&recipients=kev-stmts&amount=425.00&note=poker+night'
+      'venmo://paycharge?txn=pay&recipients=kev-stmts&amount=425.00&note=dinner'
     );
   });
 
@@ -128,14 +128,14 @@ describe('composeVenmoPayUrl — mobile (venmo:// custom scheme)', () => {
     expect(url).toContain('note=dinner');
   });
 
-  it('falls back to "poker night" when note is null', () => {
+  it('falls back to "dinner" when note is null', () => {
     const url = composeVenmoPayUrl({
       recipientUsername: 'a',
       amountCents: 100,
       note: null,
       platform: 'mobile',
     });
-    expect(url).toContain('note=poker+night');
+    expect(url).toContain('note=dinner');
   });
 });
 

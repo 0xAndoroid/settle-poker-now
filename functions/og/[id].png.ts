@@ -24,6 +24,7 @@ import { initWasm, Resvg } from '@resvg/resvg-wasm';
 // @ts-expect-error — wrangler/Pages bundles `.wasm` imports as
 // WebAssembly.Module objects at runtime; the type isn't shipped.
 import resvgWasm from '../../node_modules/@resvg/resvg-wasm/index_bg.wasm';
+import { orderPaymentsBySenderTotal } from '../../src/lib/paymentOrdering';
 import { loadGame, type DbGameSnapshot, type DbPayment } from '../lib/db';
 import { CORS_HEADERS, errorResponse } from '../lib/responses';
 
@@ -220,7 +221,14 @@ function renderRow({ layout, index, fromName, toName, amount, completed }: Payme
 function renderSvg(snap: DbGameSnapshot): string {
   const { players, payments } = snap;
   const nameById = new Map(players.map((p) => [p.playerId, p.nickname]));
-  const visiblePayments = payments.slice(0, MAX_DISPLAYED_PAYMENTS);
+  const orderedPayments = orderPaymentsBySenderTotal(
+    payments.map((payment) => ({
+      ...payment,
+      fromId: payment.fromPlayerId,
+      toId: payment.toPlayerId,
+    }))
+  ).map(({ payment }) => payment);
+  const visiblePayments = orderedPayments.slice(0, MAX_DISPLAYED_PAYMENTS);
   const overflow = payments.length - visiblePayments.length;
 
   const rowsSvg = renderPaymentRows(visiblePayments, nameById);

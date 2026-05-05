@@ -11,6 +11,7 @@ import { useGameIdentity } from '@/hooks/useGameIdentity';
 import { gamePath } from '@/lib/routing';
 import { copyText } from '@/lib/clipboard';
 import { formatDollars } from '@/lib/money';
+import { DEFAULT_PAYMENT_NOTE } from '@/lib/paymentLinks';
 import { projectSettlementPlan } from '@/lib/persistedProjection';
 import type {
   EffectiveBalance,
@@ -521,7 +522,7 @@ function NoteEditor({
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const display = note && note.trim().length > 0 ? note : 'poker night';
+  const display = note && note.trim().length > 0 ? note : DEFAULT_PAYMENT_NOTE;
   const isDefault = !note || note.trim().length === 0;
 
   const enterEdit = () => {
@@ -579,7 +580,7 @@ function NoteEditor({
         type="text"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="poker night"
+        placeholder={DEFAULT_PAYMENT_NOTE}
         maxLength={80}
         className="field w-full font-mono text-[13px]"
         autoComplete="off"

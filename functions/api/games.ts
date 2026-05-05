@@ -69,7 +69,7 @@ interface CreateBody {
   aliases?: AliasBody[];
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
-   * the UI falls back to "poker night" when null/empty.
+   * the UI falls back to "dinner" when null/empty.
    */
   note?: string | null;
 }

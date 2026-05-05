@@ -54,7 +54,7 @@ export interface DbGame {
   /**
    * Free-text per-game note. Used as the Venmo deep-link `note=` param
    * and surfaced in the persistent UI. Null = unset; the application
-   * layer falls back to "poker night".
+   * layer falls back to "dinner".
    */
   note: string | null;
 }

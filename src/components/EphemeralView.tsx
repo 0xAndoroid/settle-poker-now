@@ -14,6 +14,7 @@ import { computePlan } from '@/lib/settle';
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
+import { DEFAULT_PAYMENT_NOTE } from '@/lib/paymentLinks';
 import { ApiError, createFinalizedGame } from '@/lib/apiClient';
 import { gamePath, navigate } from '@/lib/routing';
 import { type AliasRule, canonicalize } from '@/lib/aliases';
@@ -275,7 +276,8 @@ export function EphemeralView({
       return;
     }
     const trimmedNote = note.trim();
-    const noteForConfirm = trimmedNote.length > 0 ? trimmedNote : 'poker night';
+    const noteForConfirm =
+      trimmedNote.length > 0 ? trimmedNote : DEFAULT_PAYMENT_NOTE;
     if (
       typeof window !== 'undefined' &&
       !window.confirm(
@@ -494,14 +496,14 @@ function NotePromptCard({
       <div className="px-4 py-4 space-y-2">
         <p className="text-[12.5px] text-fg-dim leading-relaxed">
           Customize what shows up in the recipient's Venmo when someone
-          taps to pay. Defaults to <span className="text-fg font-semibold">poker night</span>.
+          taps to pay. Defaults to <span className="text-fg font-semibold">{DEFAULT_PAYMENT_NOTE}</span>.
         </p>
         <input
           id="note-prompt-input"
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="poker night"
+          placeholder={DEFAULT_PAYMENT_NOTE}
           maxLength={80}
           className="field w-full font-mono text-[13px]"
           autoComplete="off"

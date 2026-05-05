@@ -132,7 +132,7 @@ export interface PersistedGame {
   finalizedBy: string | null;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Null when
-   * unset; the UI falls back to "poker night".
+   * unset; the UI falls back to "dinner".
    */
   note: string | null;
 }

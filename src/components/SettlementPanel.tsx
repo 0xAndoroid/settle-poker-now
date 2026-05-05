@@ -6,6 +6,7 @@ import type {
 } from '@/lib/types';
 import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
+import { orderPaymentsBySenderTotal } from '@/lib/paymentOrdering';
 import {
   composeVenmoPayUrl,
   detectMobilePlatform,
@@ -47,7 +48,7 @@ interface SettlementPanelProps {
   paymentMethodsByPlayerId?: ReadonlyMap<string, PersistedPaymentMethod>;
   /**
    * Per-game note threaded into the Venmo `note=` query param. Empty /
-   * null falls back to "poker night".
+   * null falls back to the default payment note.
    */
   gameNote?: string | null;
   /** Toast hook so row icon clicks can surface confirmations. */
@@ -71,6 +72,7 @@ export function SettlementPanel({
   onHighlight,
 }: SettlementPanelProps) {
   const nameById = new Map(balances.map((b) => [b.playerId, b.nickname]));
+  const orderedPayments = orderPaymentsBySenderTotal(plan.txns);
 
   const hasCycle = plan.cyclePlayerIds.length > 0;
   const cycleNames = plan.cyclePlayerIds.map(
@@ -175,8 +177,8 @@ export function SettlementPanel({
         </div>
       ) : (
         <ol>
-          {plan.txns.map((t, i) => {
-            const paymentId = paymentIds?.[i];
+          {orderedPayments.map(({ payment: t, originalIndex }, i) => {
+            const paymentId = paymentIds?.[originalIndex];
             const completion = paymentId
               ? completionByPaymentId?.get(paymentId)
               : undefined;

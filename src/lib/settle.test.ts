@@ -483,7 +483,7 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
       nets.push(v);
       runningSum += v;
     }
-    nets.push(-runningSum);
+    nets.push(runningSum === 0 ? 0 : -runningSum);
     return nets.map((net, i) =>
       balance(`p${String(i).padStart(2, '0')}`, `P${i}`, net)
     );

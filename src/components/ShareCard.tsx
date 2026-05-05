@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { formatDollars } from '@/lib/money';
+import { orderPaymentsBySenderTotal } from '@/lib/paymentOrdering';
 import type { EffectiveBalance, SettlementPlan } from '@/lib/types';
 
 interface ShareCardProps {
@@ -25,6 +26,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function Sha
   const playerCount = balances.length;
   const txnCount = plan.txns.length;
   const totalSettled = plan.txns.reduce((acc, t) => acc + t.amountCents, 0);
+  const orderedPayments = orderPaymentsBySenderTotal(plan.txns);
 
   const TXN_FONT_SIZE = pickTxnFontSize(plan.txns.length);
 
@@ -173,7 +175,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function Sha
             already settled.
           </div>
         ) : (
-          plan.txns.map((t, i) => (
+          orderedPayments.map(({ payment: t }, i) => (
             <div
               key={i}
               style={{
@@ -183,7 +185,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(function Sha
                 gap: 24,
                 padding: '14px 0',
                 borderBottom:
-                  i < plan.txns.length - 1
+                  i < orderedPayments.length - 1
                     ? '1px solid rgba(37,37,47,0.7)'
                     : 'none',
               }}
