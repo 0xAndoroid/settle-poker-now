@@ -72,6 +72,18 @@ export function PersistentGameView({
     }
     return map;
   }, [game]);
+  const currentPaymentPlayerId = useMemo(() => {
+    if (!identity || !game) return null;
+    const aliasMap = new Map(
+      game.aliases.map((a) => [a.playerId, a.aliasToPlayerId])
+    );
+    let current = identity.playerId;
+    let hops = 0;
+    while (aliasMap.has(current) && hops++ < 16) {
+      current = aliasMap.get(current)!;
+    }
+    return current;
+  }, [game, identity]);
 
   // Push ticker updates upward whenever the snapshot changes.
   useEffect(() => {
@@ -260,6 +272,7 @@ export function PersistentGameView({
               onShare={handleShare}
               paymentMethodsByPlayerId={paymentMethodsByPlayerId}
               gameNote={state.game.game.note}
+              currentPlayerId={currentPaymentPlayerId}
               pushToast={pushToast}
             />
             <AuditLogPanel
@@ -307,6 +320,7 @@ export function PersistentGameView({
               onShare={handleShare}
               paymentMethodsByPlayerId={paymentMethodsByPlayerId}
               gameNote={state.game.game.note}
+              currentPlayerId={currentPaymentPlayerId}
               pushToast={pushToast}
             />
           )}

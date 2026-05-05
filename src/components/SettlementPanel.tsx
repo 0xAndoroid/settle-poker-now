@@ -51,6 +51,8 @@ interface SettlementPanelProps {
    * null falls back to the default payment note.
    */
   gameNote?: string | null;
+  /** Persistent flow: selected local player's canonical id. */
+  currentPlayerId?: string | null;
   /** Toast hook so row icon clicks can surface confirmations. */
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
@@ -68,6 +70,7 @@ export function SettlementPanel({
   finalizing = false,
   paymentMethodsByPlayerId,
   gameNote,
+  currentPlayerId,
   pushToast,
   onHighlight,
 }: SettlementPanelProps) {
@@ -184,6 +187,10 @@ export function SettlementPanel({
               : undefined;
             const recipientMethod =
               paymentMethodsByPlayerId?.get(t.toId) ?? null;
+            const highlightsCurrentPlayer =
+              currentPlayerId !== null &&
+              currentPlayerId !== undefined &&
+              (t.fromId === currentPlayerId || t.toId === currentPlayerId);
             return (
               <SettlementRow
                 key={paymentId ?? `${t.fromId}-${t.toId}-${i}`}
@@ -198,6 +205,7 @@ export function SettlementPanel({
                 onTogglePayment={onTogglePayment}
                 recipientMethod={recipientMethod}
                 gameNote={gameNote ?? null}
+                highlightsCurrentPlayer={highlightsCurrentPlayer}
                 pushToast={pushToast}
                 onHover={(hover) => onHighlight?.(hover ? t.fromId : null)}
               />
@@ -235,6 +243,8 @@ interface SettlementRowProps {
   recipientMethod: PersistedPaymentMethod | null;
   /** Threaded into the Venmo deep-link `note=` query param. */
   gameNote: string | null;
+  /** True when the selected local identity is the sender or recipient. */
+  highlightsCurrentPlayer: boolean;
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHover?: (hovering: boolean) => void;
 }
@@ -251,6 +261,7 @@ function SettlementRow({
   onTogglePayment,
   recipientMethod,
   gameNote,
+  highlightsCurrentPlayer,
   pushToast,
   onHover,
 }: SettlementRowProps) {
@@ -304,8 +315,10 @@ function SettlementRow({
   return (
     <li
       className={cn(
-        'border-b border-line/60 last:border-b-0',
-        isCompleted && 'bg-gain/[0.04]'
+        'border-b border-l-2 border-l-transparent border-line/60 last:border-b-0 transition-colors',
+        highlightsCurrentPlayer
+          ? 'border-l-accent bg-accent/[0.08]'
+          : isCompleted && 'bg-gain/[0.04]'
       )}
     >
       <div
