@@ -15,6 +15,10 @@ describe('hashState', () => {
       aliases: [
         { playerId: 'andrew2', aliasToPlayerId: 'andrew' },
       ],
+      paymentPreferences: [
+        { playerId: 'andrew', rail: 'venmo' },
+        { playerId: 'kevin', rail: 'zelle' },
+      ],
       unitOverride: 'dollars',
     };
     const encoded = encodeHash(state);
@@ -31,6 +35,7 @@ describe('hashState', () => {
         adjustments: [],
         isolations: [],
         aliases: [],
+        paymentPreferences: [],
         unitOverride: null,
       })
     ).toBe('');
@@ -42,6 +47,7 @@ describe('hashState', () => {
       adjustments: [],
       isolations: [],
       aliases: [],
+      paymentPreferences: [],
       unitOverride: 'cents',
     };
     expect(encodeHash(state)).not.toBe('');
@@ -54,6 +60,7 @@ describe('hashState', () => {
       adjustments: [],
       isolations: [],
       aliases: [{ playerId: 'a', aliasToPlayerId: 'b' }],
+      paymentPreferences: [],
       unitOverride: null,
     };
     expect(encodeHash(state)).not.toBe('');
@@ -68,7 +75,23 @@ describe('hashState', () => {
     expect(decoded.adjustments).toEqual([]);
     expect(decoded.isolations).toEqual([]);
     expect(decoded.aliases).toEqual([]);
+    expect(decoded.paymentPreferences).toEqual([]);
     expect(decoded.unitOverride).toBeNull();
+  });
+
+  it('non-empty when only payment preferences are set', () => {
+    const state: HashState = {
+      gameId: null,
+      adjustments: [],
+      isolations: [],
+      aliases: [],
+      paymentPreferences: [{ playerId: 'a', rail: 'venmo' }],
+      unitOverride: null,
+    };
+    expect(encodeHash(state)).not.toBe('');
+    expect(decodeHash(encodeHash(state)).paymentPreferences).toEqual([
+      { playerId: 'a', rail: 'venmo' },
+    ]);
   });
 
   it('strips invalid alias rows (self-alias) on decode', () => {
@@ -83,6 +106,7 @@ describe('hashState', () => {
         { playerId: 'andrew', aliasToPlayerId: 'andrew' },
         { playerId: 'kev', aliasToPlayerId: 'kevin' },
       ],
+      paymentPreferences: [],
       unitOverride: null,
     };
     const decoded = decodeHash(encodeHash(fakeState));
@@ -98,6 +122,7 @@ describe('hashState', () => {
       adjustments: [{ id: 'unicode-id-✨', fromId: 'a-é', toId: 'b-π', amountCents: 100 }],
       isolations: [],
       aliases: [],
+      paymentPreferences: [],
       unitOverride: null,
     };
     expect(decodeHash(encodeHash(state))).toEqual(state);
@@ -110,6 +135,7 @@ describe('hashState', () => {
       adjustments: [],
       isolations: [],
       aliases: [],
+      paymentPreferences: [],
       // Cast through unknown to inject an invalid value.
       unitOverride: 'pesos' as unknown as HashState['unitOverride'],
     };

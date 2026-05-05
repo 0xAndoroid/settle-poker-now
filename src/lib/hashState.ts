@@ -5,13 +5,19 @@
  *   - adjustments (already-paid transfers)
  *   - isolations (per-player "settle only with X" rules)
  *   - aliases (fold one player_id into another — "andrew2 → andrew")
+ *   - paymentPreferences (players who only want Venmo or only want Zelle)
  *   - unitOverride (cents/dollars override)
  *
  * The encoded payload is a base64url-encoded JSON blob (no compression — the
  * payload is small for typical 2–10-player games).
  */
 
-import type { Adjustment, IsolationRule, LedgerUnit } from './types';
+import type {
+  Adjustment,
+  IsolationRule,
+  LedgerUnit,
+  PaymentPreference,
+} from './types';
 import type { AliasRule } from './aliases';
 
 export interface HashState {
@@ -19,6 +25,7 @@ export interface HashState {
   adjustments: Adjustment[];
   isolations: IsolationRule[];
   aliases: AliasRule[];
+  paymentPreferences: PaymentPreference[];
   /** User-specified unit override. `null` = no override (use worker hint / heuristic). */
   unitOverride: LedgerUnit | null;
 }
@@ -28,6 +35,7 @@ const EMPTY: HashState = {
   adjustments: [],
   isolations: [],
   aliases: [],
+  paymentPreferences: [],
   unitOverride: null,
 };
 
@@ -54,6 +62,7 @@ export function encodeHash(state: HashState): string {
     state.adjustments.length === 0 &&
     state.isolations.length === 0 &&
     state.aliases.length === 0 &&
+    state.paymentPreferences.length === 0 &&
     state.unitOverride === null
   ) {
     return '';
@@ -68,6 +77,7 @@ export function encodeHash(state: HashState): string {
     })),
     iso: state.isolations.map((r) => ({ p: r.playerId, c: r.counterpartId })),
     al: state.aliases.map((r) => ({ p: r.playerId, t: r.aliasToPlayerId })),
+    pp: state.paymentPreferences.map((p) => ({ p: p.playerId, r: p.rail })),
     u: state.unitOverride ?? null,
   };
   return toBase64Url(JSON.stringify(payload));
@@ -84,6 +94,7 @@ export function decodeHash(hash: string): HashState {
       a?: { i: string; f: string; t: string; c: number }[];
       iso?: { p: string; c: string }[];
       al?: { p: string; t: string }[];
+      pp?: { p: string; r: string }[];
       u?: LedgerUnit | null;
     };
 
@@ -115,6 +126,14 @@ export function decodeHash(hash: string): HashState {
       )
       .map((row) => ({ playerId: row.p, aliasToPlayerId: row.t }));
 
+    const paymentPreferences: PaymentPreference[] = (parsed.pp ?? [])
+      .filter(
+        (row) =>
+          typeof row.p === 'string' &&
+          (row.r === 'venmo' || row.r === 'zelle')
+      )
+      .map((row) => ({ playerId: row.p, rail: row.r as PaymentPreference['rail'] }));
+
     const unitOverride: LedgerUnit | null =
       parsed.u === 'cents' || parsed.u === 'dollars' ? parsed.u : null;
 
@@ -123,6 +142,7 @@ export function decodeHash(hash: string): HashState {
       adjustments,
       isolations,
       aliases,
+      paymentPreferences,
       unitOverride,
     };
   } catch {

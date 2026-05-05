@@ -98,5 +98,11 @@ export function projectSettlementPlan(snap: PersistedGameSnapshot): SettlementPl
     // We don't have the partition info from the server's persisted plan.
     // Default to a value that won't mislead a UI consumer.
     subsetCount: algorithm === 'optimal' ? 1 : 1,
+    paymentPreferenceStatus: {
+      applied: false,
+      reason: 'none',
+      venmoPlayerIds: [],
+      zellePlayerIds: [],
+    },
   };
 }

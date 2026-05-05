@@ -67,6 +67,14 @@ export interface IsolationRule {
   counterpartId: string;
 }
 
+export type PaymentRail = 'venmo' | 'zelle';
+
+/** Player-level payment rail preference used while deriving a plan. */
+export interface PaymentPreference {
+  playerId: string;
+  rail: PaymentRail;
+}
+
 /** A single settlement transaction proposed by the algorithm. */
 export interface SettlementTxn {
   fromId: string;
@@ -101,6 +109,13 @@ export interface SettlementPlan {
   algorithm: SettlementAlgorithm;
   /** Number of zero-sum subsets the residual pool partitioned into (optimal only — `1` for greedy/greedy-fallback). */
   subsetCount: number;
+  /** Preference split metadata for the residual non-isolated pool. */
+  paymentPreferenceStatus: {
+    applied: boolean;
+    reason: 'none' | 'applied' | 'unbalanced';
+    venmoPlayerIds: string[];
+    zellePlayerIds: string[];
+  };
 }
 
 /** Effective per-player balances after applying adjustments. */

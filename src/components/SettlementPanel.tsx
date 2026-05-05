@@ -81,6 +81,9 @@ export function SettlementPanel({
   const cycleNames = plan.cyclePlayerIds.map(
     (id) => nameById.get(id) ?? id
   );
+  const preferenceStatus = plan.paymentPreferenceStatus;
+  const preferenceSplitApplied = preferenceStatus.applied;
+  const preferenceSplitFailed = preferenceStatus.reason === 'unbalanced';
 
   // Derived completion stats — only meaningful in persistent mode.
   const persistent = !!paymentIds && !!completionByPaymentId;
@@ -117,6 +120,9 @@ export function SettlementPanel({
           </span>
         </span>
         <div className="flex items-center gap-1.5">
+          {preferenceSplitApplied && (
+            <span className="pill pill-accent">rail safe</span>
+          )}
           {onFinalize && (
             <button
               type="button"
@@ -163,6 +169,21 @@ export function SettlementPanel({
             <span className="text-fg font-semibold">{cycleNames.join(' → ')}</span>
             {' '}form a cycle of isolation rules. Break the cycle in
             “private rules” to settle these players.
+          </p>
+        </div>
+      )}
+
+      {preferenceSplitFailed && (
+        <div className="px-4 py-3 border-b border-line bg-warn/5">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="pill">prefs</span>
+            <span className="ticker-label-strong text-warn">
+              rail-safe routing needs a proxy
+            </span>
+          </div>
+          <p className="text-[12.5px] text-fg-dim leading-relaxed">
+            Venmo-only and Zelle-only players need someone who can use both
+            rails to bridge this ledger. The normal settlement is shown.
           </p>
         </div>
       )}

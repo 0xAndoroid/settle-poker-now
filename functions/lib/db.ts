@@ -30,6 +30,7 @@ import type {
   IsolationRule,
   LedgerRow,
   LedgerUnit,
+  PaymentPreference,
   SettlementPlan,
   SettlementTxn,
 } from '../../src/lib/types';
@@ -509,6 +510,7 @@ export async function createGameFinalized(
     }>;
     isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
     aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+    paymentPreferences?: ReadonlyArray<PaymentPreference>;
     actorLabel: string | null;
     note?: string | null;
   }
@@ -542,6 +544,26 @@ export async function createGameFinalized(
         'Player cannot be isolated to themselves.'
       );
     }
+  }
+  const paymentPreferences = input.paymentPreferences ?? [];
+  const seenPaymentPreferencePlayers = new Set<string>();
+  for (const preference of paymentPreferences) {
+    if (!playerIds.has(preference.playerId)) {
+      throw new CreateFinalizedValidationError(
+        `Payment preference references unknown player.`
+      );
+    }
+    if (preference.rail !== 'venmo' && preference.rail !== 'zelle') {
+      throw new CreateFinalizedValidationError(
+        'Payment preference rail must be venmo or zelle.'
+      );
+    }
+    if (seenPaymentPreferencePlayers.has(preference.playerId)) {
+      throw new CreateFinalizedValidationError(
+        'Each player can have only one payment preference.'
+      );
+    }
+    seenPaymentPreferencePlayers.add(preference.playerId);
   }
   // Canonicalize aliases (compress chains, reject cycles).
   const proposed = new Map<string, string>();
@@ -594,8 +616,20 @@ export async function createGameFinalized(
     })),
     canonicalMap
   );
+  const collapsedPaymentPreferences: PaymentPreference[] = [];
+  const seenCollapsedPaymentPreferencePlayers = new Set<string>();
+  for (const preference of paymentPreferences) {
+    const playerId = canonicalMap.get(preference.playerId) ?? preference.playerId;
+    if (seenCollapsedPaymentPreferencePlayers.has(playerId)) continue;
+    seenCollapsedPaymentPreferencePlayers.add(playerId);
+    collapsedPaymentPreferences.push({ playerId, rail: preference.rail });
+  }
   const balances = applyAdjustments(collapsedRows, collapsedAdjustments);
-  const plan = buildSettlementPlan(balances, collapsedIsolations);
+  const plan = buildSettlementPlan(
+    balances,
+    collapsedIsolations,
+    collapsedPaymentPreferences
+  );
 
   const now = Date.now();
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -720,6 +754,7 @@ export async function createGameFinalized(
           adjustmentCount: input.adjustments.length,
           isolationCount: seenIso.size,
           aliasCount: canonAliases.length,
+          paymentPreferenceCount: paymentPreferences.length,
           paymentCount: plan.txns.length,
           finalizedAtCreate: true,
         },

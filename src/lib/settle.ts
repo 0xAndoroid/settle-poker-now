@@ -21,6 +21,7 @@
 import {
   type AliasRule,
   buildCanonicalMap,
+  canonicalOf,
   collapseAdjustments,
   collapseIsolations,
   collapseRows,
@@ -30,9 +31,19 @@ import type {
   EffectiveBalance,
   IsolationRule,
   LedgerRow,
+  PaymentPreference,
   SettlementPlan,
   SettlementTxn,
 } from './types';
+
+function emptyPaymentPreferenceStatus(): SettlementPlan['paymentPreferenceStatus'] {
+  return {
+    applied: false,
+    reason: 'none',
+    venmoPlayerIds: [],
+    zellePlayerIds: [],
+  };
+}
 
 /**
  * Apply already-paid adjustments to the ledger nets. Each adjustment is
@@ -456,6 +467,234 @@ function greedySettle(balances: EffectiveBalance[]): SettlementTxn[] {
   return txns;
 }
 
+interface ResidualSettlementResult {
+  txns: SettlementTxn[];
+  algorithm: SettlementPlan['algorithm'];
+  subsetCount: number;
+}
+
+function settleResidualGroups(groups: EffectiveBalance[][]): ResidualSettlementResult {
+  const residualTxns: SettlementTxn[] = [];
+  let algorithm: SettlementPlan['algorithm'] = 'optimal';
+  let subsetCount = 0;
+
+  for (const group of groups) {
+    if (group.length === 0) continue;
+    const partitionResult = partitionOptimally(group);
+    for (const subset of partitionResult.partition) {
+      for (const t of greedySettle(subset)) residualTxns.push(t);
+    }
+
+    if (partitionResult.kind === 'optimal') {
+      subsetCount += partitionResult.partition.length;
+      continue;
+    }
+
+    subsetCount += 1;
+    const groupAlgorithm =
+      group.filter((b) => b.effectiveNetCents !== 0).length > OPTIMAL_PARTITION_LIMIT
+        ? 'greedy-fallback'
+        : 'greedy';
+    if (groupAlgorithm === 'greedy-fallback') {
+      algorithm = 'greedy-fallback';
+    } else if (algorithm === 'optimal') {
+      algorithm = 'greedy';
+    }
+  }
+
+  return { txns: residualTxns, algorithm, subsetCount };
+}
+
+type RailCapability = PaymentPreference['rail'] | 'both';
+
+interface PaymentPreferenceSettlement {
+  settlement: ResidualSettlementResult | null;
+  status: SettlementPlan['paymentPreferenceStatus'];
+}
+
+function paymentPreferenceMap(
+  balances: ReadonlyArray<EffectiveBalance>,
+  preferences: ReadonlyArray<PaymentPreference>
+): Map<string, PaymentPreference['rail']> {
+  const validIds = new Set(balances.map((b) => b.playerId));
+  const preferenceByPlayer = new Map<string, PaymentPreference['rail']>();
+  for (const preference of preferences) {
+    if (!validIds.has(preference.playerId)) continue;
+    if (preferenceByPlayer.has(preference.playerId)) continue;
+    preferenceByPlayer.set(preference.playerId, preference.rail);
+  }
+  return preferenceByPlayer;
+}
+
+function railFor(
+  playerId: string,
+  preferenceByPlayer: ReadonlyMap<string, PaymentPreference['rail']>
+): RailCapability {
+  return preferenceByPlayer.get(playerId) ?? 'both';
+}
+
+function railsAreCompatible(
+  fromId: string,
+  toId: string,
+  preferenceByPlayer: ReadonlyMap<string, PaymentPreference['rail']>
+): boolean {
+  const fromRail = railFor(fromId, preferenceByPlayer);
+  const toRail = railFor(toId, preferenceByPlayer);
+  return fromRail === 'both' || toRail === 'both' || fromRail === toRail;
+}
+
+function greedySettleWithRailProxy(
+  balances: EffectiveBalance[],
+  preferenceByPlayer: ReadonlyMap<string, PaymentPreference['rail']>,
+  proxyPlayerId: string
+): SettlementTxn[] {
+  const debtors: { playerId: string; amount: number }[] = [];
+  const creditors: { playerId: string; amount: number }[] = [];
+
+  for (const b of balances) {
+    if (b.effectiveNetCents < 0) {
+      debtors.push({ playerId: b.playerId, amount: -b.effectiveNetCents });
+    } else if (b.effectiveNetCents > 0) {
+      creditors.push({ playerId: b.playerId, amount: b.effectiveNetCents });
+    }
+  }
+
+  const txns: SettlementTxn[] = [];
+
+  while (debtors.length > 0 && creditors.length > 0) {
+    debtors.sort((a, b) => b.amount - a.amount || a.playerId.localeCompare(b.playerId));
+    creditors.sort((a, b) => b.amount - a.amount || a.playerId.localeCompare(b.playerId));
+
+    const debtor = debtors[0]!;
+    const creditor = creditors[0]!;
+    const transfer = Math.min(debtor.amount, creditor.amount);
+
+    if (railsAreCompatible(debtor.playerId, creditor.playerId, preferenceByPlayer)) {
+      txns.push({
+        fromId: debtor.playerId,
+        toId: creditor.playerId,
+        amountCents: transfer,
+      });
+    } else {
+      txns.push(
+        {
+          fromId: debtor.playerId,
+          toId: proxyPlayerId,
+          amountCents: transfer,
+        },
+        {
+          fromId: proxyPlayerId,
+          toId: creditor.playerId,
+          amountCents: transfer,
+        }
+      );
+    }
+
+    debtor.amount -= transfer;
+    creditor.amount -= transfer;
+
+    if (debtor.amount === 0) debtors.shift();
+    if (creditor.amount === 0) creditors.shift();
+  }
+
+  return txns;
+}
+
+function settleWithPaymentPreferences(
+  balances: EffectiveBalance[],
+  preferences: ReadonlyArray<PaymentPreference>
+): PaymentPreferenceSettlement {
+  const preferenceByPlayer = paymentPreferenceMap(balances, preferences);
+  if (preferenceByPlayer.size === 0) {
+    return { settlement: null, status: emptyPaymentPreferenceStatus() };
+  }
+
+  const venmoOnly: EffectiveBalance[] = [];
+  const zelleOnly: EffectiveBalance[] = [];
+  const both: EffectiveBalance[] = [];
+  for (const balance of balances) {
+    const preference = preferenceByPlayer.get(balance.playerId);
+    if (preference === 'venmo') venmoOnly.push(balance);
+    else if (preference === 'zelle') zelleOnly.push(balance);
+    else both.push(balance);
+  }
+
+  const venmoPlayerIds = venmoOnly.map((b) => b.playerId).sort();
+  const zellePlayerIds = zelleOnly.map((b) => b.playerId).sort();
+
+  if (both.length > 0) {
+    const proxyPlayerId = both
+      .slice()
+      .sort((a, b) => a.playerId.localeCompare(b.playerId))[0]!.playerId;
+    return {
+      settlement: {
+        txns: greedySettleWithRailProxy(
+          balances,
+          preferenceByPlayer,
+          proxyPlayerId
+        ),
+        algorithm: 'greedy',
+        subsetCount: 1,
+      },
+      status: {
+        applied: true,
+        reason: 'applied',
+        venmoPlayerIds,
+        zellePlayerIds,
+      },
+    };
+  }
+
+  const venmoSum = venmoOnly.reduce((acc, b) => acc + b.effectiveNetCents, 0);
+  const zelleSum = zelleOnly.reduce((acc, b) => acc + b.effectiveNetCents, 0);
+
+  if (venmoSum !== 0 || zelleSum !== 0) {
+    return {
+      settlement: null,
+      status: {
+        applied: false,
+        reason: 'unbalanced',
+        venmoPlayerIds,
+        zellePlayerIds,
+      },
+    };
+  }
+
+  return {
+    settlement: settleResidualGroups(
+      [venmoOnly, zelleOnly].filter((group) => group.length > 0)
+    ),
+    status: {
+      applied: true,
+      reason: 'applied',
+      venmoPlayerIds,
+      zellePlayerIds,
+    },
+  };
+}
+
+function collapsePaymentPreferences(
+  preferences: ReadonlyArray<PaymentPreference>,
+  canonical: ReadonlyMap<string, string>
+): PaymentPreference[] {
+  const byPlayer = new Map<
+    string,
+    { preference: PaymentPreference; writtenOnCanonical: boolean }
+  >();
+  for (const preference of preferences) {
+    const playerId = canonicalOf(preference.playerId, canonical);
+    const writtenOnCanonical = playerId === preference.playerId;
+    const existing = byPlayer.get(playerId);
+    if (!existing || writtenOnCanonical) {
+      byPlayer.set(playerId, {
+        preference: { playerId, rail: preference.rail },
+        writtenOnCanonical,
+      });
+    }
+  }
+  return Array.from(byPlayer.values()).map((entry) => entry.preference);
+}
+
 /**
  * End-to-end: apply adjustments → resolve isolation → optimal-or-greedy
  * settle the residual pool.
@@ -470,21 +709,19 @@ function greedySettle(balances: EffectiveBalance[]): SettlementTxn[] {
  */
 export function buildSettlementPlan(
   balances: EffectiveBalance[],
-  isolations: IsolationRule[]
+  isolations: IsolationRule[],
+  paymentPreferences: ReadonlyArray<PaymentPreference> = []
 ): SettlementPlan {
   const resolution = resolveIsolations(balances, isolations);
 
-  // Optimal partition (or greedy fallback) of the residual pool.
-  const partitionResult = partitionOptimally(resolution.remaining);
-  const residualTxns: SettlementTxn[] = [];
-  for (const subset of partitionResult.partition) {
-    // Each subset is zero-sum (when `kind === 'optimal'`); within a
-    // zero-sum subset of size k, any settlement order produces k − 1
-    // transactions, so greedy is fine here.
-    for (const t of greedySettle(subset)) residualTxns.push(t);
-  }
+  const preferenceSettlement = settleWithPaymentPreferences(
+    resolution.remaining,
+    paymentPreferences
+  );
+  const residualSettlement =
+    preferenceSettlement.settlement ?? settleResidualGroups([resolution.remaining]);
 
-  const allTxns = [...resolution.forcedTxns, ...residualTxns];
+  const allTxns = [...resolution.forcedTxns, ...residualSettlement.txns];
 
   // Residue = sum across players still in cycles + the open-pool residue
   // (which should be zero for a balanced ledger).
@@ -503,27 +740,15 @@ export function buildSettlementPlan(
   }
   const residueCents = Math.abs(cycleResidue) + Math.abs(openPoolResidue);
 
-  // Subset count: trivial for greedy (the entire pool is one subset);
-  // for optimal it's the partition count we landed on.
-  const subsetCount =
-    partitionResult.kind === 'optimal' ? partitionResult.partition.length : 1;
-
-  // Map partition kind → public algorithm tag.
-  const algorithm: SettlementPlan['algorithm'] =
-    partitionResult.kind === 'optimal'
-      ? 'optimal'
-      : resolution.remaining.length > OPTIMAL_PARTITION_LIMIT
-        ? 'greedy-fallback'
-        : 'greedy';
-
   return {
     txns: allTxns,
     isFullyBalanced: residueCents === 0 && resolution.cyclePlayerIds.length === 0,
     residueCents,
     cyclePlayerIds: resolution.cyclePlayerIds,
     appliedIsolations: resolution.appliedIsolations,
-    algorithm,
-    subsetCount,
+    algorithm: residualSettlement.algorithm,
+    subsetCount: residualSettlement.subsetCount,
+    paymentPreferenceStatus: preferenceSettlement.status,
   };
 }
 
@@ -539,18 +764,27 @@ export function computePlan(
   rows: LedgerRow[],
   adjustments: Adjustment[],
   isolations: IsolationRule[],
-  aliases: ReadonlyArray<AliasRule> = []
+  aliases: ReadonlyArray<AliasRule> = [],
+  paymentPreferences: ReadonlyArray<PaymentPreference> = []
 ): { balances: EffectiveBalance[]; plan: SettlementPlan } {
   if (aliases.length === 0) {
     const balances = applyAdjustments(rows, adjustments);
-    const plan = buildSettlementPlan(balances, isolations);
+    const plan = buildSettlementPlan(balances, isolations, paymentPreferences);
     return { balances, plan };
   }
   const canonical = buildCanonicalMap(aliases);
   const collapsedRows = collapseRows(rows, canonical);
   const collapsedAdjustments = collapseAdjustments(adjustments, canonical);
   const { rules: collapsedIsolations } = collapseIsolations(isolations, canonical);
+  const collapsedPaymentPreferences = collapsePaymentPreferences(
+    paymentPreferences,
+    canonical
+  );
   const balances = applyAdjustments(collapsedRows, collapsedAdjustments);
-  const plan = buildSettlementPlan(balances, collapsedIsolations);
+  const plan = buildSettlementPlan(
+    balances,
+    collapsedIsolations,
+    collapsedPaymentPreferences
+  );
   return { balances, plan };
 }

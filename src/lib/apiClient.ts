@@ -6,7 +6,7 @@
  * server records audit trail entries.
  */
 
-import type { PersistedGameSnapshot } from './types';
+import type { PaymentPreference, PersistedGameSnapshot } from './types';
 
 const ACTOR_HEADER = 'X-Actor-Label';
 
@@ -77,6 +77,7 @@ export interface CreateFinalizedGameInput {
   }>;
   isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
   aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+  paymentPreferences: ReadonlyArray<PaymentPreference>;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -108,6 +109,7 @@ export async function createFinalizedGame(
       adjustments: input.adjustments,
       isolations: input.isolations,
       aliases: input.aliases,
+      paymentPreferences: input.paymentPreferences,
       note: input.note ?? null,
     }),
   });

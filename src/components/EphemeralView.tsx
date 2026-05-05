@@ -5,6 +5,7 @@ import { SettlementPanel } from './SettlementPanel';
 import { IsolationPanel } from './IsolationPanel';
 import { AdjustmentsPanel } from './AdjustmentsPanel';
 import { AliasPanel } from './AliasPanel';
+import { PaymentPreferencesPanel } from './PaymentPreferencesPanel';
 import { LoadingView } from './LoadingView';
 import { ErrorView } from './ErrorView';
 import { MobileTabs, type EphemeralTabKey } from './MobileTabs';
@@ -22,6 +23,7 @@ import type {
   Adjustment,
   IsolationRule,
   LedgerUnit,
+  PaymentPreference,
   ParsedLedger,
   PersistedAlias,
   PersistedPlayer,
@@ -49,6 +51,7 @@ export function EphemeralView({
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
   const [aliases, setAliases] = useState<AliasRule[]>([]);
+  const [paymentPreferences, setPaymentPreferences] = useState<PaymentPreference[]>([]);
   const [unitOverride, setUnitOverride] = useState<LedgerUnit | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EphemeralTabKey>('ledger');
@@ -65,6 +68,9 @@ export function EphemeralView({
     if (initial.adjustments.length > 0) setAdjustments(initial.adjustments);
     if (initial.isolations.length > 0) setIsolations(initial.isolations);
     if (initial.aliases.length > 0) setAliases(initial.aliases);
+    if (initial.paymentPreferences.length > 0) {
+      setPaymentPreferences(initial.paymentPreferences);
+    }
     if (initial.unitOverride !== null) setUnitOverride(initial.unitOverride);
     if (initial.gameId) fetchGame(initial.gameId);
   }, [fetchGame]);
@@ -76,9 +82,10 @@ export function EphemeralView({
       adjustments,
       isolations,
       aliases,
+      paymentPreferences,
       unitOverride,
     });
-  }, [ledgerState.gameId, adjustments, isolations, aliases, unitOverride]);
+  }, [ledgerState.gameId, adjustments, isolations, aliases, paymentPreferences, unitOverride]);
 
   const parsedLedger: ParsedLedger | null = useMemo(() => {
     if (!ledgerState.csv) return null;
@@ -126,6 +133,10 @@ export function EphemeralView({
       );
       return filtered.length === current.length ? current : filtered;
     });
+    setPaymentPreferences((current) => {
+      const filtered = current.filter((p) => validIds.has(p.playerId));
+      return filtered.length === current.length ? current : filtered;
+    });
   }, [parsedLedger]);
 
   const { balances, plan } = useMemo(() => {
@@ -140,11 +151,23 @@ export function EphemeralView({
           appliedIsolations: [],
           algorithm: 'optimal' as const,
           subsetCount: 0,
+          paymentPreferenceStatus: {
+            applied: false,
+            reason: 'none' as const,
+            venmoPlayerIds: [],
+            zellePlayerIds: [],
+          },
         },
       };
     }
-    return computePlan(parsedLedger.rows, adjustments, isolations, aliases);
-  }, [parsedLedger, adjustments, isolations, aliases]);
+    return computePlan(
+      parsedLedger.rows,
+      adjustments,
+      isolations,
+      aliases,
+      paymentPreferences
+    );
+  }, [parsedLedger, adjustments, isolations, aliases, paymentPreferences]);
 
   // Push ticker upward on every settlement change.
   useEffect(() => {
@@ -191,6 +214,7 @@ export function EphemeralView({
       setAdjustments([]);
       setIsolations([]);
       setAliases([]);
+      setPaymentPreferences([]);
       setUnitOverride(null);
       setParseError(null);
       fetchGame(id);
@@ -234,6 +258,9 @@ export function EphemeralView({
         });
         return next;
       });
+      setPaymentPreferences((current) =>
+        current.filter((preference) => preference.playerId !== input.playerId)
+      );
     },
     [pushToast]
   );
@@ -310,6 +337,7 @@ export function EphemeralView({
           playerId: a.playerId,
           aliasToPlayerId: a.aliasToPlayerId,
         })),
+        paymentPreferences,
         note: trimmedNote.length > 0 ? trimmedNote : null,
       });
       navigate(gamePath(game.game.id));
@@ -323,13 +351,14 @@ export function EphemeralView({
       pushToast(message, 'error');
       setFinalizing(false);
     }
-  }, [adjustments, aliases, isolations, ledgerState.gameId, note, parsedLedger, plan.cyclePlayerIds.length, pushToast]);
+  }, [adjustments, aliases, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, pushToast]);
 
   const reset = useCallback(() => {
     resetLedger();
     setAdjustments([]);
     setIsolations([]);
     setAliases([]);
+    setPaymentPreferences([]);
     setUnitOverride(null);
     setParseError(null);
     setNote('');
@@ -338,6 +367,7 @@ export function EphemeralView({
       adjustments: [],
       isolations: [],
       aliases: [],
+      paymentPreferences: [],
       unitOverride: null,
     });
   }, [resetLedger]);
@@ -404,6 +434,11 @@ export function EphemeralView({
               onAdd={handleAddAdjustment}
               onRemove={handleRemoveAdjustment}
             />
+            <PaymentPreferencesPanel
+              balances={balances}
+              preferences={paymentPreferences}
+              onChange={setPaymentPreferences}
+            />
             <IsolationPanel
               balances={balances}
               isolations={isolations}
@@ -457,6 +492,11 @@ export function EphemeralView({
                 adjustments={adjustments}
                 onAdd={handleAddAdjustment}
                 onRemove={handleRemoveAdjustment}
+              />
+              <PaymentPreferencesPanel
+                balances={balances}
+                preferences={paymentPreferences}
+                onChange={setPaymentPreferences}
               />
               <IsolationPanel
                 balances={balances}

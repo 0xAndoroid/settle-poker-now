@@ -59,6 +59,11 @@ interface AliasBody {
   aliasToPlayerId: string;
 }
 
+interface PaymentPreferenceBody {
+  playerId: string;
+  rail: 'venmo' | 'zelle';
+}
+
 interface CreateBody {
   pokernowUrl?: string;
   actorLabel?: string;
@@ -67,6 +72,7 @@ interface CreateBody {
   adjustments?: AdjustmentBody[];
   isolations?: IsolationBody[];
   aliases?: AliasBody[];
+  paymentPreferences?: PaymentPreferenceBody[];
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -99,6 +105,15 @@ function isValidAlias(x: unknown): x is AliasBody {
   );
 }
 
+function isValidPaymentPreference(x: unknown): x is PaymentPreferenceBody {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.playerId === 'string' &&
+    (o.rail === 'venmo' || o.rail === 'zelle')
+  );
+}
+
 export const onRequestOptions: PagesFunction<Env> = async () => OPTIONS_NO_CONTENT;
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
@@ -121,6 +136,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const adjustments = body.adjustments ?? [];
   const isolations = body.isolations ?? [];
   const aliases = body.aliases ?? [];
+  const paymentPreferences = body.paymentPreferences ?? [];
 
   if (finalize) {
     if (!Array.isArray(adjustments) || !adjustments.every(isValidAdjustment)) {
@@ -131,6 +147,12 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
     if (!Array.isArray(aliases) || !aliases.every(isValidAlias)) {
       return errorResponse(400, 'aliases must be a list of {playerId,aliasToPlayerId}.');
+    }
+    if (
+      !Array.isArray(paymentPreferences) ||
+      !paymentPreferences.every(isValidPaymentPreference)
+    ) {
+      return errorResponse(400, 'paymentPreferences must be a list of {playerId,rail}.');
     }
   }
 
@@ -156,6 +178,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         adjustments,
         isolations,
         aliases,
+        paymentPreferences,
         actorLabel: body.actorLabel ?? null,
         note,
       });

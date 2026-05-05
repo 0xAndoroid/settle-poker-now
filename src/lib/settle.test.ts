@@ -631,3 +631,105 @@ describe('optimal subset-sum partition — interaction with isolation rules', ()
     });
   });
 });
+
+describe('payment preferences — rail-safe routing', () => {
+  it('routes Venmo-only ↔ Zelle-only payments through a both-capable proxy', () => {
+    const balances = [
+      balance('a', 'Andrew', -10000),
+      balance('b', 'Bridge', 0),
+      balance('d', 'Dev', 10000),
+    ];
+
+    const plan = buildSettlementPlan(balances, [], [
+      { playerId: 'a', rail: 'venmo' },
+      { playerId: 'd', rail: 'zelle' },
+    ]);
+
+    expect(plan.paymentPreferenceStatus).toEqual({
+      applied: true,
+      reason: 'applied',
+      venmoPlayerIds: ['a'],
+      zellePlayerIds: ['d'],
+    });
+    expect(plan.txns).toEqual([
+      { fromId: 'a', toId: 'b', amountCents: 10000 },
+      { fromId: 'b', toId: 'd', amountCents: 10000 },
+    ]);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('uses direct payments for compatible pairs even when preferences are set', () => {
+    const balances = [
+      balance('a', 'Andrew', -10000),
+      balance('b', 'Ben', 10000),
+      balance('c', 'Cody', -5000),
+      balance('d', 'Dev', 5000),
+    ];
+
+    const plan = buildSettlementPlan(balances, [], [
+      { playerId: 'a', rail: 'venmo' },
+      { playerId: 'd', rail: 'zelle' },
+    ]);
+
+    expect(plan.paymentPreferenceStatus).toEqual({
+      applied: true,
+      reason: 'applied',
+      venmoPlayerIds: ['a'],
+      zellePlayerIds: ['d'],
+    });
+    expect(plan.txns).toEqual([
+      { fromId: 'a', toId: 'b', amountCents: 10000 },
+      { fromId: 'c', toId: 'd', amountCents: 5000 },
+    ]);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('falls back to normal settlement when incompatible rails have no proxy', () => {
+    const balances = [
+      balance('a', 'Andrew', -10000),
+      balance('b', 'Ben', 10000),
+    ];
+
+    const plan = buildSettlementPlan(balances, [], [
+      { playerId: 'a', rail: 'venmo' },
+      { playerId: 'b', rail: 'zelle' },
+    ]);
+
+    expect(plan.paymentPreferenceStatus).toEqual({
+      applied: false,
+      reason: 'unbalanced',
+      venmoPlayerIds: ['a'],
+      zellePlayerIds: ['b'],
+    });
+    expect(plan.txns).toEqual([
+      { fromId: 'a', toId: 'b', amountCents: 10000 },
+    ]);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('collapses payment preferences through aliases before routing', () => {
+    const rows = [
+      row('a2', 'Andrew 2', -5000),
+      row('a', 'Andrew', -5000),
+      row('b', 'Ben', 10000),
+    ];
+
+    const { plan } = computePlan(
+      rows,
+      [],
+      [],
+      [{ playerId: 'a2', aliasToPlayerId: 'a' }],
+      [{ playerId: 'a2', rail: 'venmo' }]
+    );
+
+    expect(plan.paymentPreferenceStatus).toEqual({
+      applied: true,
+      reason: 'applied',
+      venmoPlayerIds: ['a'],
+      zellePlayerIds: [],
+    });
+    expect(plan.txns).toEqual([
+      { fromId: 'a', toId: 'b', amountCents: 10000 },
+    ]);
+  });
+});

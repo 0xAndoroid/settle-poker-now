@@ -144,6 +144,27 @@ describe('createGameFinalized — validation', () => {
     ).rejects.toBeInstanceOf(CreateFinalizedValidationError);
   });
 
+  it('rejects a payment preference pointing at an unknown player', async () => {
+    await expect(
+      createGameFinalized(stubDb, {
+        ...baseInput(),
+        paymentPreferences: [{ playerId: 'ghost', rail: 'venmo' }],
+      })
+    ).rejects.toBeInstanceOf(CreateFinalizedValidationError);
+  });
+
+  it('rejects duplicate payment preferences for one player', async () => {
+    await expect(
+      createGameFinalized(stubDb, {
+        ...baseInput(),
+        paymentPreferences: [
+          { playerId: 'a', rail: 'venmo' },
+          { playerId: 'a', rail: 'zelle' },
+        ],
+      })
+    ).rejects.toThrowError(/only one payment preference/i);
+  });
+
   it('accepts a note alongside the bundle (validation path)', async () => {
     // The note is non-validating — the function passes it through to D1
     // after the validation block. Ensure adding a note doesn't trigger
