@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  centsFromDollarsString,
-  dollarsFromCents,
-  formatDollars,
-  formatNet,
-} from './money';
+import { centsFromDollarsString, dollarsFromCents, formatDollars, formatNet } from './money';
 
 describe('money', () => {
   it('rounds dollars-string to integer cents (no float drift)', () => {
@@ -15,7 +10,7 @@ describe('money', () => {
   });
 
   it('throws on garbage input', () => {
-    expect(() => centsFromDollarsString('abc')).toThrow();
+    expect(() => centsFromDollarsString('abc')).toThrow('Cannot parse "abc" as a dollar amount');
   });
 
   it('formats positive and negative cents', () => {

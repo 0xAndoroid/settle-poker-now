@@ -50,10 +50,7 @@ function emptyPaymentPreferenceStatus(): SettlementPlan['paymentPreferenceStatus
  * symmetric: `from` paid `to`, so `from`'s net rises by X (less owed) and
  * `to`'s net drops by X (less owed back). Sum is preserved.
  */
-export function applyAdjustments(
-  rows: LedgerRow[],
-  adjustments: Adjustment[]
-): EffectiveBalance[] {
+export function applyAdjustments(rows: LedgerRow[], adjustments: Adjustment[]): EffectiveBalance[] {
   const byId = new Map<string, EffectiveBalance>();
   for (const row of rows) {
     byId.set(row.playerId, {
@@ -171,9 +168,7 @@ function resolveIsolations(
   }
 
   // Mutable working balances.
-  const balanceMap = new Map<string, EffectiveBalance>(
-    balances.map((b) => [b.playerId, { ...b }])
-  );
+  const balanceMap = new Map<string, EffectiveBalance>(balances.map((b) => [b.playerId, { ...b }]));
 
   // Topological order: leaves (no children pointing at them) first.
   const childrenOf = new Map<string, string[]>();
@@ -235,8 +230,7 @@ function resolveIsolations(
     removed.add(childId);
 
     // Parent may now be a leaf if all its children have been processed.
-    const parentRemainingChildren =
-      (inDegree.get(parentId) ?? 0) - 1;
+    const parentRemainingChildren = (inDegree.get(parentId) ?? 0) - 1;
     inDegree.set(parentId, parentRemainingChildren);
     if (parentRemainingChildren === 0 && parent.has(parentId)) {
       queue.push(parentId);
@@ -334,9 +328,7 @@ function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResul
 
   // Sort by playerId for determinism — bit i corresponds to the i-th id
   // in lexicographic order.
-  const sorted = nonZero
-    .slice()
-    .sort((a, b) => a.playerId.localeCompare(b.playerId));
+  const sorted = nonZero.slice().sort((a, b) => a.playerId.localeCompare(b.playerId));
   const N = sorted.length;
   const FULL = (1 << N) - 1;
   const nets = sorted.map((b) => b.effectiveNetCents);
@@ -344,7 +336,7 @@ function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResul
   // sumOf[mask] = sum of nets for the bits set in mask. Computed
   // incrementally: drop the lowest bit, look up the rest, add the
   // dropped player's net.
-  const sumOf = new Array<number>(1 << N).fill(0);
+  const sumOf = Array.from({ length: 1 << N }, () => 0);
   for (let mask = 1; mask <= FULL; mask++) {
     const low = mask & -mask;
     const i = 31 - Math.clz32(low);
@@ -623,16 +615,11 @@ function settleWithPaymentPreferences(
   const zellePlayerIds = zelleOnly.map((b) => b.playerId).sort();
 
   if (both.length > 0) {
-    const proxyPlayerId = both
-      .slice()
-      .sort((a, b) => a.playerId.localeCompare(b.playerId))[0]!.playerId;
+    const proxyPlayerId = both.slice().sort((a, b) => a.playerId.localeCompare(b.playerId))[0]!
+      .playerId;
     return {
       settlement: {
-        txns: greedySettleWithRailProxy(
-          balances,
-          preferenceByPlayer,
-          proxyPlayerId
-        ),
+        txns: greedySettleWithRailProxy(balances, preferenceByPlayer, proxyPlayerId),
         algorithm: 'greedy',
         subsetCount: 1,
       },
@@ -661,9 +648,7 @@ function settleWithPaymentPreferences(
   }
 
   return {
-    settlement: settleResidualGroups(
-      [venmoOnly, zelleOnly].filter((group) => group.length > 0)
-    ),
+    settlement: settleResidualGroups([venmoOnly, zelleOnly].filter((group) => group.length > 0)),
     status: {
       applied: true,
       reason: 'applied',
@@ -776,15 +761,8 @@ export function computePlan(
   const collapsedRows = collapseRows(rows, canonical);
   const collapsedAdjustments = collapseAdjustments(adjustments, canonical);
   const { rules: collapsedIsolations } = collapseIsolations(isolations, canonical);
-  const collapsedPaymentPreferences = collapsePaymentPreferences(
-    paymentPreferences,
-    canonical
-  );
+  const collapsedPaymentPreferences = collapsePaymentPreferences(paymentPreferences, canonical);
   const balances = applyAdjustments(collapsedRows, collapsedAdjustments);
-  const plan = buildSettlementPlan(
-    balances,
-    collapsedIsolations,
-    collapsedPaymentPreferences
-  );
+  const plan = buildSettlementPlan(balances, collapsedIsolations, collapsedPaymentPreferences);
   return { balances, plan };
 }

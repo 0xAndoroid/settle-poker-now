@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "unicorn", "oxc", "import", "vitest", "promise"],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "ignorePatterns": ["dist", "node_modules", ".wrangler"],
+  "settings": {
+    "react": {
+      "version": "19.0.0"
+    }
+  },
+  "options": {
+    "maxWarnings": 0,
+    "reportUnusedDisableDirectives": "warn"
+  },
+  "rules": {
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["functions/**/*.ts"],
+      "env": {
+        "serviceworker": true,
+        "worker": true
+      }
+    },
+    {
+      "files": ["**/*.{test,spec}.{ts,tsx}", "src/test/**/*.ts"],
+      "env": {
+        "vitest": true
+      }
+    }
+  ]
+}

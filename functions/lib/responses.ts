@@ -8,8 +8,7 @@
 export const CORS_HEADERS: HeadersInit = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers':
-    'Accept, Content-Type, X-Actor-Label, X-Client-Event-Id',
+  'Access-Control-Allow-Headers': 'Accept, Content-Type, X-Actor-Label, X-Client-Event-Id',
   'Access-Control-Expose-Headers':
     'X-Pokernow-Cents, X-Demo-Source, X-Upstream-Hosts, X-Game-Id, X-Live-Game-Id',
 };
@@ -20,7 +19,7 @@ export function jsonResponse(body: unknown, init?: ResponseInit): Response {
     headers: {
       ...CORS_HEADERS,
       'Content-Type': 'application/json; charset=utf-8',
-      ...(init?.headers ?? {}),
+      ...init?.headers,
     },
   };
   return new Response(JSON.stringify(body), merged);
