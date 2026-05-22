@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { IsolationPanel } from './IsolationPanel';
 import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel } from './SettlementPanel';
 import { validateLiveFinalization } from '@/lib/liveProjection';
@@ -12,7 +11,6 @@ interface LiveFinalizePanelProps {
   pendingCount: number;
   finalizing: boolean;
   isolations: IsolationRule[];
-  onIsolationsChange: (rules: IsolationRule[]) => void;
   onFinalize: (force: boolean, isolations: IsolationRule[]) => Promise<void>;
 }
 
@@ -21,7 +19,6 @@ export function LiveFinalizePanel({
   pendingCount,
   finalizing,
   isolations,
-  onIsolationsChange,
   onFinalize,
 }: LiveFinalizePanelProps) {
   const [force, setForce] = useState(false);
@@ -109,14 +106,6 @@ export function LiveFinalizePanel({
 
       {preview.rows.length > 0 && (
         <>
-          {preview.balances.length > 1 && (
-            <IsolationPanel
-              balances={preview.balances}
-              isolations={preview.isolations}
-              cyclePlayerIds={preview.plan.cyclePlayerIds}
-              onChange={onIsolationsChange}
-            />
-          )}
           <LedgerPanel
             rows={preview.rows}
             effectiveBalances={preview.balances}

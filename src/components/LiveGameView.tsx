@@ -4,7 +4,8 @@ import { HostRecoveryPanel } from './HostRecoveryPanel';
 import { LiveActivityPanel } from './LiveActivityPanel';
 import { LiveFinalizePanel } from './LiveFinalizePanel';
 import { LivePlayersPanel } from './LivePlayersPanel';
-import { MobileTabs, type LiveTabKey } from './MobileTabs';
+import { LiveIsolationRulesPanel } from './LiveIsolationRulesPanel';
+import { LivePriorPaymentsPanel } from './LivePriorPaymentsPanel';
 import { SyncStatusPanel } from './SyncStatusPanel';
 import type { TickerItem } from './Masthead';
 import { useLiveGame } from '@/hooks/useLiveGame';
@@ -22,7 +23,6 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
   const live = useLiveGame(gameId, {
     onError: (message) => pushToast(message, 'error'),
   });
-  const [activeTab, setActiveTab] = useState<LiveTabKey>('players');
   const [finalizing, setFinalizing] = useState(false);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
 
@@ -87,10 +87,6 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
     );
   }
 
-  const bankIssueCount =
-    (snapshot.bankSummary.latestTableDeltaCents ? 1 : 0) +
-    (snapshot.bankSummary.latestBankDeltaCents ? 1 : 0);
-
   if (snapshot.game.status === 'finalized' && snapshot.game.finalizedGameId) {
     return (
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-8">
@@ -124,6 +120,14 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
         onVoidEntry={live.voidEntry}
       />
     ),
+    priorPayments: <LivePriorPaymentsPanel snapshot={snapshot} onAddEntry={live.addEntry} />,
+    isolationRules: (
+      <LiveIsolationRulesPanel
+        snapshot={snapshot}
+        isolations={isolations}
+        onChange={setIsolations}
+      />
+    ),
     bank: <ChipBankPanel snapshot={snapshot} onAddCheckpoint={live.addChipCheckpoint} />,
     activity: (
       <LiveActivityPanel
@@ -138,47 +142,34 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
         pendingCount={live.pendingCount}
         finalizing={finalizing}
         isolations={isolations}
-        onIsolationsChange={setIsolations}
         onFinalize={handleFinalize}
       />
     ),
   };
 
   return (
-    <>
-      <MobileTabs
-        mode="live"
-        active={activeTab}
-        onChange={setActiveTab}
-        txnCount={snapshot.entries.filter((entry) => entry.voidedAt === null).length}
-        playerCount={snapshot.players.length}
-        bankIssueCount={bankIssueCount}
-        historyCount={snapshot.entries.length + snapshot.chipCheckpoints.length}
-        pendingCount={live.pendingCount}
-      />
-
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
-        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
-          <div className="space-y-5">
-            {panels.players}
-            {panels.activity}
-          </div>
-          <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
-            <SyncStatusPanel
-              syncState={live.syncState}
-              pendingCount={live.pendingCount}
-              liveUrl={liveUrl}
-              onToast={pushToast}
-            />
-            {panels.bank}
-            {panels.finalize}
-            <HostRecoveryPanel liveUrl={liveUrl} />
-          </div>
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
+        <div className="space-y-5">
+          {panels.players}
+          {panels.priorPayments}
+          {panels.isolationRules}
+          {panels.activity}
         </div>
 
-        <div className="lg:hidden space-y-5">{panels[activeTab]}</div>
-      </main>
-    </>
+        <div className="mt-5 lg:mt-0 lg:sticky lg:top-[88px] lg:self-start space-y-5">
+          <SyncStatusPanel
+            syncState={live.syncState}
+            pendingCount={live.pendingCount}
+            liveUrl={liveUrl}
+            onToast={pushToast}
+          />
+          {panels.bank}
+          {panels.finalize}
+          <HostRecoveryPanel liveUrl={liveUrl} />
+        </div>
+      </div>
+    </main>
   );
 }
 
