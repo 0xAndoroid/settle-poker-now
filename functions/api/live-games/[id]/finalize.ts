@@ -4,11 +4,7 @@
  * Finalizes a live game into the existing persistent /g/:id settlement.
  */
 
-import {
-  LiveConflictError,
-  LiveNotFoundError,
-  finalizeLiveGame,
-} from '../../../lib/live-db';
+import { LiveConflictError, LiveNotFoundError, finalizeLiveGame } from '../../../lib/live-db';
 import {
   OPTIONS_NO_CONTENT,
   errorResponse,
@@ -27,6 +23,7 @@ interface Body {
   clientEventId?: string;
   actorLabel?: string | null;
   force?: boolean;
+  isolations?: Array<{ playerId?: unknown; counterpartId?: unknown }>;
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () => OPTIONS_NO_CONTENT;
@@ -41,6 +38,15 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   }
   const clientEventId = readClientEventId(ctx.request, body);
   if (!clientEventId) return errorResponse(400, 'clientEventId is required.');
+  let isolations: Array<{ playerId: string; counterpartId: string }>;
+  try {
+    isolations = readIsolations(body);
+  } catch (err) {
+    return errorResponse(
+      400,
+      err instanceof Error ? err.message : 'isolations must be a list of {playerId,counterpartId}.'
+    );
+  }
 
   try {
     const actorLabel =
@@ -52,6 +58,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       clientEventId,
       actorLabel,
       force: body.force === true,
+      isolations,
     });
     return jsonResponse(result);
   } catch (err) {
@@ -62,3 +69,19 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     throw err;
   }
 };
+
+function readIsolations(body: Body): Array<{ playerId: string; counterpartId: string }> {
+  if (body.isolations === undefined) return [];
+  if (!Array.isArray(body.isolations)) {
+    throw new Error('isolations must be a list of {playerId,counterpartId}.');
+  }
+  return body.isolations.map((rule) => {
+    if (typeof rule.playerId !== 'string' || typeof rule.counterpartId !== 'string') {
+      throw new Error('isolations must be a list of {playerId,counterpartId}.');
+    }
+    return {
+      playerId: rule.playerId,
+      counterpartId: rule.counterpartId,
+    };
+  });
+}

@@ -1,5 +1,6 @@
 import { ApiError } from './apiClient';
 import type {
+  IsolationRule,
   LiveChipCheckpointType,
   LiveEntryType,
   LiveGameSnapshot,
@@ -208,25 +209,27 @@ export async function finalizeLiveGameRemote(
     clientEventId: string;
     actorLabel: string | null;
     force?: boolean;
+    isolations?: ReadonlyArray<IsolationRule>;
   },
   signal?: AbortSignal
 ): Promise<{ game: PersistedGameSnapshot; redirectPath: string }> {
-  const res = await fetch(
-    `/api/live-games/${encodeURIComponent(args.gameId)}/finalize`,
-    {
-      method: 'POST',
-      signal,
-      headers: headers({
-        actorLabel: args.actorLabel,
-        clientEventId: args.clientEventId,
-      }),
-      body: JSON.stringify({
-        clientEventId: args.clientEventId,
-        actorLabel: args.actorLabel,
-        force: args.force === true,
-      }),
-    }
-  );
+  const res = await fetch(`/api/live-games/${encodeURIComponent(args.gameId)}/finalize`, {
+    method: 'POST',
+    signal,
+    headers: headers({
+      actorLabel: args.actorLabel,
+      clientEventId: args.clientEventId,
+    }),
+    body: JSON.stringify({
+      clientEventId: args.clientEventId,
+      actorLabel: args.actorLabel,
+      force: args.force === true,
+      isolations: (args.isolations ?? []).map((rule) => ({
+        playerId: rule.playerId,
+        counterpartId: rule.counterpartId,
+      })),
+    }),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return (await res.json()) as { game: PersistedGameSnapshot; redirectPath: string };
 }

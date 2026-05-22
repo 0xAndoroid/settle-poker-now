@@ -3,7 +3,11 @@ import {
   deriveLivePlayerSummaries,
   validateLiveFinalization,
 } from '../../src/lib/liveProjection';
+import { applyAdjustments, buildSettlementPlan } from '../../src/lib/settle';
 import type {
+  Adjustment,
+  IsolationRule,
+  LedgerRow,
   LiveAuditAction,
   LiveAuditEntry,
   LiveChipCheckpoint,
@@ -835,6 +839,7 @@ export async function finalizeLiveGame(
     clientEventId: string;
     actorLabel: string | null;
     force?: boolean;
+    isolations?: ReadonlyArray<{ playerId: string; counterpartId: string }>;
   }
 ): Promise<{ game: DbGameSnapshot; redirectPath: string }> {
   const existing = await loadLiveGame(db, args.gameId);
@@ -858,6 +863,11 @@ export async function finalizeLiveGame(
   if (!validation.ok) {
     throw new CreateFinalizedValidationError(validation.errors.join(' '));
   }
+  const isolations = validateLiveIsolationRules(
+    validation.rows,
+    validation.adjustments,
+    args.isolations ?? []
+  );
 
   const now = Date.now();
   await db.batch([
@@ -900,7 +910,7 @@ export async function finalizeLiveGame(
       endedAt: now,
       rows,
       adjustments,
-      isolations: [],
+      isolations,
       aliases: [],
       paymentPreferences: [],
       actorLabel: args.actorLabel,
@@ -926,6 +936,7 @@ export async function finalizeLiveGame(
           finalizedGameId: finalized.game.id,
           rowCount: rows.length,
           adjustmentCount: adjustments.length,
+          isolationCount: isolations.length,
           proportionalAdjustmentCount: validation.proportionalAdjustments.length,
           rawLedgerDeltaCents: validation.rawRows.reduce((acc, row) => acc + row.netCents, 0),
         },
@@ -945,6 +956,35 @@ export async function finalizeLiveGame(
       .run();
     throw err;
   }
+}
+
+export function validateLiveIsolationRules(
+  rows: ReadonlyArray<LedgerRow>,
+  adjustments: ReadonlyArray<Adjustment>,
+  input: ReadonlyArray<{ playerId: string; counterpartId: string }>
+): IsolationRule[] {
+  const playerIds = new Set(rows.map((row) => row.playerId));
+  const byPlayer = new Map<string, string>();
+  for (const rule of input) {
+    if (!playerIds.has(rule.playerId) || !playerIds.has(rule.counterpartId)) {
+      throw new CreateFinalizedValidationError('Isolation rule references unknown player.');
+    }
+    if (rule.playerId === rule.counterpartId) {
+      throw new CreateFinalizedValidationError('Player cannot be isolated to themselves.');
+    }
+    byPlayer.set(rule.playerId, rule.counterpartId);
+  }
+
+  const rules = Array.from(byPlayer, ([playerId, counterpartId]) => ({
+    playerId,
+    counterpartId,
+  }));
+  const balances = applyAdjustments(rows, adjustments);
+  const plan = buildSettlementPlan(balances, rules);
+  if (plan.cyclePlayerIds.length > 0) {
+    throw new CreateFinalizedValidationError('Isolation rules form a cycle.');
+  }
+  return rules;
 }
 
 function validateEntryInput(

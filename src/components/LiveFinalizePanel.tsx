@@ -1,22 +1,27 @@
 import { useMemo, useState } from 'react';
+import { IsolationPanel } from './IsolationPanel';
 import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel } from './SettlementPanel';
 import { validateLiveFinalization } from '@/lib/liveProjection';
 import { formatDollars } from '@/lib/money';
-import { applyAdjustments, buildSettlementPlan } from '@/lib/settle';
-import type { LiveGameSnapshot } from '@/lib/types';
+import { computePlan } from '@/lib/settle';
+import type { IsolationRule, LiveGameSnapshot } from '@/lib/types';
 
 interface LiveFinalizePanelProps {
   snapshot: LiveGameSnapshot;
   pendingCount: number;
   finalizing: boolean;
-  onFinalize: (force: boolean) => Promise<void>;
+  isolations: IsolationRule[];
+  onIsolationsChange: (rules: IsolationRule[]) => void;
+  onFinalize: (force: boolean, isolations: IsolationRule[]) => Promise<void>;
 }
 
 export function LiveFinalizePanel({
   snapshot,
   pendingCount,
   finalizing,
+  isolations,
+  onIsolationsChange,
   onFinalize,
 }: LiveFinalizePanelProps) {
   const [force, setForce] = useState(false);
@@ -28,18 +33,25 @@ export function LiveFinalizePanel({
     const rows = validation.rows;
     const rawRows = validation.rawRows;
     const adjustments = validation.adjustments;
-    const balances = applyAdjustments(rows, adjustments);
+    const validIds = new Set(rows.map((row) => row.playerId));
+    const validIsolations = isolations.filter(
+      (rule) =>
+        validIds.has(rule.playerId) &&
+        validIds.has(rule.counterpartId) &&
+        rule.playerId !== rule.counterpartId
+    );
+    const { balances, plan } = computePlan(rows, adjustments, validIsolations);
     const rawNetByPlayer = new Map(rawRows.map((row) => [row.playerId, row.netCents]));
     const displayBalances = balances.map((balance) => ({
       ...balance,
       originalNetCents: rawNetByPlayer.get(balance.playerId) ?? balance.originalNetCents,
     }));
-    const plan = buildSettlementPlan(balances, []);
-    return { rows, balances: displayBalances, plan };
-  }, [validation]);
+    return { rows, balances: displayBalances, isolations: validIsolations, plan };
+  }, [isolations, validation]);
 
   const chipCheck = validation.checks.find((check) => check.key === 'chip_bank');
   const canForceChip = chipCheck && !chipCheck.ok;
+  const hasIsolationCycle = preview.plan.cyclePlayerIds.length > 0;
   const imbalanceMessage = formatImbalanceConfirmation(
     validation.rawRows.reduce((acc, row) => acc + row.netCents, 0)
   );
@@ -52,7 +64,7 @@ export function LiveFinalizePanel({
     ) {
       return;
     }
-    void onFinalize(force);
+    void onFinalize(force, preview.isolations);
   };
 
   return (
@@ -63,7 +75,7 @@ export function LiveFinalizePanel({
           <button
             type="button"
             onClick={handleFinalize}
-            disabled={finalizing || !validation.ok}
+            disabled={finalizing || !validation.ok || hasIsolationCycle}
             className="btn btn-fill btn-sm"
           >
             {finalizing ? 'finalizing...' : 'finalize'}
@@ -97,6 +109,14 @@ export function LiveFinalizePanel({
 
       {preview.rows.length > 0 && (
         <>
+          {preview.balances.length > 1 && (
+            <IsolationPanel
+              balances={preview.balances}
+              isolations={preview.isolations}
+              cyclePlayerIds={preview.plan.cyclePlayerIds}
+              onChange={onIsolationsChange}
+            />
+          )}
           <LedgerPanel
             rows={preview.rows}
             effectiveBalances={preview.balances}

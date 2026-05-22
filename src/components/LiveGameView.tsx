@@ -10,6 +10,7 @@ import type { TickerItem } from './Masthead';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { formatDollars } from '@/lib/money';
 import { gamePath, navigate } from '@/lib/routing';
+import type { IsolationRule } from '@/lib/types';
 
 interface LiveGameViewProps {
   gameId: string;
@@ -17,16 +18,13 @@ interface LiveGameViewProps {
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
 }
 
-export function LiveGameView({
-  gameId,
-  onTickerChange,
-  pushToast,
-}: LiveGameViewProps) {
+export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameViewProps) {
   const live = useLiveGame(gameId, {
     onError: (message) => pushToast(message, 'error'),
   });
   const [activeTab, setActiveTab] = useState<LiveTabKey>('players');
   const [finalizing, setFinalizing] = useState(false);
+  const [isolations, setIsolations] = useState<IsolationRule[]>([]);
 
   const snapshot = live.state.game;
   const liveUrl = useMemo(() => {
@@ -50,7 +48,9 @@ export function LiveGameView({
         value: formatDollars(snapshot.bankSummary.chipsInPlayCents),
       },
       ...(live.pendingCount > 0
-        ? ([{ label: 'unsynced', value: String(live.pendingCount), tone: 'accent' }] satisfies TickerItem[])
+        ? ([
+            { label: 'unsynced', value: String(live.pendingCount), tone: 'accent' },
+          ] satisfies TickerItem[])
         : []),
       ...(bankIssues > 0
         ? ([{ label: 'bank', value: 'off', tone: 'loss' }] satisfies TickerItem[])
@@ -60,10 +60,10 @@ export function LiveGameView({
   }, [live.pendingCount, onTickerChange, snapshot]);
 
   const handleFinalize = useCallback(
-    async (force: boolean) => {
+    async (force: boolean, rules: IsolationRule[]) => {
       setFinalizing(true);
       try {
-        const result = await live.finalize(force);
+        const result = await live.finalize(force, rules);
         if (result) {
           pushToast('live game finalized', 'success');
           navigate(result.redirectPath);
@@ -107,10 +107,7 @@ export function LiveGameView({
           </div>
           <p className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">
             This live table has been finalized into{' '}
-            <span className="font-mono text-fg">
-              /g/{snapshot.game.finalizedGameId}
-            </span>
-            .
+            <span className="font-mono text-fg">/g/{snapshot.game.finalizedGameId}</span>.
           </p>
         </div>
       </main>
@@ -127,12 +124,7 @@ export function LiveGameView({
         onVoidEntry={live.voidEntry}
       />
     ),
-    bank: (
-      <ChipBankPanel
-        snapshot={snapshot}
-        onAddCheckpoint={live.addChipCheckpoint}
-      />
-    ),
+    bank: <ChipBankPanel snapshot={snapshot} onAddCheckpoint={live.addChipCheckpoint} />,
     activity: (
       <LiveActivityPanel
         snapshot={snapshot}
@@ -145,6 +137,8 @@ export function LiveGameView({
         snapshot={snapshot}
         pendingCount={live.pendingCount}
         finalizing={finalizing}
+        isolations={isolations}
+        onIsolationsChange={setIsolations}
         onFinalize={handleFinalize}
       />
     ),
@@ -198,11 +192,7 @@ function CenterMessage({ label, body }: { label: string; body?: string }) {
             {label}
           </span>
         </div>
-        {body && (
-          <div className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">
-            {body}
-          </div>
-        )}
+        {body && <div className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">{body}</div>}
       </div>
     </div>
   );

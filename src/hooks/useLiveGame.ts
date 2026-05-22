@@ -13,6 +13,7 @@ import {
   type LiveOutboxItem,
 } from '@/lib/liveStorage';
 import type {
+  IsolationRule,
   LiveChipCheckpoint,
   LiveEntry,
   LiveGameSnapshot,
@@ -71,7 +72,8 @@ export function useLiveGame(
     note?: string | null;
   }) => Promise<void>;
   finalize: (
-    force?: boolean
+    force?: boolean,
+    isolations?: ReadonlyArray<IsolationRule>
   ) => Promise<{ game: PersistedGameSnapshot; redirectPath: string } | null>;
 } {
   const actorLabel = options.actorLabel ?? null;
@@ -258,7 +260,7 @@ export function useLiveGame(
   );
 
   const finalize = useCallback(
-    async (force = false) => {
+    async (force = false, isolations: ReadonlyArray<IsolationRule> = []) => {
       if (pendingCount > 0) {
         onErrorRef.current?.('Sync pending live changes before finalizing.');
         return null;
@@ -269,6 +271,7 @@ export function useLiveGame(
           gameId,
           actorLabel,
           force,
+          isolations,
           clientEventId: newClientEventId(),
         });
       } catch (err) {

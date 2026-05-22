@@ -1,7 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { LiveEntrySheet, type LiveEntryMode } from './LiveEntrySheet';
-import { formatDollars, formatNet } from '@/lib/money';
-import type { LiveEntry, LiveGameSnapshot, LivePlayerStatus } from '@/lib/types';
+import { centsFromDollarsString, formatDollars, formatNet } from '@/lib/money';
+import type {
+  LiveEntry,
+  LiveGameSnapshot,
+  LivePaymentMethod,
+  LivePlayer,
+  LivePlayerStatus,
+} from '@/lib/types';
 
 interface LivePlayersPanelProps {
   snapshot: LiveGameSnapshot;
@@ -14,6 +20,8 @@ interface LivePlayersPanelProps {
     playerId: string;
     entryType: 'buy_in' | 'cash_out' | 'prior_payment';
     amountCents: number;
+    toPlayerId?: string | null;
+    paymentMethod?: LivePaymentMethod | null;
     isFinal?: boolean;
   }) => Promise<void>;
   onVoidEntry: (entryId: string, reason?: string | null) => Promise<void>;
@@ -55,6 +63,20 @@ export function LivePlayersPanel({
     }
   };
 
+  const activePlayers = useMemo(
+    () =>
+      snapshot.players
+        .filter((player) => player.status !== 'removed')
+        .slice()
+        .sort(
+          (a, b) =>
+            a.sortOrder - b.sortOrder ||
+            a.name.localeCompare(b.name) ||
+            a.playerId.localeCompare(b.playerId)
+        ),
+    [snapshot.players]
+  );
+
   return (
     <section className="card" aria-labelledby="live-players-heading">
       <div className="card-header">
@@ -77,6 +99,10 @@ export function LivePlayersPanel({
           add
         </button>
       </form>
+
+      {activePlayers.length >= 2 && (
+        <LivePriorPaymentForm players={activePlayers} onAddEntry={onAddEntry} />
+      )}
 
       <div>
         {snapshot.playerSummaries.length === 0 ? (
@@ -104,6 +130,20 @@ export function LivePlayersPanel({
                         <Metric label="out" value={formatDollars(summary.cashOutCents)} />
                         <Metric label="net" value={formatNet(summary.netCents)} />
                       </div>
+                      {(summary.priorPaymentCents > 0 || summary.priorReceivedCents > 0) && (
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-fg-dim">
+                          {summary.priorPaymentCents > 0 && (
+                            <span className="pill">
+                              paid {formatDollars(summary.priorPaymentCents)}
+                            </span>
+                          )}
+                          {summary.priorReceivedCents > 0 && (
+                            <span className="pill">
+                              received {formatDollars(summary.priorReceivedCents)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -166,6 +206,176 @@ export function LivePlayersPanel({
     </section>
   );
 }
+
+function LivePriorPaymentForm({
+  players,
+  onAddEntry,
+}: {
+  players: LivePlayer[];
+  onAddEntry: LivePlayersPanelProps['onAddEntry'];
+}) {
+  const [fromId, setFromId] = useState('');
+  const [toId, setToId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<
+    '' | Extract<LivePaymentMethod, 'cash' | 'venmo' | 'zelle'>
+  >('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    if (!fromId || !toId) {
+      setError('Pick both players.');
+      return;
+    }
+    if (fromId === toId) {
+      setError('From and to must differ.');
+      return;
+    }
+    let amountCents: number;
+    try {
+      amountCents = centsFromDollarsString(amount);
+    } catch {
+      setError('Enter a valid amount.');
+      return;
+    }
+    if (amountCents <= 0) {
+      setError('Amount must be positive.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onAddEntry({
+        playerId: fromId,
+        entryType: 'prior_payment',
+        amountCents,
+        toPlayerId: toId,
+        paymentMethod: paymentMethod || null,
+      });
+      setAmount('');
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not record payment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="border-b border-line bg-surface-2 px-4 py-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="ticker-label-strong">prior payment</p>
+          <p className="text-[12px] text-fg-dim mt-1">cash already paid during the game</p>
+        </div>
+        <span className="ticker-label">adjustment</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <PlayerSelect
+          id="live-prior-from"
+          label="from"
+          value={fromId}
+          onChange={setFromId}
+          players={players}
+        />
+        <PlayerSelect
+          id="live-prior-to"
+          label="to"
+          value={toId}
+          onChange={setToId}
+          players={players}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px_auto] gap-2 items-end">
+        <label className="block space-y-1.5">
+          <span className="ticker-label">amount</span>
+          <input
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            inputMode="decimal"
+            placeholder="$0.00"
+            className="field font-mono num text-[14px]"
+          />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="ticker-label">method</span>
+          <select
+            value={paymentMethod}
+            onChange={(event) =>
+              setPaymentMethod(
+                event.target.value as '' | Extract<LivePaymentMethod, 'cash' | 'venmo' | 'zelle'>
+              )
+            }
+            className="field font-sans font-semibold text-[13px] pr-8"
+            style={selectArrowStyle}
+          >
+            <option value="">none</option>
+            <option value="cash">cash</option>
+            <option value="venmo">venmo</option>
+            <option value="zelle">zelle</option>
+          </select>
+        </label>
+
+        <button type="submit" className="btn btn-fill h-11" disabled={saving}>
+          {saving ? 'saving...' : 'record'}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-loss text-[12px] font-semibold" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function PlayerSelect({
+  id,
+  label,
+  value,
+  onChange,
+  players,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  players: LivePlayer[];
+}) {
+  return (
+    <label htmlFor={id} className="block space-y-1.5">
+      <span className="ticker-label">{label}</span>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="field font-sans font-semibold text-[13px] pr-8"
+        style={selectArrowStyle}
+      >
+        <option value="">pick {label}</option>
+        {players.map((player) => (
+          <option key={player.playerId} value={player.playerId}>
+            {player.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const selectArrowStyle = {
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  appearance: 'none',
+} as const;
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
