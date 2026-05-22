@@ -66,12 +66,12 @@ export function EmptyState({
 
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
         {/* URL input — terminal-style entry */}
-        <form onSubmit={handleAnalyze} className="card flex flex-col">
+        <form onSubmit={handleAnalyze} className="card flex h-full flex-col">
           <div className="card-header">
             <span className="ticker-label-strong">› paste game url</span>
             <span className="ticker-label hidden sm:inline">step 01 / 02</span>
           </div>
-          <div className="p-4 sm:p-5 space-y-4 flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
             <div className="flex items-stretch gap-2 sm:gap-3">
               <span
                 aria-hidden="true"
@@ -101,14 +101,6 @@ export function EmptyState({
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading || !valid}
-              className="btn btn-fill h-12 w-full text-[13px] mt-auto"
-            >
-              {submitting ? 'loading…' : 'analyze ›'}
-            </button>
-
             {error && (
               <p
                 id="game-url-error"
@@ -130,27 +122,35 @@ export function EmptyState({
                 run with demo data ›
               </button>
             </div>
+
+            <button
+              type="submit"
+              disabled={isLoading || !valid}
+              className="btn btn-fill mt-auto h-12 w-full text-[13px]"
+            >
+              {submitting ? 'loading…' : 'analyze ›'}
+            </button>
           </div>
         </form>
 
-        <section className="card flex flex-col">
+        <section className="card flex h-full flex-col">
           <div className="card-header">
             <span className="ticker-label-strong">› live game</span>
             <span className="ticker-label hidden sm:inline">manual entry</span>
           </div>
-          <div className="p-4 sm:p-5 space-y-4 flex flex-1 flex-col">
-            <button
-              type="button"
-              onClick={onStartLiveGame}
-              disabled={isLoading}
-              className="btn btn-fill h-11 w-full text-[13px]"
-            >
-              {startingLive ? 'starting…' : 'start live game ›'}
-            </button>
+          <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
             <p className="text-[13px] text-fg-dim leading-relaxed">
               Start a shareable live table, record buy-ins and cashouts as they happen, then
               finalize into the same settlement page.
             </p>
+            <button
+              type="button"
+              onClick={onStartLiveGame}
+              disabled={isLoading}
+              className="btn btn-fill mt-auto h-12 w-full text-[13px]"
+            >
+              {startingLive ? 'starting…' : 'start live game ›'}
+            </button>
           </div>
         </section>
       </div>
