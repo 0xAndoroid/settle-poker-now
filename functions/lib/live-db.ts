@@ -1,8 +1,6 @@
 import {
-  deriveFinalLedgerRows,
   deriveLiveBankSummary,
   deriveLivePlayerSummaries,
-  derivePriorPaymentAdjustments,
   validateLiveFinalization,
 } from '../../src/lib/liveProjection';
 import type {
@@ -66,12 +64,7 @@ interface LiveMutationBase {
 
 const PLAYER_NAME_MAX = 80;
 const NOTE_MAX = 160;
-const PAYMENT_METHODS = new Set<LivePaymentMethod>([
-  'cash',
-  'venmo',
-  'zelle',
-  'other',
-]);
+const PAYMENT_METHODS = new Set<LivePaymentMethod>(['cash', 'venmo', 'zelle', 'other']);
 
 function cleanText(raw: string | null | undefined, max = NOTE_MAX): string | null {
   if (raw === null || raw === undefined) return null;
@@ -104,8 +97,7 @@ function rowToLiveGame(row: Record<string, unknown>): LiveGame {
     hostPlayerId: (row.host_player_id as string | null) ?? null,
     title: (row.title as string | null) ?? null,
     note: (row.note as string | null) ?? null,
-    totalChipBankCents:
-      (row.total_chip_bank_cents as number | null | undefined) ?? null,
+    totalChipBankCents: (row.total_chip_bank_cents as number | null | undefined) ?? null,
     version: row.version as number,
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
@@ -208,10 +200,7 @@ function projectSnapshot(parts: {
   };
 }
 
-export async function loadLiveGame(
-  db: D1Database,
-  id: string
-): Promise<LiveGameSnapshot | null> {
+export async function loadLiveGame(db: D1Database, id: string): Promise<LiveGameSnapshot | null> {
   const gameRow = await db
     .prepare('SELECT * FROM live_games WHERE id = ?')
     .bind(id)
@@ -228,15 +217,11 @@ export async function loadLiveGame(
       .bind(id)
       .all<Record<string, unknown>>(),
     db
-      .prepare(
-        'SELECT * FROM live_chip_checkpoints WHERE game_id = ? ORDER BY created_at ASC'
-      )
+      .prepare('SELECT * FROM live_chip_checkpoints WHERE game_id = ? ORDER BY created_at ASC')
       .bind(id)
       .all<Record<string, unknown>>(),
     db
-      .prepare(
-        'SELECT * FROM live_audit_log WHERE game_id = ? ORDER BY created_at DESC LIMIT 100'
-      )
+      .prepare('SELECT * FROM live_audit_log WHERE game_id = ? ORDER BY created_at DESC LIMIT 100')
       .bind(id)
       .all<Record<string, unknown>>(),
   ]);
@@ -343,10 +328,7 @@ export async function createLiveGame(
   throw new Error('Could not allocate a unique live slug after 4 attempts');
 }
 
-async function ensureActiveLiveGame(
-  db: D1Database,
-  gameId: string
-): Promise<LiveGame> {
+async function ensureActiveLiveGame(db: D1Database, gameId: string): Promise<LiveGame> {
   const row = await db
     .prepare('SELECT * FROM live_games WHERE id = ?')
     .bind(gameId)
@@ -362,10 +344,7 @@ async function ensureActiveLiveGame(
   return game;
 }
 
-async function loadActiveSnapshot(
-  db: D1Database,
-  gameId: string
-): Promise<LiveGameSnapshot> {
+async function loadActiveSnapshot(db: D1Database, gameId: string): Promise<LiveGameSnapshot> {
   await ensureActiveLiveGame(db, gameId);
   const snapshot = await loadLiveGame(db, gameId);
   if (!snapshot) throw new LiveNotFoundError(`No live game with id "${gameId}".`);
@@ -378,9 +357,7 @@ async function auditEventExists(
   clientEventId: string
 ): Promise<boolean> {
   const row = await db
-    .prepare(
-      'SELECT 1 FROM live_audit_log WHERE game_id = ? AND client_event_id = ? LIMIT 1'
-    )
+    .prepare('SELECT 1 FROM live_audit_log WHERE game_id = ? AND client_event_id = ? LIMIT 1')
     .bind(gameId, clientEventId)
     .first();
   return !!row;
@@ -392,9 +369,7 @@ async function entryEventExists(
   clientEventId: string
 ): Promise<boolean> {
   const row = await db
-    .prepare(
-      'SELECT 1 FROM live_entries WHERE game_id = ? AND client_event_id = ? LIMIT 1'
-    )
+    .prepare('SELECT 1 FROM live_entries WHERE game_id = ? AND client_event_id = ? LIMIT 1')
     .bind(gameId, clientEventId)
     .first();
   return !!row;
@@ -414,10 +389,7 @@ async function checkpointEventExists(
   return !!row;
 }
 
-async function loadRequiredSnapshot(
-  db: D1Database,
-  gameId: string
-): Promise<LiveGameSnapshot> {
+async function loadRequiredSnapshot(db: D1Database, gameId: string): Promise<LiveGameSnapshot> {
   const snapshot = await loadLiveGame(db, gameId);
   if (!snapshot) throw new LiveNotFoundError(`No live game with id "${gameId}".`);
   return snapshot;
@@ -435,7 +407,9 @@ export async function addLivePlayer(
   const now = Date.now();
   const playerId = newId('lp_');
   const orderRow = await db
-    .prepare('SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM live_players WHERE game_id = ?')
+    .prepare(
+      'SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM live_players WHERE game_id = ?'
+    )
     .bind(args.gameId)
     .first<Record<string, unknown>>();
   const sortOrder = Number(orderRow?.max_order ?? -1) + 1;
@@ -532,7 +506,7 @@ export async function updateLivePlayer(
       (entry) => entry.playerId === args.playerId && entry.voidedAt === null
     );
     if (hasEntries) {
-      throw new LiveValidationError('Void this player\'s entries before removing them.');
+      throw new LiveValidationError("Void this player's entries before removing them.");
     }
   }
 
@@ -546,9 +520,7 @@ export async function updateLivePlayer(
     );
   } else if (args.isHost === false && player.isHost) {
     stmts.push(
-      db
-        .prepare('UPDATE live_games SET host_player_id = NULL WHERE id = ?')
-        .bind(args.gameId)
+      db.prepare('UPDATE live_games SET host_player_id = NULL WHERE id = ?').bind(args.gameId)
     );
   }
   stmts.push(
@@ -639,7 +611,15 @@ export async function addLiveEntry(
         now,
         args.actorLabel
       ),
-    statusUpdateForEntry(db, args.gameId, args.playerId, args.entryType, args.amountCents, args.isFinal === true, now),
+    statusUpdateForEntry(
+      db,
+      args.gameId,
+      args.playerId,
+      args.entryType,
+      args.amountCents,
+      args.isFinal === true,
+      now
+    ),
     bumpLiveGameStmt(db, args.gameId, now),
   ];
 
@@ -768,13 +748,7 @@ export async function voidLiveEntry(
          SET voided_at = ?, voided_by = ?, void_reason = ?
          WHERE game_id = ? AND id = ?`
       )
-      .bind(
-        now,
-        args.actorLabel,
-        cleanText(args.voidReason ?? null),
-        args.gameId,
-        args.entryId
-      ),
+      .bind(now, args.actorLabel, cleanText(args.voidReason ?? null), args.gameId, args.entryId),
     recalcPlayerStatusStmt(db, args.gameId, entry.playerId, now),
     bumpLiveGameStmt(db, args.gameId, now),
     liveAuditStmt(db, {
@@ -803,9 +777,7 @@ export async function addChipCheckpoint(
   const snapshot = await loadActiveSnapshot(db, args.gameId);
   assertCents(args.amountCents, 'amountCents', true);
   if (
-    !['set_bank_total', 'verify_table_count', 'verify_bank_count'].includes(
-      args.checkpointType
-    )
+    !['set_bank_total', 'verify_table_count', 'verify_bank_count'].includes(args.checkpointType)
   ) {
     throw new LiveValidationError('Invalid checkpoint type.');
   }
@@ -912,8 +884,8 @@ export async function finalizeLiveGame(
   ]);
 
   try {
-    const rows = deriveFinalLedgerRows(existing);
-    const adjustments = derivePriorPaymentAdjustments(existing).map((adj) => ({
+    const rows = validation.rows;
+    const adjustments = validation.adjustments.map((adj) => ({
       fromPlayerId: adj.fromId,
       toPlayerId: adj.toId,
       amountCents: adj.amountCents,
@@ -954,6 +926,8 @@ export async function finalizeLiveGame(
           finalizedGameId: finalized.game.id,
           rowCount: rows.length,
           adjustmentCount: adjustments.length,
+          proportionalAdjustmentCount: validation.proportionalAdjustments.length,
+          rawLedgerDeltaCents: validation.rawRows.reduce((acc, row) => acc + row.netCents, 0),
         },
         clientEventId: args.clientEventId,
         createdAt: now,
@@ -1088,11 +1062,7 @@ function recalcPlayerStatusStmt(
     .bind(gameId, playerId, now, gameId, playerId);
 }
 
-function bumpLiveGameStmt(
-  db: D1Database,
-  gameId: string,
-  now: number
-): D1PreparedStatement {
+function bumpLiveGameStmt(db: D1Database, gameId: string, now: number): D1PreparedStatement {
   return db
     .prepare('UPDATE live_games SET version = version + 1, updated_at = ? WHERE id = ?')
     .bind(now, gameId);

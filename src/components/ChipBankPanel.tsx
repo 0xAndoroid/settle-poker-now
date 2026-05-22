@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { centsFromDollarsString, formatDollars } from '@/lib/money';
 import type { LiveChipCheckpointType, LiveGameSnapshot } from '@/lib/types';
 
@@ -17,6 +17,13 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canVerifyBankCount = bank.totalChipBankCents !== null;
+
+  useEffect(() => {
+    if (!canVerifyBankCount && mode === 'verify_bank_count') {
+      setMode('verify_table_count');
+    }
+  }, [canVerifyBankCount, mode]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -58,10 +65,7 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
       <div className="p-4 grid grid-cols-2 gap-3 border-b border-line">
         <BankMetric label="total bank" value={moneyOrDash(bank.totalChipBankCents)} />
         <BankMetric label="chips in play" value={formatDollars(bank.chipsInPlayCents)} />
-        <BankMetric
-          label="expected tray"
-          value={moneyOrDash(bank.expectedBankOnHandCents)}
-        />
+        <BankMetric label="expected tray" value={moneyOrDash(bank.expectedBankOnHandCents)} />
         <BankMetric
           label="table delta"
           value={deltaOrDash(bank.latestTableDeltaCents)}
@@ -78,23 +82,23 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
         <div className="border-b border-line bg-loss/5 px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed">
           {tableMismatch && (
             <p>
-              Tracked chips in play: {formatDollars(bank.chipsInPlayCents)}.
-              Physical table count: {moneyOrDash(bank.latestTableCountCents)}.
-              Off by {deltaOrDash(bank.latestTableDeltaCents)}.
+              Tracked chips in play: {formatDollars(bank.chipsInPlayCents)}. Physical table count:{' '}
+              {moneyOrDash(bank.latestTableCountCents)}. Off by{' '}
+              {deltaOrDash(bank.latestTableDeltaCents)}.
             </p>
           )}
           {bankMismatch && (
             <p>
-              Expected bank on hand: {moneyOrDash(bank.expectedBankOnHandCents)}.
-              Physical bank count: {moneyOrDash(bank.latestBankCountCents)}.
-              Off by {deltaOrDash(bank.latestBankDeltaCents)}.
+              Expected bank on hand: {moneyOrDash(bank.expectedBankOnHandCents)}. Physical bank
+              count: {moneyOrDash(bank.latestBankCountCents)}. Off by{' '}
+              {deltaOrDash(bank.latestBankDeltaCents)}.
             </p>
           )}
         </div>
       )}
 
       <form onSubmit={submit} className="p-4 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
+        <div className={canVerifyBankCount ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
           <ModeButton
             active={mode === 'set_bank_total'}
             label="set total"
@@ -105,11 +109,13 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
             label="table count"
             onClick={() => setMode('verify_table_count')}
           />
-          <ModeButton
-            active={mode === 'verify_bank_count'}
-            label="bank count"
-            onClick={() => setMode('verify_bank_count')}
-          />
+          {canVerifyBankCount && (
+            <ModeButton
+              active={mode === 'verify_bank_count'}
+              label="bank count"
+              onClick={() => setMode('verify_bank_count')}
+            />
+          )}
         </div>
         <div className="flex gap-2">
           <input

@@ -58,101 +58,101 @@ export function EmptyState({
           Settle the night in the fewest possible payments.
         </h2>
         <p className="mt-5 text-fg-dim text-[15px] sm:text-[16px] leading-relaxed max-w-[52ch]">
-          Paste the PokerNow URL, fold duplicate players, record cash that
-          changed hands, set private settlement rules — then finalize to
-          mint a shareable link your group can mark off as they pay.
+          Paste the PokerNow URL, fold duplicate players, record cash that changed hands, set
+          private settlement rules — then finalize to mint a shareable link your group can mark off
+          as they pay.
         </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-      {/* URL input — terminal-style entry */}
-      <form onSubmit={handleAnalyze} className="card">
-        <div className="card-header">
-          <span className="ticker-label-strong">› paste game url</span>
-          <span className="ticker-label hidden sm:inline">step 01 / 02</span>
-        </div>
-        <div className="p-4 sm:p-5 space-y-4">
-          <div className="flex items-stretch gap-2 sm:gap-3">
-            <span
-              aria-hidden="true"
-              className="flex items-center pl-1 text-accent font-mono text-[15px] font-semibold select-none"
-            >
-              ›
-            </span>
-            <input
-              id="game-url"
-              name="game-url"
-              type="text"
-              inputMode="url"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder={PLACEHOLDER}
-              disabled={isLoading}
-              className="field flex-1 font-mono text-[14px]"
-              aria-invalid={error ? 'true' : 'false'}
-              aria-describedby={error ? 'game-url-error' : undefined}
-            />
+      <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
+        {/* URL input — terminal-style entry */}
+        <form onSubmit={handleAnalyze} className="card flex flex-col">
+          <div className="card-header">
+            <span className="ticker-label-strong">› paste game url</span>
+            <span className="ticker-label hidden sm:inline">step 01 / 02</span>
           </div>
+          <div className="p-4 sm:p-5 space-y-4 flex flex-1 flex-col">
+            <div className="flex items-stretch gap-2 sm:gap-3">
+              <span
+                aria-hidden="true"
+                className="flex items-center pl-1 text-accent font-mono text-[15px] font-semibold select-none"
+              >
+                ›
+              </span>
+              <input
+                id="game-url"
+                name="game-url"
+                type="text"
+                inputMode="url"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={PLACEHOLDER}
+                disabled={isLoading}
+                className="field flex-1 font-mono text-[14px]"
+                aria-invalid={error ? 'true' : 'false'}
+                aria-describedby={error ? 'game-url-error' : undefined}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || !valid}
-            className="btn btn-fill h-12 w-full text-[13px]"
-          >
-            {submitting ? 'loading…' : 'analyze ›'}
-          </button>
-
-          {error && (
-            <p
-              id="game-url-error"
-              className="text-loss text-[12px] font-semibold flex items-center gap-2"
-              role="alert"
+            <button
+              type="submit"
+              disabled={isLoading || !valid}
+              className="btn btn-fill h-12 w-full text-[13px] mt-auto"
             >
-              <span className="pill pill-loss">err</span>
-              {error}
-            </p>
-          )}
-          <div className="flex items-center gap-2 text-[12px] text-fg-mute">
-            <span>no game?</span>
+              {submitting ? 'loading…' : 'analyze ›'}
+            </button>
+
+            {error && (
+              <p
+                id="game-url-error"
+                className="text-loss text-[12px] font-semibold flex items-center gap-2"
+                role="alert"
+              >
+                <span className="pill pill-loss">err</span>
+                {error}
+              </p>
+            )}
+            <div className="flex items-center gap-2 text-[12px] text-fg-mute">
+              <span>no game?</span>
+              <button
+                type="button"
+                onClick={() => onAnalyze('demo')}
+                disabled={isLoading}
+                className="text-accent hover:underline underline-offset-4 font-semibold"
+              >
+                run with demo data ›
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <section className="card flex flex-col">
+          <div className="card-header">
+            <span className="ticker-label-strong">› live game</span>
+            <span className="ticker-label hidden sm:inline">manual entry</span>
+          </div>
+          <div className="p-4 sm:p-5 space-y-4 flex flex-1 flex-col">
             <button
               type="button"
-              onClick={() => onAnalyze('demo')}
+              onClick={onStartLiveGame}
               disabled={isLoading}
-              className="text-accent hover:underline underline-offset-4 font-semibold"
+              className="btn btn-fill h-11 w-full text-[13px]"
             >
-              run with demo data ›
+              {startingLive ? 'starting…' : 'start live game ›'}
             </button>
+            <p className="text-[13px] text-fg-dim leading-relaxed">
+              Start a shareable live table, record buy-ins and cashouts as they happen, then
+              finalize into the same settlement page.
+            </p>
           </div>
-        </div>
-      </form>
-
-      <section className="card">
-        <div className="card-header">
-          <span className="ticker-label-strong">› live game</span>
-          <span className="ticker-label hidden sm:inline">manual entry</span>
-        </div>
-        <div className="p-4 sm:p-5 space-y-4">
-          <p className="text-[13px] text-fg-dim leading-relaxed">
-            Start a shareable live table, record buy-ins and cashouts as they
-            happen, then finalize into the same settlement page.
-          </p>
-          <button
-            type="button"
-            onClick={onStartLiveGame}
-            disabled={isLoading}
-            className="btn btn-fill h-12 w-full text-[13px]"
-          >
-            {startingLive ? 'starting…' : 'start live game ›'}
-          </button>
-        </div>
-      </section>
+        </section>
       </div>
 
       {/* Three-up feature row */}
@@ -162,9 +162,7 @@ export function EmptyState({
             <p className="ticker-label mb-2">
               {String(i + 1).padStart(2, '0')} · {r.tag}
             </p>
-            <h3 className="font-sans font-semibold text-[14px] mb-1.5 leading-tight">
-              {r.title}
-            </h3>
+            <h3 className="font-sans font-semibold text-[14px] mb-1.5 leading-tight">{r.title}</h3>
             <p className="text-[12.5px] text-fg-dim leading-relaxed">{r.body}</p>
           </div>
         ))}

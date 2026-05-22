@@ -18,6 +18,7 @@ import type {
   LedgerRow,
   PersistedGameSnapshot,
   PersistedPaymentMethod,
+  PersistedPlayer,
   SettlementPlan,
 } from '@/lib/types';
 
@@ -40,28 +41,24 @@ interface PersistentGameViewProps {
  * Legacy unfinalized games (created via the old POST /api/games before
  * finalize-on-create existed) render with a banner offering to lock them.
  */
-export function PersistentGameView({
-  gameId,
-  onTickerChange,
-  pushToast,
-}: PersistentGameViewProps) {
+export function PersistentGameView({ gameId, onTickerChange, pushToast }: PersistentGameViewProps) {
   const { identity, setIdentity } = useGameIdentity(gameId);
   const actorLabel = identity?.nickname ?? null;
 
-  const { state, togglePayment, savePaymentMethods, saveNote, finalizeLegacy } =
-    usePersistentGame(gameId, actorLabel, {
+  const { state, togglePayment, savePaymentMethods, saveNote, finalizeLegacy } = usePersistentGame(
+    gameId,
+    actorLabel,
+    {
       onError: (message) => pushToast(message, 'error'),
-    });
+    }
+  );
 
   const [activeTab, setActiveTab] = useState<PersistentTabKey>('payments');
 
   // Project the persisted snapshot into the same shape the panels expect.
   // Read-only: we render the ORIGINAL ledger (pre-modification players)
   // and surface the post-mod settlement plan separately.
-  const projection = useMemo(
-    () => (state.game ? projectSnapshot(state.game) : null),
-    [state.game]
-  );
+  const projection = useMemo(() => (state.game ? projectSnapshot(state.game) : null), [state.game]);
 
   const game = state.game;
   const paymentMethodsByPlayerId = useMemo(() => {
@@ -74,9 +71,7 @@ export function PersistentGameView({
   }, [game]);
   const currentPaymentPlayerId = useMemo(() => {
     if (!identity || !game) return null;
-    const aliasMap = new Map(
-      game.aliases.map((a) => [a.playerId, a.aliasToPlayerId])
-    );
+    const aliasMap = new Map(game.aliases.map((a) => [a.playerId, a.aliasToPlayerId]));
     let current = identity.playerId;
     let hops = 0;
     while (aliasMap.has(current) && hops++ < 16) {
@@ -91,13 +86,8 @@ export function PersistentGameView({
       onTickerChange(undefined);
       return;
     }
-    const settled = state.game.payments.filter(
-      (p) => p.completedAt !== null
-    ).length;
-    const totalMoved = state.game.payments.reduce(
-      (acc, p) => acc + p.amountCents,
-      0
-    );
+    const settled = state.game.payments.filter((p) => p.completedAt !== null).length;
+    const totalMoved = state.game.payments.reduce((acc, p) => acc + p.amountCents, 0);
     const ticker: TickerItem[] = [
       { label: 'players', value: String(state.game.players.length) },
       {
@@ -136,10 +126,7 @@ export function PersistentGameView({
       }
     }
     const ok = await copyText(fullUrl);
-    pushToast(
-      ok ? 'link copied' : 'could not share or copy link',
-      ok ? 'success' : 'error'
-    );
+    pushToast(ok ? 'link copied' : 'could not share or copy link', ok ? 'success' : 'error');
   }, [gameId, pushToast]);
 
   const handleFinalizeLegacy = useCallback(async () => {
@@ -182,9 +169,7 @@ export function PersistentGameView({
     ])
   );
   const modsTotal =
-    state.game.aliases.length +
-    state.game.adjustments.length +
-    state.game.isolations.length;
+    state.game.aliases.length + state.game.adjustments.length + state.game.isolations.length;
 
   return (
     <>
@@ -202,20 +187,14 @@ export function PersistentGameView({
         {!isFinalized && (
           <div className="mb-5 card border-warn/60">
             <div className="card-header bg-warn/[0.08]">
-              <span className="ticker-label-strong text-warn">
-                ⚠ legacy game · not finalized
-              </span>
-              <button
-                type="button"
-                onClick={handleFinalizeLegacy}
-                className="btn btn-fill btn-sm"
-              >
+              <span className="ticker-label-strong text-warn">⚠ legacy game · not finalized</span>
+              <button type="button" onClick={handleFinalizeLegacy} className="btn btn-fill btn-sm">
                 finalize ›
               </button>
             </div>
             <p className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed">
-              This game was created before finalize-on-create existed. Click
-              finalize to lock the plan in. Marking payments works either way.
+              This game was created before finalize-on-create existed. Click finalize to lock the
+              plan in. Marking payments works either way.
             </p>
           </div>
         )}
@@ -254,6 +233,12 @@ export function PersistentGameView({
               unitWasInferred={state.game.game.unitProvenance !== 'header'}
               hasUserOverride={state.game.game.unitProvenance === 'user'}
             />
+            {projection.proportionalAdjustments.length > 0 && (
+              <LedgerAdjustmentNotice
+                adjustments={projection.proportionalAdjustments}
+                players={state.game.players}
+              />
+            )}
             <ModificationsPanel
               players={state.game.players}
               aliases={state.game.aliases}
@@ -275,10 +260,7 @@ export function PersistentGameView({
               currentPlayerId={currentPaymentPlayerId}
               pushToast={pushToast}
             />
-            <AuditLogPanel
-              entries={state.game.audit}
-              players={state.game.players}
-            />
+            <AuditLogPanel entries={state.game.audit} players={state.game.players} />
             <PersistentColophon
               gameId={gameId}
               isFinalized={isFinalized}
@@ -293,13 +275,21 @@ export function PersistentGameView({
         {/* Mobile tabbed layout */}
         <div className="lg:hidden space-y-5">
           {activeTab === 'ledger' && (
-            <LedgerPanel
-              rows={projection.originalRows}
-              effectiveBalances={projection.originalBalances}
-              unit={state.game.game.sourceUnit}
-              unitWasInferred={state.game.game.unitProvenance !== 'header'}
-              hasUserOverride={state.game.game.unitProvenance === 'user'}
-            />
+            <>
+              <LedgerPanel
+                rows={projection.originalRows}
+                effectiveBalances={projection.originalBalances}
+                unit={state.game.game.sourceUnit}
+                unitWasInferred={state.game.game.unitProvenance !== 'header'}
+                hasUserOverride={state.game.game.unitProvenance === 'user'}
+              />
+              {projection.proportionalAdjustments.length > 0 && (
+                <LedgerAdjustmentNotice
+                  adjustments={projection.proportionalAdjustments}
+                  players={state.game.players}
+                />
+              )}
+            </>
           )}
           {activeTab === 'mods' && (
             <ModificationsPanel
@@ -325,10 +315,7 @@ export function PersistentGameView({
             />
           )}
           {activeTab === 'history' && (
-            <AuditLogPanel
-              entries={state.game.audit}
-              players={state.game.players}
-            />
+            <AuditLogPanel entries={state.game.audit} players={state.game.players} />
           )}
         </div>
       </main>
@@ -339,12 +326,12 @@ export function PersistentGameView({
 /* ──────── Helpers ──────── */
 
 interface Projection {
-  /** Pre-modification rows — exactly as PokerNow returned them. */
+  /** Ledger rows shown in the finalized view. Live games may carry adjusted nets. */
   originalRows: LedgerRow[];
   /**
-   * Same player set as `originalRows` but in EffectiveBalance shape so
-   * the ledger panel can render. originalNet === effectiveNet here
-   * (modifications go in the separate ModificationsPanel).
+   * Same player set as `originalRows` but in EffectiveBalance shape. For live
+   * games, originalNet can be the raw cashout net while effectiveNet is the
+   * proportional settlement net persisted at finalization.
    */
   originalBalances: EffectiveBalance[];
   /**
@@ -352,7 +339,14 @@ interface Projection {
    * lookup in case aliases collapsed the roster).
    */
   balances: EffectiveBalance[];
+  proportionalAdjustments: LiveLedgerAdjustment[];
   plan: SettlementPlan;
+}
+
+interface LiveLedgerAdjustment {
+  playerId: string;
+  amountCents: number;
+  basisCents: number;
 }
 
 function projectSnapshot(snap: PersistedGameSnapshot): Projection {
@@ -362,13 +356,13 @@ function projectSnapshot(snap: PersistedGameSnapshot): Projection {
     playerId: p.playerId,
     nickname: p.nickname,
     netCents: p.netCents,
-    buyInCents: 0,
-    buyOutCents: 0,
+    buyInCents: p.buyInCents ?? 0,
+    buyOutCents: p.buyOutCents ?? 0,
   }));
   const originalBalances: EffectiveBalance[] = snap.players.map((p) => ({
     playerId: p.playerId,
     nickname: p.nickname,
-    originalNetCents: p.netCents,
+    originalNetCents: originalNetCents(p),
     effectiveNetCents: p.netCents,
   }));
 
@@ -390,7 +384,7 @@ function projectSnapshot(snap: PersistedGameSnapshot): Projection {
     .map((p) => ({
       playerId: p.playerId,
       nickname: canonicalNameOf(p.playerId),
-      originalNetCents: p.netCents,
+      originalNetCents: originalNetCents(p),
       effectiveNetCents: p.netCents,
     }));
   // Sum aliased players' nets into their canonicals so the panel's
@@ -404,7 +398,7 @@ function projectSnapshot(snap: PersistedGameSnapshot): Projection {
     const slot = balances.find((b) => b.playerId === target);
     const folded = snap.players.find((p) => p.playerId === a.playerId);
     if (slot && folded) {
-      slot.originalNetCents += folded.netCents;
+      slot.originalNetCents += originalNetCents(folded);
       slot.effectiveNetCents += folded.netCents;
     }
   }
@@ -425,7 +419,28 @@ function projectSnapshot(snap: PersistedGameSnapshot): Projection {
   }
 
   const plan = projectSettlementPlan(snap);
-  return { originalRows, originalBalances, balances, plan };
+  const proportionalAdjustments = snap.players
+    .map((p) => ({
+      playerId: p.playerId,
+      amountCents: p.netCents - originalNetCents(p),
+      basisCents: p.buyOutCents ?? 0,
+    }))
+    .filter((adj) => adj.amountCents !== 0);
+  return {
+    originalRows,
+    originalBalances,
+    balances,
+    proportionalAdjustments,
+    plan,
+  };
+}
+
+function originalNetCents(player: PersistedPlayer): number {
+  if (player.buyInCents !== null && player.buyInCents !== undefined) {
+    const buyOutCents = player.buyOutCents ?? 0;
+    return buyOutCents - player.buyInCents;
+  }
+  return player.netCents;
 }
 
 /* ──────── In-memory "skip identity" flag ──────── */
@@ -450,13 +465,52 @@ function CenterMessage({ label, body }: { label: string; body?: string }) {
             {label}
           </span>
         </div>
-        {body && (
-          <div className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">
-            {body}
-          </div>
-        )}
+        {body && <div className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">{body}</div>}
       </div>
     </div>
+  );
+}
+
+function LedgerAdjustmentNotice({
+  adjustments,
+  players,
+}: {
+  adjustments: LiveLedgerAdjustment[];
+  players: PersistedGameSnapshot['players'];
+}) {
+  const nameById = new Map(players.map((player) => [player.playerId, player.nickname]));
+  const rawDeltaCents = -adjustments.reduce((acc, adjustment) => acc + adjustment.amountCents, 0);
+  const rawDeltaLabel =
+    rawDeltaCents < 0
+      ? `${formatDollars(Math.abs(rawDeltaCents))} missing`
+      : `${formatDollars(rawDeltaCents)} surplus`;
+
+  return (
+    <section className="card" aria-label="Ledger adjustment">
+      <div className="card-header">
+        <span className="ticker-label-strong">ledger adjustment</span>
+        <span className="pill pill-accent">live</span>
+      </div>
+      <div className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed border-b border-line">
+        Raw cashouts had <span className="font-mono num text-fg">{rawDeltaLabel}</span>.
+        Final settlement nets were balanced proportionally before payments were generated.
+      </div>
+      <div className="divide-y divide-line">
+        {adjustments.map((adjustment) => (
+          <div
+            key={adjustment.playerId}
+            className="px-4 py-2.5 flex items-center justify-between gap-3"
+          >
+            <span className="text-[13px] font-semibold">
+              {nameById.get(adjustment.playerId) ?? adjustment.playerId}
+            </span>
+            <span className="font-mono num text-[13px] text-fg">
+              {formatDollars(adjustment.amountCents, { signed: true })}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -490,9 +544,9 @@ function PersistentColophon({
     <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
       <p className="ticker-label-strong mb-2">¶ persistent link</p>
       <p>
-        <span className="text-fg font-semibold">/g/{gameId}</span> is the
-        canonical URL for this game. Anyone with the link sees the same live
-        state — including which payments have been marked settled.
+        <span className="text-fg font-semibold">/g/{gameId}</span> is the canonical URL for this
+        game. Anyone with the link sees the same live state — including which payments have been
+        marked settled.
       </p>
       <hr className="hr my-3" />
       {isFinalized && stamp && (
@@ -510,10 +564,7 @@ function PersistentColophon({
       )}
       <NoteEditor note={note} onSave={onSaveNote} />
       <hr className="hr my-3" />
-      <p>
-        Polling every 8s while this tab is open. Marking a payment refreshes
-        all open viewers.
-      </p>
+      <p>Polling every 8s while this tab is open. Marking a payment refreshes all open viewers.</p>
     </aside>
   );
 }
@@ -565,11 +616,7 @@ function NoteEditor({
     return (
       <p className="flex items-baseline gap-2 flex-wrap">
         <span className="ticker-label">venmo note ·</span>
-        <span
-          className={
-            isDefault ? 'text-fg-dim italic' : 'text-fg font-semibold'
-          }
-        >
+        <span className={isDefault ? 'text-fg-dim italic' : 'text-fg font-semibold'}>
           {display}
         </span>
         <button
@@ -603,12 +650,7 @@ function NoteEditor({
         autoFocus
       />
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={saving}
-          className="btn btn-fill btn-sm"
-        >
+        <button type="button" onClick={submit} disabled={saving} className="btn btn-fill btn-sm">
           {saving ? 'saving…' : 'save ›'}
         </button>
         <button

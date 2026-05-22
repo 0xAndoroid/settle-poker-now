@@ -1,13 +1,10 @@
 import { useMemo, useState } from 'react';
 import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel } from './SettlementPanel';
-import {
-  deriveFinalLedgerRows,
-  derivePriorPaymentAdjustments,
-  validateLiveFinalization,
-} from '@/lib/liveProjection';
+import { validateLiveFinalization } from '@/lib/liveProjection';
+import { formatDollars } from '@/lib/money';
 import { applyAdjustments, buildSettlementPlan } from '@/lib/settle';
-import type { EffectiveBalance, LiveGameSnapshot } from '@/lib/types';
+import type { LiveGameSnapshot } from '@/lib/types';
 
 interface LiveFinalizePanelProps {
   snapshot: LiveGameSnapshot;
@@ -28,15 +25,35 @@ export function LiveFinalizePanel({
     [force, pendingCount, snapshot]
   );
   const preview = useMemo(() => {
-    const rows = deriveFinalLedgerRows(snapshot);
-    const adjustments = derivePriorPaymentAdjustments(snapshot);
+    const rows = validation.rows;
+    const rawRows = validation.rawRows;
+    const adjustments = validation.adjustments;
     const balances = applyAdjustments(rows, adjustments);
+    const rawNetByPlayer = new Map(rawRows.map((row) => [row.playerId, row.netCents]));
+    const displayBalances = balances.map((balance) => ({
+      ...balance,
+      originalNetCents: rawNetByPlayer.get(balance.playerId) ?? balance.originalNetCents,
+    }));
     const plan = buildSettlementPlan(balances, []);
-    return { rows, balances, plan };
-  }, [snapshot]);
+    return { rows, balances: displayBalances, plan };
+  }, [validation]);
 
   const chipCheck = validation.checks.find((check) => check.key === 'chip_bank');
   const canForceChip = chipCheck && !chipCheck.ok;
+  const imbalanceMessage = formatImbalanceConfirmation(
+    validation.rawRows.reduce((acc, row) => acc + row.netCents, 0)
+  );
+
+  const handleFinalize = () => {
+    if (
+      imbalanceMessage &&
+      typeof window !== 'undefined' &&
+      !window.confirm(`${imbalanceMessage}\n\nContinue finalizing?`)
+    ) {
+      return;
+    }
+    void onFinalize(force);
+  };
 
   return (
     <section className="space-y-5" aria-label="Finalize live game">
@@ -45,7 +62,7 @@ export function LiveFinalizePanel({
           <span className="ticker-label-strong">finalize</span>
           <button
             type="button"
-            onClick={() => void onFinalize(force)}
+            onClick={handleFinalize}
             disabled={finalizing || !validation.ok}
             className="btn btn-fill btn-sm"
           >
@@ -60,9 +77,7 @@ export function LiveFinalizePanel({
               </span>
               <div>
                 <p className="text-[13px] font-semibold">{check.label}</p>
-                {check.detail && (
-                  <p className="text-[12px] text-fg-dim mt-1">{check.detail}</p>
-                )}
+                {check.detail && <p className="text-[12px] text-fg-dim mt-1">{check.detail}</p>}
               </div>
             </div>
           ))}
@@ -84,7 +99,7 @@ export function LiveFinalizePanel({
         <>
           <LedgerPanel
             rows={preview.rows}
-            effectiveBalances={toOriginalBalances(preview.balances)}
+            effectiveBalances={preview.balances}
             unit="cents"
             unitWasInferred={false}
             hasUserOverride={false}
@@ -96,9 +111,11 @@ export function LiveFinalizePanel({
   );
 }
 
-function toOriginalBalances(balances: EffectiveBalance[]): EffectiveBalance[] {
-  return balances.map((balance) => ({
-    ...balance,
-    originalNetCents: balance.effectiveNetCents,
-  }));
+function formatImbalanceConfirmation(rawDeltaCents: number): string | null {
+  if (Math.abs(rawDeltaCents) <= 1) return null;
+  const amount = formatDollars(Math.abs(rawDeltaCents));
+  if (rawDeltaCents < 0) {
+    return `There's ${amount} missing. It will be split proportionally among winners, reducing their winnings.`;
+  }
+  return `There's ${amount} surplus. It will be distributed proportionally among losers, reducing their losses.`;
 }

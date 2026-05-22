@@ -12,6 +12,7 @@ import type {
   LiveGameSnapshot,
   LivePlayer,
   LivePlayerSummary,
+  LiveProportionalAdjustment,
 } from './types';
 
 const BALANCE_TOLERANCE_CENTS = 1;
@@ -115,10 +116,7 @@ export function deriveLivePlayerSummaries(
         const recipient = ensure(entry.toPlayerId);
         recipient.priorReceivedCents += entry.amountCents;
         recipient.hasActivity = true;
-        recipient.lastEntryAt = Math.max(
-          recipient.lastEntryAt ?? 0,
-          entry.createdAt
-        );
+        recipient.lastEntryAt = Math.max(recipient.lastEntryAt ?? 0, entry.createdAt);
       }
     }
   }
@@ -142,9 +140,8 @@ export function deriveLiveBankSummary(
   checkpointsArg?: ReadonlyArray<LiveChipCheckpoint>
 ): LiveBankSummary {
   const game = 'game' in input ? input.game : input;
-  const entries = 'game' in input ? input.entries : entriesArg ?? [];
-  const checkpoints =
-    'game' in input ? input.chipCheckpoints : checkpointsArg ?? [];
+  const entries = 'game' in input ? input.entries : (entriesArg ?? []);
+  const checkpoints = 'game' in input ? input.chipCheckpoints : (checkpointsArg ?? []);
 
   const rows = activeEntries(entries);
   const chipsInPlayCents = rows.reduce((acc, entry) => {
@@ -153,9 +150,7 @@ export function deriveLiveBankSummary(
     return acc;
   }, 0);
   const expectedBankOnHandCents =
-    game.totalChipBankCents === null
-      ? null
-      : game.totalChipBankCents - chipsInPlayCents;
+    game.totalChipBankCents === null ? null : game.totalChipBankCents - chipsInPlayCents;
 
   const latestTable = checkpoints
     .filter((c) => c.checkpointType === 'verify_table_count')
@@ -171,15 +166,12 @@ export function deriveLiveBankSummary(
     chipsInPlayCents,
     expectedBankOnHandCents,
     latestTableCountCents: latestTable?.amountCents ?? null,
-    latestTableExpectedCents:
-      latestTable?.expectedCents ?? (latestTable ? chipsInPlayCents : null),
+    latestTableExpectedCents: latestTable?.expectedCents ?? (latestTable ? chipsInPlayCents : null),
     latestTableDeltaCents:
-      latestTable?.deltaCents ??
-      (latestTable ? latestTable.amountCents - chipsInPlayCents : null),
+      latestTable?.deltaCents ?? (latestTable ? latestTable.amountCents - chipsInPlayCents : null),
     latestBankCountCents: latestBank?.amountCents ?? null,
     latestBankExpectedCents:
-      latestBank?.expectedCents ??
-      (latestBank ? expectedBankOnHandCents : null),
+      latestBank?.expectedCents ?? (latestBank ? expectedBankOnHandCents : null),
     latestBankDeltaCents:
       latestBank?.deltaCents ??
       (latestBank && expectedBankOnHandCents !== null
@@ -216,9 +208,67 @@ export function deriveFinalLedgerRows(snapshot: LiveGameSnapshot): LedgerRow[] {
     });
 }
 
-export function derivePriorPaymentAdjustments(
-  snapshot: LiveGameSnapshot
-): Adjustment[] {
+export function balanceFinalLedgerRows(rows: ReadonlyArray<LedgerRow>): {
+  rows: LedgerRow[];
+  proportionalAdjustments: LiveProportionalAdjustment[];
+} {
+  const out = rows.map((row) => ({ ...row }));
+  const sumCents = out.reduce((acc, row) => acc + row.netCents, 0);
+  if (sumCents === 0 || out.length === 0) {
+    return { rows: out, proportionalAdjustments: [] };
+  }
+
+  const targetAdjustmentCents = -sumCents;
+  const candidates = adjustmentCandidates(out);
+  if (candidates.length === 0) {
+    return { rows: out, proportionalAdjustments: [] };
+  }
+
+  const totalBasis = candidates.reduce((acc, candidate) => acc + candidate.basisCents, 0);
+  if (totalBasis <= 0) {
+    return { rows: out, proportionalAdjustments: [] };
+  }
+
+  const sign = targetAdjustmentCents < 0 ? -1 : 1;
+  const totalAbs = Math.abs(targetAdjustmentCents);
+  const shares = candidates.map((candidate) => {
+    const raw = totalAbs * candidate.basisCents;
+    return {
+      ...candidate,
+      amountAbs: Math.floor(raw / totalBasis),
+      remainder: raw % totalBasis,
+    };
+  });
+
+  const assignedAbs = shares.reduce((acc, share) => acc + share.amountAbs, 0);
+  const remainderCount = totalAbs - assignedAbs;
+  const byRemainder = shares
+    .slice()
+    .sort(
+      (a, b) =>
+        b.remainder - a.remainder || out[a.index]!.playerId.localeCompare(out[b.index]!.playerId)
+    );
+  for (let i = 0; i < remainderCount; i++) {
+    byRemainder[i % byRemainder.length]!.amountAbs += 1;
+  }
+
+  const proportionalAdjustments: LiveProportionalAdjustment[] = [];
+  for (const share of shares) {
+    if (share.amountAbs === 0) continue;
+    const amountCents = sign * share.amountAbs;
+    const row = out[share.index]!;
+    row.netCents += amountCents;
+    proportionalAdjustments.push({
+      playerId: row.playerId,
+      amountCents,
+      basisCents: share.basisCents,
+    });
+  }
+
+  return { rows: out, proportionalAdjustments };
+}
+
+export function derivePriorPaymentAdjustments(snapshot: LiveGameSnapshot): Adjustment[] {
   return activeEntries(snapshot.entries)
     .filter((entry) => entry.entryType === 'prior_payment' && entry.toPlayerId)
     .map((entry) => ({
@@ -235,7 +285,8 @@ export function validateLiveFinalization(
 ): LiveFinalizationValidation {
   const pendingCount = options.pendingCount ?? 0;
   const force = options.force === true;
-  const rows = deriveFinalLedgerRows(snapshot);
+  const rawRows = deriveFinalLedgerRows(snapshot);
+  const { rows, proportionalAdjustments } = balanceFinalLedgerRows(rawRows);
   const adjustments = derivePriorPaymentAdjustments(snapshot);
   const summaries = deriveLivePlayerSummaries(snapshot);
   const rowIds = new Set(rows.map((row) => row.playerId));
@@ -259,9 +310,7 @@ export function validateLiveFinalization(
     'live game is active',
     snapshot.game.status === 'active',
     true,
-    snapshot.game.status === 'active'
-      ? null
-      : `Current status: ${snapshot.game.status}.`
+    snapshot.game.status === 'active' ? null : `Current status: ${snapshot.game.status}.`
   );
   addCheck(
     'outbox',
@@ -286,21 +335,43 @@ export function validateLiveFinalization(
     'every buy-in has a final cashout',
     missingFinals.length === 0,
     true,
-    missingFinals.length === 0
-      ? null
-      : missingFinals.map((s) => s.name).join(', ')
+    missingFinals.length === 0 ? null : missingFinals.map((s) => s.name).join(', ')
   );
 
+  const rawLedgerCheck = ledgerBalances(rawRows);
   const ledgerCheck = ledgerBalances(rows);
+  const hasProportionalAdjustments = proportionalAdjustments.length > 0;
   addCheck(
     'balanced',
-    'buy-ins equal cashouts',
+    hasProportionalAdjustments
+      ? 'cashouts balanced with proportional adjustments'
+      : 'buy-ins equal cashouts',
     Math.abs(ledgerCheck.sumCents) <= BALANCE_TOLERANCE_CENTS,
     true,
-    Math.abs(ledgerCheck.sumCents) <= BALANCE_TOLERANCE_CENTS
-      ? null
-      : `Ledger is off by ${formatNet(ledgerCheck.sumCents)}.`
+    Math.abs(ledgerCheck.sumCents) > BALANCE_TOLERANCE_CENTS
+      ? `Ledger is off by ${formatNet(rawLedgerCheck.sumCents)}.`
+      : hasProportionalAdjustments
+        ? `Raw ledger was off by ${formatNet(rawLedgerCheck.sumCents)}.`
+        : null
   );
+
+  if (hasProportionalAdjustments) {
+    const nameById = new Map(rows.map((row) => [row.playerId, row.nickname]));
+    addCheck(
+      'proportional_adjustments',
+      'cashout difference is allocated proportionally',
+      true,
+      false,
+      proportionalAdjustments
+        .map(
+          (adj) =>
+            `${nameById.get(adj.playerId) ?? adj.playerId}: ${formatDollars(adj.amountCents, {
+              signed: true,
+            })}`
+        )
+        .join(', ')
+    );
+  }
 
   const tableDelta = bank.latestTableDeltaCents ?? 0;
   const bankDelta = bank.latestBankDeltaCents ?? 0;
@@ -310,9 +381,7 @@ export function validateLiveFinalization(
     'latest chip count is balanced',
     bankIsBalanced || force,
     !force,
-    bankIsBalanced
-      ? null
-      : chipBankDetail(bank.latestTableDeltaCents, bank.latestBankDeltaCents)
+    bankIsBalanced ? null : chipBankDetail(bank.latestTableDeltaCents, bank.latestBankDeltaCents)
   );
 
   const missingAdjustmentTargets = adjustments.filter(
@@ -335,9 +404,7 @@ export function validateLiveFinalization(
   const duplicateFinals = summaries.filter((summary) => {
     const finalCount = activeEntries(snapshot.entries).filter(
       (entry) =>
-        entry.playerId === summary.playerId &&
-        entry.entryType === 'cash_out' &&
-        entry.isFinal
+        entry.playerId === summary.playerId && entry.entryType === 'cash_out' && entry.isFinal
     ).length;
     return finalCount > 1;
   });
@@ -346,36 +413,37 @@ export function validateLiveFinalization(
     'one final cashout per player',
     duplicateFinals.length === 0,
     true,
-    duplicateFinals.length === 0
-      ? null
-      : duplicateFinals.map((s) => s.name).join(', ')
+    duplicateFinals.length === 0 ? null : duplicateFinals.map((s) => s.name).join(', ')
   );
 
   const errors = checks
     .filter((check) => check.blocking && !check.ok)
-    .map((check) =>
-      check.detail ? `${check.label}: ${check.detail}` : check.label
-    );
+    .map((check) => (check.detail ? `${check.label}: ${check.detail}` : check.label));
   const warnings = checks
     .filter((check) => !check.blocking && !check.ok)
-    .map((check) =>
-      check.detail ? `${check.label}: ${check.detail}` : check.label
-    );
+    .map((check) => (check.detail ? `${check.label}: ${check.detail}` : check.label));
 
   return {
     ok: errors.length === 0,
     checks,
     errors,
     warnings,
+    rawRows,
     rows,
     adjustments,
+    proportionalAdjustments,
   };
 }
 
-function chipBankDetail(
-  tableDelta: number | null,
-  bankDelta: number | null
-): string | null {
+function adjustmentCandidates(
+  rows: ReadonlyArray<LedgerRow>
+): Array<{ index: number; basisCents: number }> {
+  return rows
+    .map((row, index) => ({ index, basisCents: row.buyOutCents }))
+    .filter((candidate) => candidate.basisCents > 0);
+}
+
+function chipBankDetail(tableDelta: number | null, bankDelta: number | null): string | null {
   const parts: string[] = [];
   if (tableDelta !== null && tableDelta !== 0) {
     parts.push(`table count off by ${formatDollars(tableDelta, { signed: true })}`);

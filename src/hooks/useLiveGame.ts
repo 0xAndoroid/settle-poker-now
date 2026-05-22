@@ -5,10 +5,7 @@ import {
   type LiveOutboxRequest,
 } from '@/lib/liveApiClient';
 import { ApiError } from '@/lib/apiClient';
-import {
-  deriveLiveBankSummary,
-  deriveLivePlayerSummaries,
-} from '@/lib/liveProjection';
+import { deriveLiveBankSummary, deriveLivePlayerSummaries } from '@/lib/liveProjection';
 import {
   getCachedLiveSnapshot,
   newClientEventId,
@@ -67,13 +64,6 @@ export function useLiveGame(
     isFinal?: boolean;
     note?: string | null;
   }) => Promise<void>;
-  bustedPaidHost: (body: {
-    playerId: string;
-    amountCents: number;
-    toPlayerId?: string | null;
-    paymentMethod?: LivePaymentMethod | null;
-    note?: string | null;
-  }) => Promise<void>;
   voidEntry: (entryId: string, voidReason?: string | null) => Promise<void>;
   addChipCheckpoint: (body: {
     checkpointType: 'set_bank_total' | 'verify_table_count' | 'verify_bank_count';
@@ -126,20 +116,17 @@ export function useLiveGame(
     [publishSnapshot]
   );
 
-  const { items, pendingCount, syncState, reload, queue, flush } = useLiveOutbox(
-    gameId,
-    {
-      actorLabel,
-      onSnapshot: (snapshot) => {
-        markMutation();
-        setAuthoritative(snapshot);
-      },
-      onError: (message) => onErrorRef.current?.(message),
-      broadcast: () => {
-        channelRef.current?.postMessage({ type: 'outbox', gameId });
-      },
-    }
-  );
+  const { items, pendingCount, syncState, reload, queue, flush } = useLiveOutbox(gameId, {
+    actorLabel,
+    onSnapshot: (snapshot) => {
+      markMutation();
+      setAuthoritative(snapshot);
+    },
+    onError: (message) => onErrorRef.current?.(message),
+    broadcast: () => {
+      channelRef.current?.postMessage({ type: 'outbox', gameId });
+    },
+  });
 
   useEffect(() => {
     setState({ status: 'loading', game: null, serverGame: null, error: null });
@@ -202,9 +189,7 @@ export function useLiveGame(
 
   useEffect(() => {
     const channel =
-      typeof BroadcastChannel !== 'undefined'
-        ? new BroadcastChannel(CHANNEL_NAME)
-        : null;
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null;
     channelRef.current = channel;
     if (!channel) return undefined;
     channel.onmessage = (event: MessageEvent) => {
@@ -322,23 +307,21 @@ export function useLiveGame(
         isFinal?: boolean;
         note?: string | null;
       }) => enqueue({ kind: 'add_entry', body }),
-      bustedPaidHost: (body: {
-        playerId: string;
-        amountCents: number;
-        toPlayerId?: string | null;
-        paymentMethod?: LivePaymentMethod | null;
-        note?: string | null;
-      }) => enqueue({ kind: 'busted_paid_host', body }),
       voidEntry: (entryId: string, voidReason?: string | null) =>
         enqueue({ kind: 'void_entry', entryId, body: { voidReason } }),
       addChipCheckpoint: (body: {
-        checkpointType:
-          | 'set_bank_total'
-          | 'verify_table_count'
-          | 'verify_bank_count';
+        checkpointType: 'set_bank_total' | 'verify_table_count' | 'verify_bank_count';
         amountCents: number;
         note?: string | null;
-      }) => enqueue({ kind: 'chip_checkpoint', body }),
+      }) => {
+        if (
+          body.checkpointType === 'verify_bank_count' &&
+          state.game?.bankSummary.totalChipBankCents === null
+        ) {
+          return Promise.reject(new Error('Set a total chip bank before verifying bank count.'));
+        }
+        return enqueue({ kind: 'chip_checkpoint', body });
+      },
       finalize,
     }),
     [enqueue, finalize, items, pendingCount, refresh, state, syncState]
@@ -354,9 +337,9 @@ function projectPending(
   const game = { ...snapshot.game };
   const players: LivePlayer[] = snapshot.players.map((player) => ({ ...player }));
   const entries: LiveEntry[] = snapshot.entries.map((entry) => ({ ...entry }));
-  const chipCheckpoints: LiveChipCheckpoint[] = snapshot.chipCheckpoints.map(
-    (checkpoint) => ({ ...checkpoint })
-  );
+  const chipCheckpoints: LiveChipCheckpoint[] = snapshot.chipCheckpoints.map((checkpoint) => ({
+    ...checkpoint,
+  }));
 
   for (const item of pending) {
     const createdAt = item.createdAt;
@@ -389,6 +372,13 @@ function projectPending(
       }
     } else if (request.kind === 'add_entry') {
       entries.push(pendingEntry(snapshot.game.id, item, request.body));
+      applyPendingPlayerStatus(
+        players,
+        request.body.playerId,
+        request.body.entryType,
+        request.body.amountCents,
+        request.body.isFinal === true
+      );
     } else if (request.kind === 'busted_paid_host') {
       entries.push(
         pendingEntry(snapshot.game.id, item, {
@@ -412,6 +402,7 @@ function projectPending(
           }
         )
       );
+      applyPendingPlayerStatus(players, request.body.playerId, 'cash_out', 0, true);
     } else if (request.kind === 'void_entry') {
       const entry = entries.find((row) => row.id === request.entryId);
       if (entry) {
@@ -461,6 +452,26 @@ function projectPending(
     playerSummaries: deriveLivePlayerSummaries(partial),
     bankSummary: deriveLiveBankSummary(partial),
   };
+}
+
+function applyPendingPlayerStatus(
+  players: LivePlayer[],
+  playerId: string,
+  entryType: 'buy_in' | 'cash_out' | 'prior_payment',
+  amountCents: number,
+  isFinal: boolean
+): void {
+  const player = players.find((row) => row.playerId === playerId);
+  if (!player) return;
+  if (entryType === 'buy_in') {
+    if (player.status === 'busted' || player.status === 'cashed_out') {
+      player.status = 'active';
+    }
+    return;
+  }
+  if (entryType === 'cash_out' && isFinal) {
+    player.status = amountCents === 0 ? 'busted' : 'cashed_out';
+  }
 }
 
 function pendingEntry(

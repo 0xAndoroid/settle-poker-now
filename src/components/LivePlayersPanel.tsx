@@ -1,12 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { LiveEntrySheet, type LiveEntryMode } from './LiveEntrySheet';
 import { formatDollars, formatNet } from '@/lib/money';
-import type {
-  LiveEntry,
-  LiveGameSnapshot,
-  LivePaymentMethod,
-  LivePlayerStatus,
-} from '@/lib/types';
+import type { LiveEntry, LiveGameSnapshot, LivePlayerStatus } from '@/lib/types';
 
 interface LivePlayersPanelProps {
   snapshot: LiveGameSnapshot;
@@ -21,12 +16,6 @@ interface LivePlayersPanelProps {
     amountCents: number;
     isFinal?: boolean;
   }) => Promise<void>;
-  onBustedPaidHost: (body: {
-    playerId: string;
-    amountCents: number;
-    toPlayerId?: string | null;
-    paymentMethod?: LivePaymentMethod | null;
-  }) => Promise<void>;
   onVoidEntry: (entryId: string, reason?: string | null) => Promise<void>;
 }
 
@@ -35,7 +24,6 @@ export function LivePlayersPanel({
   onAddPlayer,
   onUpdatePlayer,
   onAddEntry,
-  onBustedPaidHost,
   onVoidEntry,
 }: LivePlayersPanelProps) {
   const [name, setName] = useState('');
@@ -72,9 +60,7 @@ export function LivePlayersPanel({
       <div className="card-header">
         <span id="live-players-heading" className="ticker-label-strong">
           players
-          <span className="text-fg-mute font-normal ml-2">
-            · {snapshot.playerSummaries.length}
-          </span>
+          <span className="text-fg-mute font-normal ml-2">· {snapshot.playerSummaries.length}</span>
         </span>
         {host && <span className="pill pill-accent">host · {host.name}</span>}
       </div>
@@ -102,15 +88,14 @@ export function LivePlayersPanel({
             const player = snapshot.players.find((p) => p.playerId === summary.playerId);
             if (!player) return null;
             const lastEntry = findLastEntry(snapshot.entries, summary.playerId);
+            const hasFinalCashout = summary.hasFinalCashout;
             return (
               <div key={summary.playerId} className="border-b border-line last:border-b-0">
                 <div className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-[16px] font-semibold leading-tight">
-                          {summary.name}
-                        </h3>
+                        <h3 className="text-[16px] font-semibold leading-tight">{summary.name}</h3>
                         {summary.isHost && <span className="pill pill-accent">host</span>}
                         <span className="pill">{summary.status}</span>
                       </div>
@@ -132,13 +117,15 @@ export function LivePlayersPanel({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    <ActionButton label="buy-in" onClick={() => setSheet({ mode: 'buy_in', playerId: summary.playerId })} />
-                    <ActionButton label="cashout" onClick={() => setSheet({ mode: 'cash_out', playerId: summary.playerId })} />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <ActionButton
-                      label="busted"
-                      disabled={!snapshot.game.hostPlayerId || snapshot.game.hostPlayerId === summary.playerId}
-                      onClick={() => setSheet({ mode: 'busted_paid_host', playerId: summary.playerId })}
+                      label="buy-in"
+                      onClick={() => setSheet({ mode: 'buy_in', playerId: summary.playerId })}
+                    />
+                    <ActionButton
+                      label="cashout"
+                      disabled={hasFinalCashout}
+                      onClick={() => setSheet({ mode: 'cash_out', playerId: summary.playerId })}
                     />
                     <ActionButton
                       label="host"
@@ -148,7 +135,9 @@ export function LivePlayersPanel({
                     <ActionButton
                       label="void last"
                       disabled={!lastEntry}
-                      onClick={() => lastEntry && void onVoidEntry(lastEntry.id, 'voided from player panel')}
+                      onClick={() =>
+                        lastEntry && void onVoidEntry(lastEntry.id, 'voided from player panel')
+                      }
                     />
                   </div>
                 </div>
@@ -157,25 +146,15 @@ export function LivePlayersPanel({
                   <LiveEntrySheet
                     mode={sheet.mode}
                     player={summary}
-                    hostName={host?.name ?? null}
                     recentAmounts={recentAmounts}
                     onCancel={() => setSheet(null)}
-                    onSubmit={async ({ amountCents, isFinal, paymentMethod }) => {
-                      if (sheet.mode === 'busted_paid_host') {
-                        await onBustedPaidHost({
-                          playerId: summary.playerId,
-                          amountCents,
-                          toPlayerId: snapshot.game.hostPlayerId,
-                          paymentMethod,
-                        });
-                      } else {
-                        await onAddEntry({
-                          playerId: summary.playerId,
-                          entryType: sheet.mode,
-                          amountCents,
-                          isFinal,
-                        });
-                      }
+                    onSubmit={async ({ amountCents, isFinal }) => {
+                      await onAddEntry({
+                        playerId: summary.playerId,
+                        entryType: sheet.mode,
+                        amountCents,
+                        isFinal,
+                      });
                     }}
                   />
                 )}
@@ -218,10 +197,7 @@ function ActionButton({
   );
 }
 
-function findLastEntry(
-  entries: ReadonlyArray<LiveEntry>,
-  playerId: string
-): LiveEntry | null {
+function findLastEntry(entries: ReadonlyArray<LiveEntry>, playerId: string): LiveEntry | null {
   return (
     entries
       .filter((entry) => entry.playerId === playerId && entry.voidedAt === null)

@@ -1,43 +1,33 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { centsFromDollarsString, formatDollars } from '@/lib/money';
-import type { LivePaymentMethod, LivePlayerSummary } from '@/lib/types';
+import type { LivePlayerSummary } from '@/lib/types';
 
-export type LiveEntryMode = 'buy_in' | 'cash_out' | 'busted_paid_host';
+export type LiveEntryMode = 'buy_in' | 'cash_out';
 
 interface LiveEntrySheetProps {
   mode: LiveEntryMode;
   player: LivePlayerSummary;
-  hostName: string | null;
   recentAmounts: number[];
   onCancel: () => void;
   onSubmit: (args: {
     amountCents: number;
     isFinal: boolean;
-    paymentMethod: LivePaymentMethod | null;
   }) => Promise<void>;
 }
 
 export function LiveEntrySheet({
   mode,
   player,
-  hostName,
   recentAmounts,
   onCancel,
   onSubmit,
 }: LiveEntrySheetProps) {
   const [amount, setAmount] = useState('');
   const [isFinal, setIsFinal] = useState(mode !== 'buy_in');
-  const [paymentMethod, setPaymentMethod] = useState<LivePaymentMethod>('cash');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const label =
-    mode === 'buy_in'
-      ? 'buy-in'
-      : mode === 'cash_out'
-        ? 'cashout'
-        : 'busted and paid host';
-  const amountLabel = mode === 'busted_paid_host' ? 'amount paid host' : 'amount';
+  const label = mode === 'buy_in' ? 'buy-in' : 'cashout';
   const chips = useMemo(() => {
     const defaults = [2_000, 4_000, 10_000];
     return Array.from(new Set([...recentAmounts, ...defaults]))
@@ -64,7 +54,6 @@ export function LiveEntrySheet({
       await onSubmit({
         amountCents,
         isFinal,
-        paymentMethod: mode === 'busted_paid_host' ? paymentMethod : null,
       });
       onCancel();
     } catch (err) {
@@ -81,13 +70,10 @@ export function LiveEntrySheet({
           <p className="ticker-label-strong">{label}</p>
           <p className="text-[12px] text-fg-dim">{player.name}</p>
         </div>
-        {mode === 'busted_paid_host' && hostName && (
-          <span className="pill">to {hostName}</span>
-        )}
       </div>
 
       <label className="block space-y-1.5">
-        <span className="ticker-label">{amountLabel}</span>
+        <span className="ticker-label">amount</span>
         <input
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
@@ -121,25 +107,6 @@ export function LiveEntrySheet({
           />
           final cashout
         </label>
-      )}
-
-      {mode === 'busted_paid_host' && (
-        <div className="grid grid-cols-4 gap-2">
-          {(['cash', 'venmo', 'zelle', 'other'] as const).map((method) => (
-            <button
-              key={method}
-              type="button"
-              onClick={() => setPaymentMethod(method)}
-              className={
-                paymentMethod === method
-                  ? 'btn btn-fill btn-sm min-h-[40px]'
-                  : 'btn btn-sm min-h-[40px]'
-              }
-            >
-              {method}
-            </button>
-          ))}
-        </div>
       )}
 
       {error && (

@@ -255,10 +255,7 @@ export type LiveGameStatus = 'active' | 'finalizing' | 'finalized' | 'abandoned'
 export type LivePlayerStatus = 'active' | 'cashed_out' | 'busted' | 'removed';
 export type LiveEntryType = 'buy_in' | 'cash_out' | 'prior_payment';
 export type LivePaymentMethod = 'cash' | 'venmo' | 'zelle' | 'other';
-export type LiveChipCheckpointType =
-  | 'set_bank_total'
-  | 'verify_table_count'
-  | 'verify_bank_count';
+export type LiveChipCheckpointType = 'set_bank_total' | 'verify_table_count' | 'verify_bank_count';
 
 export interface LiveGame {
   id: string;
@@ -388,6 +385,14 @@ export interface LiveFinalizationValidation {
   checks: LiveFinalizationCheck[];
   errors: string[];
   warnings: string[];
+  rawRows: LedgerRow[];
   rows: LedgerRow[];
   adjustments: Adjustment[];
+  proportionalAdjustments: LiveProportionalAdjustment[];
+}
+
+export interface LiveProportionalAdjustment {
+  playerId: string;
+  amountCents: number;
+  basisCents: number;
 }

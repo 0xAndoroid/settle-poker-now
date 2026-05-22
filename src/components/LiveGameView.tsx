@@ -124,7 +124,6 @@ export function LiveGameView({
         onAddPlayer={live.addPlayer}
         onUpdatePlayer={live.updatePlayer}
         onAddEntry={live.addEntry}
-        onBustedPaidHost={live.bustedPaidHost}
         onVoidEntry={live.voidEntry}
       />
     ),

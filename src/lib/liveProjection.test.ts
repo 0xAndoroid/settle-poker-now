@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  balanceFinalLedgerRows,
   deriveFinalLedgerRows,
   deriveLiveBankSummary,
   deriveLivePlayerSummaries,
@@ -98,9 +99,7 @@ describe('liveProjection', () => {
       entry('e3', 'kevin', 'cash_out', 10_000, { isFinal: true }),
     ]);
 
-    const kevin = deriveLivePlayerSummaries(snap).find(
-      (summary) => summary.playerId === 'kevin'
-    );
+    const kevin = deriveLivePlayerSummaries(snap).find((summary) => summary.playerId === 'kevin');
     expect(kevin?.buyInCents).toBe(10_000);
     expect(kevin?.cashOutCents).toBe(10_000);
     expect(kevin?.netCents).toBe(0);
@@ -193,15 +192,94 @@ describe('liveProjection', () => {
     });
   });
 
-  it('blocks finalization when buy-ins and cashouts do not balance', () => {
+  it('allows finalization with proportional balance adjustments', () => {
     const snap = snapshot([
       entry('e1', 'kevin', 'buy_in', 10_000),
       entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
+      entry('e3', 'host', 'buy_in', 10_000),
+      entry('e4', 'host', 'cash_out', 15_000, { isFinal: true }),
     ]);
 
     const result = validateLiveFinalization(snap);
-    expect(result.ok).toBe(false);
-    expect(result.errors.some((error) => /off by/i.test(error))).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.proportionalAdjustments).toEqual([
+      { playerId: 'host', amountCents: 5_000, basisCents: 15_000 },
+    ]);
+    expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
+    expect(result.rawRows.reduce((acc, row) => acc + row.netCents, 0)).toBe(-5_000);
+  });
+
+  it('balances final rows without overwriting raw cashout totals', () => {
+    const rawRows = [
+      {
+        playerId: 'kevin',
+        nickname: 'Kevin',
+        buyInCents: 10_000,
+        buyOutCents: 0,
+        netCents: -10_000,
+      },
+      {
+        playerId: 'host',
+        nickname: 'Andrew',
+        buyInCents: 10_000,
+        buyOutCents: 15_000,
+        netCents: 5_000,
+      },
+    ];
+
+    const result = balanceFinalLedgerRows(rawRows);
+    expect(result.rows.find((row) => row.playerId === 'host')).toMatchObject({
+      buyOutCents: 15_000,
+      netCents: 10_000,
+    });
+  });
+
+  it('balances surplus cashouts before settlement', () => {
+    const snap = snapshot([
+      entry('e1', 'kevin', 'buy_in', 10_000),
+      entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
+      entry('e3', 'host', 'buy_in', 10_000),
+      entry('e4', 'host', 'cash_out', 30_000, { isFinal: true }),
+    ]);
+
+    const result = validateLiveFinalization(snap);
+
+    expect(result.ok).toBe(true);
+    expect(result.rawRows.reduce((acc, row) => acc + row.netCents, 0)).toBe(10_000);
+    expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
+    expect(result.proportionalAdjustments).toEqual([
+      { playerId: 'host', amountCents: -10_000, basisCents: 30_000 },
+    ]);
+  });
+
+  it('balances live finalization rows with proportional cashout adjustments', () => {
+    const snap = snapshot([
+      entry('e1', 'kevin', 'buy_in', 10_500),
+      entry('e2', 'kevin', 'cash_out', 5_000, { isFinal: true }),
+      entry('e3', 'host', 'buy_in', 10_500),
+      entry('e4', 'host', 'cash_out', 15_000, { isFinal: true }),
+    ]);
+
+    const result = validateLiveFinalization(snap);
+    const rawTotal = result.rawRows.reduce((acc, row) => acc + row.netCents, 0);
+    const adjustedTotal = result.rows.reduce((acc, row) => acc + row.netCents, 0);
+
+    expect(result.ok).toBe(true);
+    expect(rawTotal).toBe(-1_000);
+    expect(adjustedTotal).toBe(0);
+    expect(result.proportionalAdjustments).toEqual([
+      { playerId: 'host', amountCents: 750, basisCents: 15_000 },
+      { playerId: 'kevin', amountCents: 250, basisCents: 5_000 },
+    ]);
+    expect(result.rows.find((row) => row.playerId === 'kevin')).toMatchObject({
+      buyOutCents: 5_000,
+      netCents: -5_250,
+    });
+    expect(result.rows.find((row) => row.playerId === 'host')).toMatchObject({
+      buyOutCents: 15_000,
+      netCents: 5_250,
+    });
   });
 
   it('does not treat an inactive host row as financial activity', () => {
