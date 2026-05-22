@@ -1,24 +1,35 @@
 /**
- * Tiny URL-router. Two top-level routes:
+ * Tiny URL-router. Three top-level routes:
  *   - `{kind:'home'}`  — landing + ephemeral hash-state mode (path = '/')
  *   - `{kind:'game', id}` — persistent game view (path = '/g/:id')
+ *   - `{kind:'live', id}` — in-progress live game workflow (path = '/live/:id')
  *
  * Anything else falls back to `home`. We intentionally avoid pulling in
  * react-router for two routes.
  */
 
-export type Route = { kind: 'home' } | { kind: 'game'; id: string };
+export type Route =
+  | { kind: 'home' }
+  | { kind: 'game'; id: string }
+  | { kind: 'live'; id: string };
 
 const GAME_PATH = /^\/g\/([0-9a-z]{6,16})\/?$/i;
+const LIVE_PATH = /^\/live\/([0-9a-z]{6,16})\/?$/i;
 
 export function parseRoute(pathname: string): Route {
-  const match = pathname.match(GAME_PATH);
-  if (match) return { kind: 'game', id: match[1]! };
+  const gameMatch = pathname.match(GAME_PATH);
+  if (gameMatch) return { kind: 'game', id: gameMatch[1]! };
+  const liveMatch = pathname.match(LIVE_PATH);
+  if (liveMatch) return { kind: 'live', id: liveMatch[1]! };
   return { kind: 'home' };
 }
 
 export function gamePath(id: string): string {
   return `/g/${id}`;
+}
+
+export function liveGamePath(id: string): string {
+  return `/live/${id}`;
 }
 
 export function navigate(path: string, options: { replace?: boolean } = {}): void {

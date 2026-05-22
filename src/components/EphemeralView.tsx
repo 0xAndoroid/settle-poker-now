@@ -17,7 +17,8 @@ import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
 import { DEFAULT_PAYMENT_NOTE } from '@/lib/paymentLinks';
 import { ApiError, createFinalizedGame } from '@/lib/apiClient';
-import { gamePath, navigate } from '@/lib/routing';
+import { createLiveGameRemote } from '@/lib/liveApiClient';
+import { gamePath, liveGamePath, navigate } from '@/lib/routing';
 import { type AliasRule, canonicalize } from '@/lib/aliases';
 import type {
   Adjustment,
@@ -58,6 +59,7 @@ export function EphemeralView({
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null);
   const [finalizing, setFinalizing] = useState(false);
   const [note, setNote] = useState('');
+  const [startingLive, setStartingLive] = useState(false);
 
   // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
@@ -222,6 +224,23 @@ export function EphemeralView({
     [fetchGame]
   );
 
+  const handleStartLiveGame = useCallback(async () => {
+    setStartingLive(true);
+    try {
+      const { game } = await createLiveGameRemote({});
+      navigate(liveGamePath(game.game.id));
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not start live game.';
+      pushToast(message, 'error');
+      setStartingLive(false);
+    }
+  }, [pushToast]);
+
   const handleAddAlias = useCallback(
     async (input: { playerId: string; aliasToPlayerId: string }) => {
       // Mirror the server-side validation so the URL hash never holds a
@@ -362,6 +381,7 @@ export function EphemeralView({
     setUnitOverride(null);
     setParseError(null);
     setNote('');
+    setStartingLive(false);
     writeHashToLocation({
       gameId: null,
       adjustments: [],
@@ -382,7 +402,13 @@ export function EphemeralView({
     (ledgerState.status === 'error' ? ledgerState.error ?? 'unknown error' : null);
 
   if (ledgerState.status === 'idle') {
-    return <EmptyState onAnalyze={handleAnalyze} />;
+    return (
+      <EmptyState
+        onAnalyze={handleAnalyze}
+        onStartLiveGame={handleStartLiveGame}
+        startingLive={startingLive}
+      />
+    );
   }
   if (ledgerState.status === 'loading') {
     return <LoadingView gameId={ledgerState.gameId ?? '…'} />;

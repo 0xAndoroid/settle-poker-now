@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { PaymentPreference } from '../../src/lib/types';
 import {
   CreateFinalizedValidationError,
   createGameFinalized,
@@ -32,7 +33,20 @@ const baseRows = [
   },
 ];
 
-const baseInput = () => ({
+const baseInput = (): {
+  pokernowGameId: string;
+  sourceUnit: 'cents';
+  unitProvenance: 'header';
+  startedAt: number;
+  endedAt: number;
+  rows: typeof baseRows;
+  adjustments: { fromPlayerId: string; toPlayerId: string; amountCents: number }[];
+  isolations: { playerId: string; counterpartId: string }[];
+  aliases: { playerId: string; aliasToPlayerId: string }[];
+  paymentPreferences?: PaymentPreference[];
+  actorLabel: string;
+  note?: string | null;
+} => ({
   pokernowGameId: 'pokernow-test',
   sourceUnit: 'cents' as const,
   unitProvenance: 'header' as const,

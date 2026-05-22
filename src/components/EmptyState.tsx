@@ -10,12 +10,19 @@ interface EmptyStateProps {
    * see system rewire).
    */
   onAnalyze: (gameId: string) => void;
+  onStartLiveGame: () => void;
   loading?: boolean;
+  startingLive?: boolean;
 }
 
 const PLACEHOLDER = 'pokernow.club/games/abc123…';
 
-export function EmptyState({ onAnalyze, loading = false }: EmptyStateProps) {
+export function EmptyState({
+  onAnalyze,
+  onStartLiveGame,
+  loading = false,
+  startingLive = false,
+}: EmptyStateProps) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -37,7 +44,7 @@ export function EmptyState({ onAnalyze, loading = false }: EmptyStateProps) {
     // submit-button pressed-state spinner.
   };
 
-  const isLoading = loading || submitting;
+  const isLoading = loading || submitting || startingLive;
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
@@ -57,6 +64,7 @@ export function EmptyState({ onAnalyze, loading = false }: EmptyStateProps) {
         </p>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
       {/* URL input — terminal-style entry */}
       <form onSubmit={handleAnalyze} className="card">
         <div className="card-header">
@@ -124,6 +132,28 @@ export function EmptyState({ onAnalyze, loading = false }: EmptyStateProps) {
           </div>
         </div>
       </form>
+
+      <section className="card">
+        <div className="card-header">
+          <span className="ticker-label-strong">› live game</span>
+          <span className="ticker-label hidden sm:inline">manual entry</span>
+        </div>
+        <div className="p-4 sm:p-5 space-y-4">
+          <p className="text-[13px] text-fg-dim leading-relaxed">
+            Start a shareable live table, record buy-ins and cashouts as they
+            happen, then finalize into the same settlement page.
+          </p>
+          <button
+            type="button"
+            onClick={onStartLiveGame}
+            disabled={isLoading}
+            className="btn btn-fill h-12 w-full text-[13px]"
+          >
+            {startingLive ? 'starting…' : 'start live game ›'}
+          </button>
+        </div>
+      </section>
+      </div>
 
       {/* Three-up feature row */}
       <div className="mt-8 grid sm:grid-cols-3 gap-3">

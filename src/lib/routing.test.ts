@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gamePath, parseRoute } from './routing';
+import { gamePath, liveGamePath, parseRoute } from './routing';
 
 describe('parseRoute', () => {
   it('returns home for /', () => {
@@ -21,6 +21,13 @@ describe('parseRoute', () => {
     expect(parseRoute('/g/7k3m9p2x/')).toEqual({ kind: 'game', id: '7k3m9p2x' });
   });
 
+  it('extracts a live game id', () => {
+    expect(parseRoute('/live/7k3m9p2x')).toEqual({
+      kind: 'live',
+      id: '7k3m9p2x',
+    });
+  });
+
   it('rejects invalid characters in game id', () => {
     expect(parseRoute('/g/foo bar')).toEqual({ kind: 'home' });
     expect(parseRoute('/g/has-dashes')).toEqual({ kind: 'home' });
@@ -31,5 +38,11 @@ describe('parseRoute', () => {
 describe('gamePath', () => {
   it('builds /g/<id>', () => {
     expect(gamePath('abc123')).toBe('/g/abc123');
+  });
+});
+
+describe('liveGamePath', () => {
+  it('builds /live/<id>', () => {
+    expect(liveGamePath('abc123')).toBe('/live/abc123');
   });
 });

@@ -25,6 +25,7 @@ export interface LedgerRow {
  * cents in the game settings.
  */
 export type LedgerUnit = 'cents' | 'dollars';
+export type SourceKind = 'pokernow' | 'live';
 
 export interface ParsedLedger {
   rows: LedgerRow[];
@@ -135,6 +136,7 @@ export type UnitProvenance = 'header' | 'heuristic' | 'user';
 export interface PersistedGame {
   id: string;
   pokernowGameId: string;
+  sourceKind?: SourceKind;
   sourceUnit: LedgerUnit;
   unitProvenance: UnitProvenance;
   startedAt: number | null;
@@ -156,6 +158,8 @@ export interface PersistedPlayer {
   playerId: string;
   nickname: string;
   netCents: number;
+  buyInCents?: number | null;
+  buyOutCents?: number | null;
 }
 
 export interface PersistedPayment {
@@ -243,4 +247,147 @@ export interface PersistedGameSnapshot {
   aliases: PersistedAlias[];
   paymentMethods: PersistedPaymentMethod[];
   audit: PersistedAuditEntry[];
+}
+
+/* ──────── Live game — wire types shared with the worker ──────── */
+
+export type LiveGameStatus = 'active' | 'finalizing' | 'finalized' | 'abandoned';
+export type LivePlayerStatus = 'active' | 'cashed_out' | 'busted' | 'removed';
+export type LiveEntryType = 'buy_in' | 'cash_out' | 'prior_payment';
+export type LivePaymentMethod = 'cash' | 'venmo' | 'zelle' | 'other';
+export type LiveChipCheckpointType =
+  | 'set_bank_total'
+  | 'verify_table_count'
+  | 'verify_bank_count';
+
+export interface LiveGame {
+  id: string;
+  status: LiveGameStatus;
+  hostPlayerId: string | null;
+  title: string | null;
+  note: string | null;
+  totalChipBankCents: number | null;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+  finalizedAt: number | null;
+  finalizedGameId: string | null;
+}
+
+export interface LivePlayer {
+  gameId: string;
+  playerId: string;
+  name: string;
+  isHost: boolean;
+  status: LivePlayerStatus;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface LiveEntry {
+  id: string;
+  gameId: string;
+  playerId: string;
+  entryType: LiveEntryType;
+  amountCents: number;
+  toPlayerId: string | null;
+  paymentMethod: LivePaymentMethod | null;
+  isFinal: boolean;
+  note: string | null;
+  clientEventId: string;
+  createdAt: number;
+  createdBy: string | null;
+  voidedAt: number | null;
+  voidedBy: string | null;
+  voidReason: string | null;
+}
+
+export interface LiveChipCheckpoint {
+  id: string;
+  gameId: string;
+  checkpointType: LiveChipCheckpointType;
+  amountCents: number;
+  expectedCents: number | null;
+  deltaCents: number | null;
+  note: string | null;
+  clientEventId: string;
+  createdAt: number;
+  createdBy: string | null;
+}
+
+export type LiveAuditAction =
+  | 'create_live_game'
+  | 'add_player'
+  | 'update_player'
+  | 'set_host'
+  | 'void_entry'
+  | 'busted_paid_host'
+  | 'force_finalize'
+  | 'finalize_live_game'
+  | 'abandon_live_game';
+
+export interface LiveAuditEntry {
+  id: string;
+  action: LiveAuditAction;
+  actorLabel: string | null;
+  payload: unknown;
+  clientEventId: string | null;
+  createdAt: number;
+}
+
+export interface LivePlayerSummary {
+  playerId: string;
+  name: string;
+  isHost: boolean;
+  status: LivePlayerStatus;
+  buyInCents: number;
+  cashOutCents: number;
+  priorPaymentCents: number;
+  priorReceivedCents: number;
+  netCents: number;
+  entryCount: number;
+  hasActivity: boolean;
+  hasFinalCashout: boolean;
+  finalCashoutCents: number | null;
+  lastEntryAt: number | null;
+}
+
+export interface LiveBankSummary {
+  totalChipBankCents: number | null;
+  chipsInPlayCents: number;
+  expectedBankOnHandCents: number | null;
+  latestTableCountCents: number | null;
+  latestTableExpectedCents: number | null;
+  latestTableDeltaCents: number | null;
+  latestBankCountCents: number | null;
+  latestBankExpectedCents: number | null;
+  latestBankDeltaCents: number | null;
+}
+
+export interface LiveGameSnapshot {
+  game: LiveGame;
+  players: LivePlayer[];
+  entries: LiveEntry[];
+  chipCheckpoints: LiveChipCheckpoint[];
+  audit: LiveAuditEntry[];
+  playerSummaries: LivePlayerSummary[];
+  bankSummary: LiveBankSummary;
+}
+
+export interface LiveFinalizationCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+  blocking: boolean;
+  detail: string | null;
+}
+
+export interface LiveFinalizationValidation {
+  ok: boolean;
+  checks: LiveFinalizationCheck[];
+  errors: string[];
+  warnings: string[];
+  rows: LedgerRow[];
+  adjustments: Adjustment[];
 }

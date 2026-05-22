@@ -31,6 +31,7 @@ import type {
   LedgerRow,
   LedgerUnit,
   PaymentPreference,
+  SourceKind,
   SettlementPlan,
   SettlementTxn,
 } from '../../src/lib/types';
@@ -42,6 +43,7 @@ export type UnitProvenance = 'header' | 'heuristic' | 'user';
 export interface DbGame {
   id: string;
   pokernowGameId: string;
+  sourceKind: SourceKind;
   sourceUnit: LedgerUnit;
   unitProvenance: UnitProvenance;
   startedAt: number | null;
@@ -64,6 +66,8 @@ export interface DbPlayer {
   playerId: string;
   nickname: string;
   netCents: number;
+  buyInCents?: number | null;
+  buyOutCents?: number | null;
 }
 
 export interface DbPayment {
@@ -192,6 +196,7 @@ function rowToGame(row: Record<string, unknown>): DbGame {
   return {
     id: row.id as string,
     pokernowGameId: row.pokernow_game_id as string,
+    sourceKind: (row.source_kind as SourceKind | undefined) ?? 'pokernow',
     sourceUnit: row.source_unit as LedgerUnit,
     unitProvenance: row.unit_provenance as UnitProvenance,
     startedAt: (row.started_at as number | null) ?? null,
@@ -209,6 +214,8 @@ function rowToPlayer(row: Record<string, unknown>): DbPlayer {
     playerId: row.player_id as string,
     nickname: row.nickname as string,
     netCents: row.net_cents as number,
+    buyInCents: (row.buy_in_cents as number | null | undefined) ?? null,
+    buyOutCents: (row.buy_out_cents as number | null | undefined) ?? null,
   };
 }
 
@@ -383,12 +390,13 @@ export async function createGame(
     stmts.push(
       db
         .prepare(
-          `INSERT INTO games (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, note)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO games (id, pokernow_game_id, source_kind, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
           input.pokernowGameId,
+          'pokernow',
           input.sourceUnit,
           input.unitProvenance,
           input.startedAt,
@@ -403,9 +411,17 @@ export async function createGame(
       stmts.push(
         db
           .prepare(
-            `INSERT INTO players (game_id, player_id, nickname, net_cents) VALUES (?, ?, ?, ?)`
+            `INSERT INTO players (game_id, player_id, nickname, net_cents, buy_in_cents, buy_out_cents)
+             VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .bind(id, row.playerId, row.nickname, row.netCents)
+          .bind(
+            id,
+            row.playerId,
+            row.nickname,
+            row.netCents,
+            row.buyInCents,
+            row.buyOutCents
+          )
       );
     }
 
@@ -494,6 +510,27 @@ export class CreateFinalizedValidationError extends Error {
   }
 }
 
+export interface InsertFinalizedGameSnapshotInput {
+  id?: string;
+  sourceKind: SourceKind;
+  sourceRef: string;
+  sourceUnit: LedgerUnit;
+  unitProvenance: UnitProvenance;
+  startedAt: number | null;
+  endedAt: number | null;
+  rows: ReadonlyArray<LedgerRow>;
+  adjustments: ReadonlyArray<{
+    fromPlayerId: string;
+    toPlayerId: string;
+    amountCents: number;
+  }>;
+  isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
+  aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
+  paymentPreferences?: ReadonlyArray<PaymentPreference>;
+  actorLabel: string | null;
+  note?: string | null;
+}
+
 export async function createGameFinalized(
   db: D1Database,
   input: {
@@ -515,7 +552,29 @@ export async function createGameFinalized(
     note?: string | null;
   }
 ): Promise<DbGameSnapshot> {
-  const playerIds = new Set(input.rows.map((r) => r.playerId));
+  return insertFinalizedGameSnapshot(db, {
+    sourceKind: 'pokernow',
+    sourceRef: input.pokernowGameId,
+    sourceUnit: input.sourceUnit,
+    unitProvenance: input.unitProvenance,
+    startedAt: input.startedAt,
+    endedAt: input.endedAt,
+    rows: input.rows,
+    adjustments: input.adjustments,
+    isolations: input.isolations,
+    aliases: input.aliases,
+    paymentPreferences: input.paymentPreferences,
+    actorLabel: input.actorLabel,
+    note: input.note,
+  });
+}
+
+export async function insertFinalizedGameSnapshot(
+  db: D1Database,
+  input: InsertFinalizedGameSnapshotInput
+): Promise<DbGameSnapshot> {
+  const rows = input.rows.slice();
+  const playerIds = new Set(rows.map((r) => r.playerId));
   for (const a of input.adjustments) {
     if (!playerIds.has(a.fromPlayerId) || !playerIds.has(a.toPlayerId)) {
       throw new CreateFinalizedValidationError(
@@ -599,7 +658,7 @@ export async function createGameFinalized(
   // Compute the final plan in-memory using the same pipeline as
   // `rederivePlan`. Mirrors `computePlan` in src/lib/settle.ts.
   const canonicalMap = buildCanonicalMap(canonAliases);
-  const collapsedRows = collapseRows(input.rows, canonicalMap);
+  const collapsedRows = collapseRows(rows, canonicalMap);
   const collapsedAdjustments = collapseAdjustments(
     input.adjustments.map((a, i) => ({
       id: `seed_${i}`,
@@ -632,8 +691,9 @@ export async function createGameFinalized(
   );
 
   const now = Date.now();
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const id = newGameSlug();
+  const maxAttempts = input.id ? 5 : 4;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const id = attempt === 0 && input.id ? input.id : newGameSlug();
     const stmts: D1PreparedStatement[] = [];
 
     // games row — finalized at creation time.
@@ -641,12 +701,13 @@ export async function createGameFinalized(
       db
         .prepare(
           `INSERT INTO games
-            (id, pokernow_game_id, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by, note)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, pokernow_game_id, source_kind, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
-          input.pokernowGameId,
+          input.sourceRef,
+          input.sourceKind,
           input.sourceUnit,
           input.unitProvenance,
           input.startedAt,
@@ -660,13 +721,21 @@ export async function createGameFinalized(
     );
 
     // players
-    for (const row of input.rows) {
+    for (const row of rows) {
       stmts.push(
         db
           .prepare(
-            `INSERT INTO players (game_id, player_id, nickname, net_cents) VALUES (?, ?, ?, ?)`
+            `INSERT INTO players (game_id, player_id, nickname, net_cents, buy_in_cents, buy_out_cents)
+             VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .bind(id, row.playerId, row.nickname, row.netCents)
+          .bind(
+            id,
+            row.playerId,
+            row.nickname,
+            row.netCents,
+            row.buyInCents,
+            row.buyOutCents
+          )
       );
     }
 
@@ -747,10 +816,11 @@ export async function createGameFinalized(
         action: 'create_game',
         actorLabel: input.actorLabel,
         payload: {
-          pokernowGameId: input.pokernowGameId,
+          sourceKind: input.sourceKind,
+          sourceRef: input.sourceRef,
           sourceUnit: input.sourceUnit,
           unitProvenance: input.unitProvenance,
-          playerCount: input.rows.length,
+          playerCount: rows.length,
           adjustmentCount: input.adjustments.length,
           isolationCount: seenIso.size,
           aliasCount: canonAliases.length,

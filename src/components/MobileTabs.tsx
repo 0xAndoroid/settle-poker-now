@@ -6,9 +6,11 @@ import { cn } from '@/lib/cn';
  *     The settlement plan rides under `ledger` so the user can see their
  *     work without losing the editing affordances on the same screen.
  *   - `persistent` (post-finalize read-only view): LEDGER · MODS · PAYMENTS · HISTORY.
+ *   - `live` (live game workflow): PLAYERS · BANK · ACTIVITY · FINALIZE.
  */
 export type EphemeralTabKey = 'ledger' | 'config';
 export type PersistentTabKey = 'ledger' | 'mods' | 'payments' | 'history';
+export type LiveTabKey = 'players' | 'bank' | 'activity' | 'finalize';
 
 interface BaseTabsProps {
   txnCount: number;
@@ -29,7 +31,16 @@ interface PersistentTabsProps extends BaseTabsProps {
   historyCount: number;
 }
 
-type MobileTabsProps = EphemeralTabsProps | PersistentTabsProps;
+interface LiveTabsProps extends BaseTabsProps {
+  mode: 'live';
+  active: LiveTabKey;
+  onChange: (k: LiveTabKey) => void;
+  bankIssueCount: number;
+  historyCount: number;
+  pendingCount: number;
+}
+
+type MobileTabsProps = EphemeralTabsProps | PersistentTabsProps | LiveTabsProps;
 
 interface TabSpec {
   key: string;
@@ -47,7 +58,8 @@ export function MobileTabs(props: MobileTabsProps) {
         },
         { key: 'config', label: 'config', badge: null },
       ]
-    : [
+    : props.mode === 'persistent'
+      ? [
         {
           key: 'ledger',
           label: 'ledger',
@@ -68,13 +80,42 @@ export function MobileTabs(props: MobileTabsProps) {
           label: 'history',
           badge: props.historyCount > 0 ? props.historyCount : null,
         },
+      ]
+      : [
+        {
+          key: 'players',
+          label: 'players',
+          badge: props.playerCount > 0 ? props.playerCount : null,
+        },
+        {
+          key: 'bank',
+          label: 'bank',
+          badge: props.bankIssueCount > 0 ? props.bankIssueCount : null,
+        },
+        {
+          key: 'activity',
+          label: 'activity',
+          badge:
+            props.pendingCount > 0
+              ? props.pendingCount
+              : props.historyCount > 0
+                ? props.historyCount
+                : null,
+        },
+        {
+          key: 'finalize',
+          label: 'final',
+          badge: props.txnCount > 0 ? props.txnCount : null,
+        },
       ];
 
   const onChange = (key: string) => {
     if (props.mode === 'ephemeral') {
       props.onChange(key as EphemeralTabKey);
-    } else {
+    } else if (props.mode === 'persistent') {
       props.onChange(key as PersistentTabKey);
+    } else {
+      props.onChange(key as LiveTabKey);
     }
   };
 

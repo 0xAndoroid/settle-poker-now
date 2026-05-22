@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Masthead, type TickerItem } from './components/Masthead';
 import { EphemeralView } from './components/EphemeralView';
+import { LiveGameView } from './components/LiveGameView';
 import { PersistentGameView } from './components/PersistentGameView';
 import { ToastViewport } from './components/Toast';
 import { useToast } from './hooks/useToast';
@@ -17,7 +18,7 @@ export default function App() {
   const ephemeralResetRef = useRef<(() => void) | null>(null);
 
   const handleReset = useCallback(() => {
-    if (route.kind === 'game') {
+    if (route.kind === 'game' || route.kind === 'live') {
       navigate('/');
       setTicker(undefined);
       return;
@@ -26,7 +27,8 @@ export default function App() {
     setTicker(undefined);
   }, [route.kind]);
 
-  const showHeader = route.kind === 'game' || ticker !== undefined;
+  const showHeader =
+    route.kind === 'game' || route.kind === 'live' || ticker !== undefined;
 
   return (
     <div className="min-h-full">
@@ -51,6 +53,14 @@ export default function App() {
 
       {route.kind === 'game' && (
         <PersistentGameView
+          gameId={route.id}
+          onTickerChange={setTicker}
+          pushToast={pushToast}
+        />
+      )}
+
+      {route.kind === 'live' && (
+        <LiveGameView
           gameId={route.id}
           onTickerChange={setTicker}
           pushToast={pushToast}

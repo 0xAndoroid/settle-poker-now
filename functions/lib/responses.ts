@@ -8,9 +8,10 @@
 export const CORS_HEADERS: HeadersInit = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Accept, Content-Type, X-Actor-Label',
+  'Access-Control-Allow-Headers':
+    'Accept, Content-Type, X-Actor-Label, X-Client-Event-Id',
   'Access-Control-Expose-Headers':
-    'X-Pokernow-Cents, X-Demo-Source, X-Upstream-Hosts, X-Game-Id',
+    'X-Pokernow-Cents, X-Demo-Source, X-Upstream-Hosts, X-Game-Id, X-Live-Game-Id',
 };
 
 export function jsonResponse(body: unknown, init?: ResponseInit): Response {
@@ -61,6 +62,18 @@ export function readActorLabel(request: Request): string | null {
   const raw = request.headers.get('X-Actor-Label');
   if (!raw) return null;
   const trimmed = raw.trim().slice(0, 64);
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function readClientEventId(
+  request: Request,
+  body?: { clientEventId?: unknown }
+): string | null {
+  const raw =
+    request.headers.get('X-Client-Event-Id') ??
+    (typeof body?.clientEventId === 'string' ? body.clientEventId : null);
+  if (!raw) return null;
+  const trimmed = raw.trim().slice(0, 120);
   return trimmed.length > 0 ? trimmed : null;
 }
 
