@@ -1,4 +1,4 @@
-import { ApiError } from './apiClient';
+import { ApiError, readErrorBody } from './apiClient';
 import type {
   IsolationRule,
   LiveChipCheckpointType,
@@ -11,20 +11,6 @@ import type {
 
 const ACTOR_HEADER = 'X-Actor-Label';
 const CLIENT_EVENT_HEADER = 'X-Client-Event-Id';
-
-async function readErrorBody(res: Response): Promise<string> {
-  try {
-    const json = (await res.json()) as { error?: string };
-    if (typeof json.error === 'string') return json.error;
-  } catch {
-    // not JSON
-  }
-  try {
-    return await res.text();
-  } catch {
-    return res.statusText;
-  }
-}
 
 function headers(args: {
   actorLabel?: string | null;

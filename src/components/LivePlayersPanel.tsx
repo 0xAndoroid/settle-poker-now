@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { EmptyPanelMessage } from './FormControls';
 import { LiveEntrySheet, type LiveEntryMode } from './LiveEntrySheet';
 import { formatDollars, formatNet } from '@/lib/money';
 import type { LiveEntry, LiveGameSnapshot, LivePlayerStatus } from '@/lib/types';
@@ -80,9 +81,7 @@ export function LivePlayersPanel({
 
       <div>
         {snapshot.playerSummaries.length === 0 ? (
-          <div className="px-5 py-8 text-center text-[13px] text-fg-dim">
-            Add players as they sit down.
-          </div>
+          <EmptyPanelMessage>Add players as they sit down.</EmptyPanelMessage>
         ) : (
           snapshot.playerSummaries.map((summary) => {
             const player = snapshot.players.find((p) => p.playerId === summary.playerId);

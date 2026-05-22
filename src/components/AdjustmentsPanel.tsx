@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { FormError, PlayerSelectField } from './FormControls';
 import { centsFromDollarsString, formatDollars } from '@/lib/money';
 import { newId } from '@/lib/id';
 import type { Adjustment, EffectiveBalance } from '@/lib/types';
@@ -69,20 +70,30 @@ export function AdjustmentsPanel({
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
-          <FieldSelect
+          <PlayerSelectField
             id="adj-from"
             label="from"
             value={fromId}
             onChange={setFromId}
-            balances={sortedBalances}
+            options={sortedBalances.map((balance) => ({
+              value: balance.playerId,
+              label: balance.nickname,
+            }))}
+            placeholder="— pick from —"
+            selectClassName="field font-sans font-semibold text-[14px] pr-8"
           />
           <span aria-hidden="true" className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute font-mono">↦</span>
-          <FieldSelect
+          <PlayerSelectField
             id="adj-to"
             label="to"
             value={toId}
             onChange={setToId}
-            balances={sortedBalances}
+            options={sortedBalances.map((balance) => ({
+              value: balance.playerId,
+              label: balance.nickname,
+            }))}
+            placeholder="— pick to —"
+            selectClassName="field font-sans font-semibold text-[14px] pr-8"
           />
         </div>
 
@@ -114,12 +125,7 @@ export function AdjustmentsPanel({
           </button>
         </div>
 
-        {error && (
-          <p className="text-[12px] text-loss font-semibold flex items-center gap-2" role="alert">
-            <span className="pill pill-loss">err</span>
-            {error}
-          </p>
-        )}
+        {error && <FormError>{error}</FormError>}
       </form>
 
       {adjustments.length > 0 ? (
@@ -161,44 +167,5 @@ export function AdjustmentsPanel({
         </div>
       )}
     </section>
-  );
-}
-
-interface FieldSelectProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  balances: EffectiveBalance[];
-}
-
-function FieldSelect({ id, label, value, onChange, balances }: FieldSelectProps) {
-  return (
-    <div>
-      <label htmlFor={id} className="ticker-label block mb-1.5">
-        {label}
-      </label>
-      <select
-        id={id}
-        name={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="field font-sans font-semibold text-[14px] pr-8"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'right 12px center',
-          appearance: 'none',
-        }}
-      >
-        <option value="">— pick {label} —</option>
-        {balances.map((b) => (
-          <option key={b.playerId} value={b.playerId}>
-            {b.nickname}
-          </option>
-        ))}
-      </select>
-    </div>
   );
 }

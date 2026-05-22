@@ -26,6 +26,7 @@ import {
   errorResponse,
   jsonResponse,
   readActorLabel,
+  readJsonBody,
 } from '../../../../../lib/responses';
 
 interface Env {
@@ -50,12 +51,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return errorResponse(400, 'Missing game id or player id.');
   }
 
-  let body: Body;
-  try {
-    body = (await ctx.request.json()) as Body;
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<Body>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const venmoRaw = body.venmoUsername ?? null;
   const zelleRaw = body.zelleHandle ?? null;
@@ -77,10 +75,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return errorResponse(400, 'zelleHandle must be a string or null.');
   }
   if (zelleRaw !== null && zelleRaw.trim().length > ZELLE_MAX_LENGTH) {
-    return errorResponse(
-      400,
-      `zelleHandle must be ${ZELLE_MAX_LENGTH} characters or fewer.`
-    );
+    return errorResponse(400, `zelleHandle must be ${ZELLE_MAX_LENGTH} characters or fewer.`);
   }
 
   const game = await loadGameRow(ctx.env.DB, gameId);

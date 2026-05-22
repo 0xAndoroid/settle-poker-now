@@ -11,13 +11,16 @@ import type { PaymentPreference, PersistedGameSnapshot } from './types';
 const ACTOR_HEADER = 'X-Actor-Label';
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-async function readErrorBody(res: Response): Promise<string> {
+export async function readErrorBody(res: Response): Promise<string> {
   try {
     const json = (await res.json()) as { error?: string };
     if (typeof json.error === 'string') return json.error;
@@ -39,32 +42,6 @@ function actorHeaders(actorLabel: string | null): Record<string, string> {
 interface GameResponse {
   game: PersistedGameSnapshot;
   id?: string;
-}
-
-export interface CreateGameInput {
-  pokernowUrl: string;
-  actorLabel?: string | null;
-}
-
-export async function createPersistentGame(
-  input: CreateGameInput,
-  signal?: AbortSignal
-): Promise<PersistedGameSnapshot> {
-  const res = await fetch('/api/games', {
-    method: 'POST',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      ...actorHeaders(input.actorLabel ?? null),
-    },
-    body: JSON.stringify({
-      pokernowUrl: input.pokernowUrl,
-      actorLabel: input.actorLabel ?? null,
-    }),
-  });
-  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
-  const json = (await res.json()) as GameResponse;
-  return json.game;
 }
 
 export interface CreateFinalizedGameInput {
@@ -167,22 +144,19 @@ export async function addAdjustmentRemote(
   },
   signal?: AbortSignal
 ): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/adjustments`,
-    {
-      method: 'POST',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...actorHeaders(args.actorLabel),
-      },
-      body: JSON.stringify({
-        fromPlayerId: args.fromPlayerId,
-        toPlayerId: args.toPlayerId,
-        amountCents: args.amountCents,
-      }),
-    }
-  );
+  const res = await fetch(`/api/games/${encodeURIComponent(args.gameId)}/adjustments`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      ...actorHeaders(args.actorLabel),
+    },
+    body: JSON.stringify({
+      fromPlayerId: args.fromPlayerId,
+      toPlayerId: args.toPlayerId,
+      amountCents: args.amountCents,
+    }),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }
@@ -212,21 +186,18 @@ export async function setIsolationRemote(
   },
   signal?: AbortSignal
 ): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/isolation-rules`,
-    {
-      method: 'POST',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...actorHeaders(args.actorLabel),
-      },
-      body: JSON.stringify({
-        playerId: args.playerId,
-        counterpartId: args.counterpartId,
-      }),
-    }
-  );
+  const res = await fetch(`/api/games/${encodeURIComponent(args.gameId)}/isolation-rules`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      ...actorHeaders(args.actorLabel),
+    },
+    body: JSON.stringify({
+      playerId: args.playerId,
+      counterpartId: args.counterpartId,
+    }),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }
@@ -256,21 +227,18 @@ export async function addAliasRemote(
   },
   signal?: AbortSignal
 ): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/aliases`,
-    {
-      method: 'POST',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...actorHeaders(args.actorLabel),
-      },
-      body: JSON.stringify({
-        playerId: args.playerId,
-        aliasToPlayerId: args.aliasToPlayerId,
-      }),
-    }
-  );
+  const res = await fetch(`/api/games/${encodeURIComponent(args.gameId)}/aliases`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      ...actorHeaders(args.actorLabel),
+    },
+    body: JSON.stringify({
+      playerId: args.playerId,
+      aliasToPlayerId: args.aliasToPlayerId,
+    }),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }
@@ -300,31 +268,11 @@ export async function finalizeGameRemote(
   args: { gameId: string; actorLabel: string | null },
   signal?: AbortSignal
 ): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/finalize`,
-    {
-      method: 'POST',
-      signal,
-      headers: actorHeaders(args.actorLabel),
-    }
-  );
-  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
-  return ((await res.json()) as GameResponse).game;
-}
-
-/** Reverse the finalize lock — allowed by design (friend-trust model). */
-export async function unfinalizeGameRemote(
-  args: { gameId: string; actorLabel: string | null },
-  signal?: AbortSignal
-): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/unfinalize`,
-    {
-      method: 'POST',
-      signal,
-      headers: actorHeaders(args.actorLabel),
-    }
-  );
+  const res = await fetch(`/api/games/${encodeURIComponent(args.gameId)}/finalize`, {
+    method: 'POST',
+    signal,
+    headers: actorHeaders(args.actorLabel),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }
@@ -350,18 +298,15 @@ export async function setGameNoteRemote(
   args: { gameId: string; note: string | null; actorLabel: string | null },
   signal?: AbortSignal
 ): Promise<PersistedGameSnapshot> {
-  const res = await fetch(
-    `/api/games/${encodeURIComponent(args.gameId)}/note`,
-    {
-      method: 'PATCH',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...actorHeaders(args.actorLabel),
-      },
-      body: JSON.stringify({ note: args.note }),
-    }
-  );
+  const res = await fetch(`/api/games/${encodeURIComponent(args.gameId)}/note`, {
+    method: 'PATCH',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      ...actorHeaders(args.actorLabel),
+    },
+    body: JSON.stringify({ note: args.note }),
+  });
   if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
   return ((await res.json()) as GameResponse).game;
 }

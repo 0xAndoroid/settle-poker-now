@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ApiError,
   fetchPersistentGame,
   finalizeGameRemote,
   setGameNoteRemote,
@@ -8,6 +7,7 @@ import {
   setPaymentMethodsRemote,
   type PaymentMethodInput,
 } from '@/lib/apiClient';
+import { errorMessage } from '@/lib/errors';
 import type { PersistedGameSnapshot } from '@/lib/types';
 
 export type LoadStatus = 'loading' | 'success' | 'error';
@@ -104,12 +104,7 @@ export function usePersistentGame(
       setState({ status: 'success', game, error: null });
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Unknown error';
+      const message = errorMessage(err);
       setState((prev) =>
         // Don't tear down a successfully-loaded view on a transient
         // poll error; surface it via toast and keep the last good state.
@@ -167,12 +162,7 @@ export function usePersistentGame(
   }, [refresh]);
 
   const reportError = useCallback((err: unknown) => {
-    const message =
-      err instanceof ApiError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : 'Unknown error';
+    const message = errorMessage(err);
     onErrorRef.current?.(message);
     return message;
   }, []);

@@ -29,6 +29,23 @@ export function errorResponse(status: number, message: string): Response {
   return jsonResponse({ error: message }, { status });
 }
 
+export async function readJsonBody<T>(request: Request): Promise<
+  | {
+      ok: true;
+      body: T;
+    }
+  | {
+      ok: false;
+      response: Response;
+    }
+> {
+  try {
+    return { ok: true, body: (await request.json()) as T };
+  } catch {
+    return { ok: false, response: errorResponse(400, 'Body must be JSON.') };
+  }
+}
+
 export function textResponse(status: number, message: string): Response {
   return new Response(message, {
     status,
@@ -43,15 +60,6 @@ export const OPTIONS_NO_CONTENT = new Response(null, {
   status: 204,
   headers: CORS_HEADERS,
 });
-
-/**
- * Convert a `DbGameSnapshot` to a JSON-friendly payload. Currently identity —
- * but kept as a seam so we can prune internal fields later without
- * touching call sites.
- */
-export function gameToJson<T>(snap: T): T {
-  return snap;
-}
 
 /**
  * Read the actor label from request headers. Used for audit trail. Bounded

@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { FormError } from './FormControls';
+import { errorMessage } from '@/lib/errors';
 import { centsFromDollarsString, formatDollars } from '@/lib/money';
 import type { LiveChipCheckpointType, LiveGameSnapshot } from '@/lib/types';
 
@@ -44,7 +46,7 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
       await onAddCheckpoint({ checkpointType: mode, amountCents: cents });
       setAmount('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not record count.');
+      setError(errorMessage(err, 'Could not record count.'));
     } finally {
       setSaving(false);
     }
@@ -129,11 +131,7 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
             record
           </button>
         </div>
-        {error && (
-          <p className="text-loss text-[12px] font-semibold" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <FormError>{error}</FormError>}
       </form>
     </section>
   );

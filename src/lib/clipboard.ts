@@ -30,17 +30,3 @@ export async function copyText(text: string): Promise<boolean> {
     document.body.removeChild(textarea);
   }
 }
-
-export async function copyImageBlob(blob: Blob): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard?.write) {
-    return false;
-  }
-  try {
-    if (typeof ClipboardItem === 'undefined') return false;
-    const item = new ClipboardItem({ [blob.type]: blob });
-    await navigator.clipboard.write([item]);
-    return true;
-  } catch {
-    return false;
-  }
-}

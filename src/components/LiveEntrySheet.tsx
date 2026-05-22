@@ -1,4 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { FormError } from './FormControls';
+import { errorMessage } from '@/lib/errors';
 import { centsFromDollarsString, formatDollars } from '@/lib/money';
 import type { LivePlayerSummary } from '@/lib/types';
 
@@ -57,7 +59,7 @@ export function LiveEntrySheet({
       });
       onCancel();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save entry.');
+      setError(errorMessage(err, 'Could not save entry.'));
     } finally {
       setSaving(false);
     }
@@ -109,11 +111,7 @@ export function LiveEntrySheet({
         </label>
       )}
 
-      {error && (
-        <p className="text-loss text-[12px] font-semibold" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FormError>{error}</FormError>}
 
       <div className="grid grid-cols-2 gap-2">
         <button type="button" onClick={onCancel} className="btn h-11" disabled={saving}>

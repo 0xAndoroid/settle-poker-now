@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from './EmptyState';
-import { LedgerPanel } from './LedgerPanel';
-import { SettlementPanel } from './SettlementPanel';
-import { IsolationPanel } from './IsolationPanel';
-import { AdjustmentsPanel } from './AdjustmentsPanel';
-import { AliasPanel } from './AliasPanel';
-import { PaymentPreferencesPanel } from './PaymentPreferencesPanel';
 import { LoadingView } from './LoadingView';
 import { ErrorView } from './ErrorView';
 import { MobileTabs, type EphemeralTabKey } from './MobileTabs';
+import { EphemeralDesktopPanels, EphemeralMobilePanels } from './EphemeralGamePanels';
 import type { TickerItem } from './Masthead';
 import { useLedger } from '@/hooks/useLedger';
 import { computePlan } from '@/lib/settle';
@@ -16,7 +11,8 @@ import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
 import { DEFAULT_PAYMENT_NOTE } from '@/lib/paymentLinks';
-import { ApiError, createFinalizedGame } from '@/lib/apiClient';
+import { createFinalizedGame } from '@/lib/apiClient';
+import { errorMessage as getErrorMessage } from '@/lib/errors';
 import { createLiveGameRemote } from '@/lib/liveApiClient';
 import { gamePath, liveGamePath, navigate } from '@/lib/routing';
 import { type AliasRule, canonicalize } from '@/lib/aliases';
@@ -230,13 +226,7 @@ export function EphemeralView({
       const { game } = await createLiveGameRemote({});
       navigate(liveGamePath(game.game.id));
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not start live game.';
-      pushToast(message, 'error');
+      pushToast(getErrorMessage(err, 'Could not start live game.'), 'error');
       setStartingLive(false);
     }
   }, [pushToast]);
@@ -361,13 +351,7 @@ export function EphemeralView({
       });
       navigate(gamePath(game.game.id));
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not finalize game.';
-      pushToast(message, 'error');
+      pushToast(getErrorMessage(err, 'Could not finalize game.'), 'error');
       setFinalizing(false);
     }
   }, [adjustments, aliases, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, pushToast]);
@@ -397,7 +381,7 @@ export function EphemeralView({
     registerReset?.(reset);
   }, [registerReset, reset]);
 
-  const errorMessage =
+  const viewErrorMessage =
     parseError ??
     (ledgerState.status === 'error' ? ledgerState.error ?? 'unknown error' : null);
 
@@ -416,7 +400,7 @@ export function EphemeralView({
   if (ledgerState.status === 'error' || (parsedLedger === null && parseError)) {
     return (
       <ErrorView
-        message={errorMessage ?? 'unknown error'}
+        message={viewErrorMessage ?? 'unknown error'}
         gameId={ledgerState.gameId}
         onRetry={() => ledgerState.gameId && fetchGame(ledgerState.gameId)}
         onReset={onResetRequest}
@@ -436,171 +420,57 @@ export function EphemeralView({
       />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
-        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-6">
-          <div className="space-y-5">
-            <LedgerPanel
-              rows={parsedLedger.rows}
-              effectiveBalances={balances}
-              unit={parsedLedger.unit}
-              unitWasInferred={parsedLedger.unitWasInferred}
-              hasUserOverride={unitOverride !== null}
-              onUnitChange={setUnitOverride}
-              highlightedPlayerId={highlightedPlayerId}
-              onHighlight={setHighlightedPlayerId}
-            />
-            <AliasPanel
-              players={aliasPanelPlayers}
-              aliases={aliasPanelRows}
-              onAddAlias={handleAddAlias}
-              onRemoveAlias={handleRemoveAlias}
-            />
-            <AdjustmentsPanel
-              balances={balances}
-              adjustments={adjustments}
-              onAdd={handleAddAdjustment}
-              onRemove={handleRemoveAdjustment}
-            />
-            <PaymentPreferencesPanel
-              balances={balances}
-              preferences={paymentPreferences}
-              onChange={setPaymentPreferences}
-            />
-            <IsolationPanel
-              balances={balances}
-              isolations={isolations}
-              cyclePlayerIds={plan.cyclePlayerIds}
-              onChange={setIsolations}
-            />
-          </div>
-          <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
-            <NotePromptCard value={note} onChange={setNote} />
-            <SettlementPanel
-              plan={plan}
-              balances={balances}
-              onHighlight={setHighlightedPlayerId}
-              onFinalize={handleFinalize}
-              finalizing={finalizing}
-            />
-            <Colophon />
-          </div>
-        </div>
+        <EphemeralDesktopPanels
+          parsedLedger={parsedLedger}
+          balances={balances}
+          plan={plan}
+          unitOverride={unitOverride}
+          onUnitChange={setUnitOverride}
+          highlightedPlayerId={highlightedPlayerId}
+          onHighlight={setHighlightedPlayerId}
+          aliasPanelPlayers={aliasPanelPlayers}
+          aliasPanelRows={aliasPanelRows}
+          onAddAlias={handleAddAlias}
+          onRemoveAlias={handleRemoveAlias}
+          adjustments={adjustments}
+          onAddAdjustment={handleAddAdjustment}
+          onRemoveAdjustment={handleRemoveAdjustment}
+          paymentPreferences={paymentPreferences}
+          onPaymentPreferencesChange={setPaymentPreferences}
+          isolations={isolations}
+          onIsolationsChange={setIsolations}
+          note={note}
+          onNoteChange={setNote}
+          onFinalize={handleFinalize}
+          finalizing={finalizing}
+        />
 
-        <div className="lg:hidden space-y-5">
-          {activeTab === 'ledger' && (
-            <>
-              <LedgerPanel
-                rows={parsedLedger.rows}
-                effectiveBalances={balances}
-                unit={parsedLedger.unit}
-                unitWasInferred={parsedLedger.unitWasInferred}
-                hasUserOverride={unitOverride !== null}
-                onUnitChange={setUnitOverride}
-              />
-              <NotePromptCard value={note} onChange={setNote} />
-              <SettlementPanel
-                plan={plan}
-                balances={balances}
-                onFinalize={handleFinalize}
-                finalizing={finalizing}
-              />
-            </>
-          )}
-          {activeTab === 'config' && (
-            <>
-              <AliasPanel
-                players={aliasPanelPlayers}
-                aliases={aliasPanelRows}
-                onAddAlias={handleAddAlias}
-                onRemoveAlias={handleRemoveAlias}
-              />
-              <AdjustmentsPanel
-                balances={balances}
-                adjustments={adjustments}
-                onAdd={handleAddAdjustment}
-                onRemove={handleRemoveAdjustment}
-              />
-              <PaymentPreferencesPanel
-                balances={balances}
-                preferences={paymentPreferences}
-                onChange={setPaymentPreferences}
-              />
-              <IsolationPanel
-                balances={balances}
-                isolations={isolations}
-                cyclePlayerIds={plan.cyclePlayerIds}
-                onChange={setIsolations}
-              />
-            </>
-          )}
-        </div>
+        <EphemeralMobilePanels
+          activeTab={activeTab}
+          parsedLedger={parsedLedger}
+          balances={balances}
+          plan={plan}
+          unitOverride={unitOverride}
+          onUnitChange={setUnitOverride}
+          highlightedPlayerId={highlightedPlayerId}
+          onHighlight={setHighlightedPlayerId}
+          aliasPanelPlayers={aliasPanelPlayers}
+          aliasPanelRows={aliasPanelRows}
+          onAddAlias={handleAddAlias}
+          onRemoveAlias={handleRemoveAlias}
+          adjustments={adjustments}
+          onAddAdjustment={handleAddAdjustment}
+          onRemoveAdjustment={handleRemoveAdjustment}
+          paymentPreferences={paymentPreferences}
+          onPaymentPreferencesChange={setPaymentPreferences}
+          isolations={isolations}
+          onIsolationsChange={setIsolations}
+          note={note}
+          onNoteChange={setNote}
+          onFinalize={handleFinalize}
+          finalizing={finalizing}
+        />
       </main>
     </>
-  );
-}
-
-/**
- * Pre-finalize note input. Lives above the settlement panel; the value
- * threads into the Venmo deep-link `note=` query param when the game is
- * finalized. Stored only in component state — no localStorage round-trip
- * (mirrors the IdentityPrompt fix that prevents poll-driven resets).
- */
-function NotePromptCard({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <section aria-labelledby="note-prompt-heading" className="card">
-      <div className="card-header">
-        <span id="note-prompt-heading" className="ticker-label-strong">
-          venmo note
-        </span>
-        <span className="ticker-label">used on payment links</span>
-      </div>
-      <div className="px-4 py-4 space-y-2">
-        <p className="text-[12.5px] text-fg-dim leading-relaxed">
-          Customize what shows up in the recipient's Venmo when someone
-          taps to pay. Defaults to <span className="text-fg font-semibold">{DEFAULT_PAYMENT_NOTE}</span>.
-        </p>
-        <input
-          id="note-prompt-input"
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={DEFAULT_PAYMENT_NOTE}
-          maxLength={80}
-          className="field w-full font-mono text-[13px]"
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          aria-label="Venmo note (optional)"
-        />
-      </div>
-    </section>
-  );
-}
-
-function Colophon() {
-  return (
-    <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
-      <p className="ticker-label-strong mb-2">¶ how it works</p>
-      <p>
-        <span className="text-fg font-semibold">Optimal subset-sum partitioning.</span>
-        {' '}Solves min-transactions exactly for N ≤ 15 players via bitmask DP — partitions
-        the table into the maximum number of disjoint zero-sum subsets, each settling in
-        k − 1 internal payments. Provably minimum, not a heuristic. Greedy
-        max-creditor↔max-debtor fallback for tables larger than 15. Integer cents
-        throughout — no float drift.
-      </p>
-      <hr className="hr my-3" />
-      <p>
-        <span className="text-fg font-semibold">Finalize → shareable link.</span> Add
-        aliases / prior payments / private rules first. When the plan looks right, hit
-        finalize: the settlement plan is snapshotted to a persistent `/g/&lt;id&gt;` URL
-        your group can mark off as they pay.
-      </p>
-    </aside>
   );
 }

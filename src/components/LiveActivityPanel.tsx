@@ -1,3 +1,4 @@
+import { EmptyPanelMessage } from './FormControls';
 import { formatDollars } from '@/lib/money';
 import type { LiveOutboxItem } from '@/lib/liveStorage';
 import type { LiveEntry, LiveGameSnapshot } from '@/lib/types';
@@ -55,9 +56,7 @@ export function LiveActivityPanel({
       )}
 
       {events.length === 0 ? (
-        <div className="px-5 py-8 text-center text-[13px] text-fg-dim">
-          Entries and chip counts will appear here.
-        </div>
+        <EmptyPanelMessage>Entries and chip counts will appear here.</EmptyPanelMessage>
       ) : (
         <ol>
           {events.map((event) =>

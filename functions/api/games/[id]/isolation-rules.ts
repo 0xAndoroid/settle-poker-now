@@ -15,6 +15,7 @@ import {
   jsonResponse,
   mapMutationError,
   readActorLabel,
+  readJsonBody,
 } from '../../../lib/responses';
 
 interface Env {
@@ -32,12 +33,9 @@ export const onRequestOptions: PagesFunction<Env> = async () => OPTIONS_NO_CONTE
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const gameId = (ctx.params.id as string).trim();
 
-  let body: Body;
-  try {
-    body = (await ctx.request.json()) as Body;
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<Body>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   if (typeof body.playerId !== 'string' || typeof body.counterpartId !== 'string') {
     return errorResponse(400, 'playerId, counterpartId required.');
   }

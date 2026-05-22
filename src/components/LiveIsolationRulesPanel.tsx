@@ -1,5 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import type { IsolationRule, LiveGameSnapshot, LivePlayer } from '@/lib/types';
+import { EmptyPanelMessage, FormError, PlayerSelectField } from './FormControls';
+import { activeLivePlayers } from '@/lib/livePlayers';
+import type { IsolationRule, LiveGameSnapshot } from '@/lib/types';
 
 interface LiveIsolationRulesPanelProps {
   snapshot: LiveGameSnapshot;
@@ -12,7 +14,7 @@ export function LiveIsolationRulesPanel({
   isolations,
   onChange,
 }: LiveIsolationRulesPanelProps) {
-  const players = useMemo(() => activePlayers(snapshot), [snapshot]);
+  const players = useMemo(() => activeLivePlayers(snapshot), [snapshot]);
   const nameById = useMemo(
     () => new Map(players.map((player) => [player.playerId, player.name])),
     [players]
@@ -22,6 +24,14 @@ export function LiveIsolationRulesPanel({
   const [error, setError] = useState<string | null>(null);
   const canAdd = players.length >= 2;
   const targetOptions = players.filter((player) => player.playerId !== playerId);
+  const playerOptions = useMemo(
+    () => players.map((player) => ({ value: player.playerId, label: player.name })),
+    [players]
+  );
+  const counterpartOptions = useMemo(
+    () => targetOptions.map((player) => ({ value: player.playerId, label: player.name })),
+    [targetOptions]
+  );
   const replacesExisting = isolations.some((rule) => rule.playerId === playerId);
 
   const submit = (event: FormEvent) => {
@@ -60,7 +70,7 @@ export function LiveIsolationRulesPanel({
 
       <form onSubmit={submit} className="p-4 space-y-3 border-b border-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <PlayerSelect
+          <PlayerSelectField
             id="live-isolation-player"
             label="player"
             value={playerId}
@@ -68,15 +78,17 @@ export function LiveIsolationRulesPanel({
               setPlayerId(next);
               if (next === counterpartId) setCounterpartId('');
             }}
-            players={players}
+            options={playerOptions}
+            placeholder="pick player"
             disabled={!canAdd}
           />
-          <PlayerSelect
+          <PlayerSelectField
             id="live-isolation-counterpart"
             label="only with"
             value={counterpartId}
             onChange={setCounterpartId}
-            players={targetOptions}
+            options={counterpartOptions}
+            placeholder="pick only with"
             disabled={!canAdd || !playerId}
           />
         </div>
@@ -90,17 +102,11 @@ export function LiveIsolationRulesPanel({
           </button>
         </div>
 
-        {error && (
-          <p className="text-loss text-[12px] font-semibold" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <FormError>{error}</FormError>}
       </form>
 
       {isolations.length === 0 ? (
-        <div className="px-5 py-8 text-center text-[13px] text-fg-dim">
-          No isolation rules.
-        </div>
+        <EmptyPanelMessage>No isolation rules.</EmptyPanelMessage>
       ) : (
         <ul role="list">
           {isolations.map((rule) => (
@@ -130,60 +136,3 @@ export function LiveIsolationRulesPanel({
     </section>
   );
 }
-
-function PlayerSelect({
-  id,
-  label,
-  value,
-  onChange,
-  players,
-  disabled = false,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  players: LivePlayer[];
-  disabled?: boolean;
-}) {
-  return (
-    <label htmlFor={id} className="block space-y-1.5">
-      <span className="ticker-label">{label}</span>
-      <select
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className="field font-sans font-semibold text-[13px] pr-8 disabled:opacity-50"
-        style={selectArrowStyle}
-      >
-        <option value="">pick {label}</option>
-        {players.map((player) => (
-          <option key={player.playerId} value={player.playerId}>
-            {player.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function activePlayers(snapshot: LiveGameSnapshot): LivePlayer[] {
-  return snapshot.players
-    .filter((player) => player.status !== 'removed')
-    .slice()
-    .sort(
-      (a, b) =>
-        a.sortOrder - b.sortOrder ||
-        a.name.localeCompare(b.name) ||
-        a.playerId.localeCompare(b.playerId)
-    );
-}
-
-const selectArrowStyle = {
-  backgroundImage:
-    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 12px center',
-  appearance: 'none',
-} as const;

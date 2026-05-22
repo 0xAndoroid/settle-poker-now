@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@resvg/resvg-wasm": "^2.6.2",
-    "html-to-image": "^1.11.13",
     "papaparse": "^5.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

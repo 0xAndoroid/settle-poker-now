@@ -11,6 +11,7 @@ import {
   errorResponse,
   jsonResponse,
   readActorLabel,
+  readJsonBody,
 } from '../../../../lib/responses';
 
 interface Env {
@@ -27,12 +28,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return errorResponse(400, 'Missing game id or payment id.');
   }
 
-  let body: { completed?: unknown };
-  try {
-    body = (await ctx.request.json()) as { completed?: unknown };
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<{ completed?: unknown }>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   if (typeof body.completed !== 'boolean') {
     return errorResponse(400, 'Body.completed must be a boolean.');
   }

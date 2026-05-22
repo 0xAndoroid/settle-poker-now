@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { FormError, PlayerSelectField } from './FormControls';
 import type { PersistedAlias, PersistedPlayer } from '@/lib/types';
-import { cn } from '@/lib/cn';
 
 interface AliasPanelProps {
   /** Raw players from the snapshot (pre-collapse). */
@@ -84,13 +84,19 @@ export function AliasPanel({
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-end">
-          <PlayerSelect
+          <PlayerSelectField
             id="alias-from"
             label="duplicate"
             value={fromId}
             onChange={setFromId}
-            players={sortedPlayers}
-            disabledPlayerIds={aliasedSet}
+            options={sortedPlayers.map((player) => ({
+              value: player.playerId,
+              label: player.nickname,
+              disabled: aliasedSet.has(player.playerId),
+              disabledSuffix: ' (already aliased)',
+            }))}
+            placeholder="— pick duplicate —"
+            selectClassName="field font-sans font-semibold text-[14px] pr-8"
           />
           <span
             aria-hidden="true"
@@ -98,12 +104,17 @@ export function AliasPanel({
           >
             ↦
           </span>
-          <PlayerSelect
+          <PlayerSelectField
             id="alias-to"
             label="canonical"
             value={toId}
             onChange={setToId}
-            players={sortedPlayers}
+            options={sortedPlayers.map((player) => ({
+              value: player.playerId,
+              label: player.nickname,
+            }))}
+            placeholder="— pick canonical —"
+            selectClassName="field font-sans font-semibold text-[14px] pr-8"
             // Allow targeting any player; the server canonicalizes the
             // chain, so picking an aliased target collapses to its hub.
           />
@@ -117,12 +128,7 @@ export function AliasPanel({
           >
             {submitting ? 'folding…' : 'fold ›'}
           </button>
-          {error && (
-            <span className="text-[12px] text-loss font-semibold flex items-center gap-2 flex-1">
-              <span className="pill pill-loss">err</span>
-              {error}
-            </span>
-          )}
+          {error && <FormError className="flex-1">{error}</FormError>}
         </div>
       </form>
 
@@ -166,63 +172,5 @@ export function AliasPanel({
         </ul>
       )}
     </section>
-  );
-}
-
-interface PlayerSelectProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  players: ReadonlyArray<PersistedPlayer>;
-  /** Greyed-out (disabled) target player IDs. */
-  disabledPlayerIds?: ReadonlySet<string>;
-}
-
-function PlayerSelect({
-  id,
-  label,
-  value,
-  onChange,
-  players,
-  disabledPlayerIds,
-}: PlayerSelectProps) {
-  return (
-    <div>
-      <label htmlFor={id} className="ticker-label block mb-1.5">
-        {label}
-      </label>
-      <select
-        id={id}
-        name={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          'field font-sans font-semibold text-[14px] pr-8'
-        )}
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'right 12px center',
-          appearance: 'none',
-        }}
-      >
-        <option value="">— pick {label} —</option>
-        {players.map((p) => {
-          const disabled = disabledPlayerIds?.has(p.playerId);
-          return (
-            <option
-              key={p.playerId}
-              value={p.playerId}
-              disabled={disabled}
-            >
-              {p.nickname}
-              {disabled ? ' (already aliased)' : ''}
-            </option>
-          );
-        })}
-      </select>
-    </div>
   );
 }

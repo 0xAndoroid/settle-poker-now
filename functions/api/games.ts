@@ -25,17 +25,14 @@
 
 import { parseLedgerCsv } from '../../src/lib/csv';
 import { extractGameId } from '../../src/lib/pokernow';
-import {
-  CreateFinalizedValidationError,
-  createGame,
-  createGameFinalized,
-} from '../lib/db';
+import { CreateFinalizedValidationError, createGame, createGameFinalized } from '../lib/db';
 import { detectCentsMode, fetchLedgerCsv } from '../lib/ledger-fetch';
 import {
   CORS_HEADERS,
   OPTIONS_NO_CONTENT,
   errorResponse,
   jsonResponse,
+  readJsonBody,
 } from '../lib/responses';
 
 interface Env {
@@ -100,29 +97,21 @@ function isValidIsolation(x: unknown): x is IsolationBody {
 function isValidAlias(x: unknown): x is AliasBody {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
-  return (
-    typeof o.playerId === 'string' && typeof o.aliasToPlayerId === 'string'
-  );
+  return typeof o.playerId === 'string' && typeof o.aliasToPlayerId === 'string';
 }
 
 function isValidPaymentPreference(x: unknown): x is PaymentPreferenceBody {
   if (typeof x !== 'object' || x === null) return false;
   const o = x as Record<string, unknown>;
-  return (
-    typeof o.playerId === 'string' &&
-    (o.rail === 'venmo' || o.rail === 'zelle')
-  );
+  return typeof o.playerId === 'string' && (o.rail === 'venmo' || o.rail === 'zelle');
 }
 
 export const onRequestOptions: PagesFunction<Env> = async () => OPTIONS_NO_CONTENT;
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
-  let body: CreateBody;
-  try {
-    body = (await ctx.request.json()) as CreateBody;
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<CreateBody>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const url = (body.pokernowUrl ?? '').trim();
   if (!url) return errorResponse(400, 'pokernowUrl is required.');
@@ -140,7 +129,10 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   if (finalize) {
     if (!Array.isArray(adjustments) || !adjustments.every(isValidAdjustment)) {
-      return errorResponse(400, 'adjustments must be a list of {fromPlayerId,toPlayerId,amountCents}.');
+      return errorResponse(
+        400,
+        'adjustments must be a list of {fromPlayerId,toPlayerId,amountCents}.'
+      );
     }
     if (!Array.isArray(isolations) || !isolations.every(isValidIsolation)) {
       return errorResponse(400, 'isolations must be a list of {playerId,counterpartId}.');
@@ -148,10 +140,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     if (!Array.isArray(aliases) || !aliases.every(isValidAlias)) {
       return errorResponse(400, 'aliases must be a list of {playerId,aliasToPlayerId}.');
     }
-    if (
-      !Array.isArray(paymentPreferences) ||
-      !paymentPreferences.every(isValidPaymentPreference)
-    ) {
+    if (!Array.isArray(paymentPreferences) || !paymentPreferences.every(isValidPaymentPreference)) {
       return errorResponse(400, 'paymentPreferences must be a list of {playerId,rail}.');
     }
   }
@@ -269,8 +258,7 @@ async function fetchLedger(
     };
   }
 
-  const unitFromHeader =
-    centsMode === true ? 'cents' : centsMode === false ? 'dollars' : null;
+  const unitFromHeader = centsMode === true ? 'cents' : centsMode === false ? 'dollars' : null;
 
   if (unitFromHeader) {
     return {

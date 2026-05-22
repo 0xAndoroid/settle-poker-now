@@ -1,11 +1,11 @@
 # settle.andrew.ee
 
 > Minimum-payment settlement for PokerNow home games. Trading-terminal
-> aesthetic, exportable as a 4:5 image.
+> aesthetic with shareable game links.
 
 Paste a [PokerNow](https://www.pokernow.club/) game URL → fetch the ledger →
-compute the optimized settlement plan → copy individual payments or share the
-whole thing as a 4:5 receipt PNG. Pure client-side; no accounts, no DB.
+compute the optimized settlement plan → copy individual payments or share a
+finalized game link.
 
 Live at **[settle.andrew.ee](https://settle.andrew.ee)** (or the deployment
 alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
@@ -37,9 +37,8 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
    nets before settlement. All local state — game id, adjustments,
    isolations, aliases — is base64url-encoded into the URL hash so
    links are shareable.
-7. The settlement plan exports as a 4:5 receipt-style PNG via
-   `html-to-image` — uses the Web Share API on mobile, clipboard on
-   desktop, falls back to download.
+7. Finalizing creates a shareable game link that the group can use to view
+   payments and mark transfers complete.
 
 ## Stack
 
@@ -47,9 +46,8 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
 - **Tailwind CSS** with a charcoal trading-terminal palette
   (dark mode default, light mode opt-in via top-right sun/moon toggle)
 - **Cloudflare Pages** for hosting + a Pages Function for the CSV proxy
-- **Vitest** — 38 tests covering settlement, isolation chains + cycle
+- **Vitest** — unit tests covering settlement, isolation chains + cycle
   detection, CSV parsing, URL parsing, money helpers, hash state
-- **html-to-image** for the receipt export
 
 ## Algorithm notes
 
@@ -112,13 +110,12 @@ the static assets; no separate worker config is required.
 │   │   ├── settle.ts        # Greedy + isolation + cycle detection
 │   │   ├── pokernow.ts      # URL → gameId
 │   │   ├── hashState.ts     # base64url state in window.location.hash
-│   │   ├── shareImage.ts    # html-to-image + Web Share API + clipboard
 │   │   ├── money.ts         # Cent-integer money helpers
-│   │   ├── clipboard.ts     # Cross-browser copy text/image
+│   │   ├── clipboard.ts     # Cross-browser copy text
 │   │   ├── id.ts
 │   │   ├── cn.ts
 │   │   ├── types.ts
-│   │   └── *.test.ts        # 38 unit tests
+│   │   └── *.test.ts        # unit tests
 │   ├── styles/globals.css
 │   ├── App.tsx
 │   └── main.tsx

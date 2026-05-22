@@ -4,7 +4,7 @@ import {
   finalizeLiveGameRemote,
   type LiveOutboxRequest,
 } from '@/lib/liveApiClient';
-import { ApiError } from '@/lib/apiClient';
+import { errorMessage } from '@/lib/errors';
 import { deriveLiveBankSummary, deriveLivePlayerSummaries } from '@/lib/liveProjection';
 import {
   getCachedLiveSnapshot,
@@ -163,12 +163,7 @@ export function useLiveGame(
       });
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Unknown error';
+      const message = errorMessage(err);
       setState((prev) =>
         prev.game
           ? { ...prev, error: message }
@@ -275,12 +270,7 @@ export function useLiveGame(
           clientEventId: newClientEventId(),
         });
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : 'Could not finalize live game.';
+        const message = errorMessage(err, 'Could not finalize live game.');
         onErrorRef.current?.(message);
         return null;
       }

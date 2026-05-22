@@ -87,15 +87,9 @@ export function IsolationPanel({
                     'font-sans text-[12px] font-semibold bg-surface border border-line-strong text-fg',
                     'pl-2.5 pr-8 py-1.5 min-h-[32px]',
                     'hover:border-accent focus:border-accent outline-none',
+                    'select-field',
                     inCycle && 'border-loss text-loss'
                   )}
-                  style={{
-                    backgroundImage:
-                      "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 10px center',
-                    appearance: 'none',
-                  }}
                   aria-label={`Counterpart for ${b.nickname}`}
                 >
                   <option value="">—</option>

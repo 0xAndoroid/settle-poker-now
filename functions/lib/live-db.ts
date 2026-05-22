@@ -459,19 +459,6 @@ export async function addLivePlayer(
   return loadRequiredSnapshot(db, args.gameId);
 }
 
-export async function renameLivePlayer(
-  db: D1Database,
-  args: LiveMutationBase & { playerId: string; name: string }
-): Promise<LiveGameSnapshot> {
-  return updateLivePlayer(db, {
-    gameId: args.gameId,
-    clientEventId: args.clientEventId,
-    actorLabel: args.actorLabel,
-    playerId: args.playerId,
-    name: args.name,
-  });
-}
-
 export async function setHostPlayer(
   db: D1Database,
   args: LiveMutationBase & { playerId: string }

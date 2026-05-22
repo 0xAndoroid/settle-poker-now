@@ -16,6 +16,7 @@ import {
   errorResponse,
   jsonResponse,
   readActorLabel,
+  readJsonBody,
 } from '../../../lib/responses';
 
 interface Env {
@@ -35,12 +36,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const gameId = (ctx.params.id as string).trim();
   if (!gameId) return errorResponse(400, 'Missing game id.');
 
-  let body: Body;
-  try {
-    body = (await ctx.request.json()) as Body;
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<Body>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
 
   const raw = body.note ?? null;
   if (raw !== null && typeof raw !== 'string') {
@@ -49,10 +47,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   if (raw !== null && raw.length > NOTE_MAX_LENGTH * 2) {
     // Server-side cap keeps abusive payloads out of the audit log even
     // though `setGameNote` will trim further.
-    return errorResponse(
-      400,
-      `note must be ${NOTE_MAX_LENGTH} characters or fewer.`
-    );
+    return errorResponse(400, `note must be ${NOTE_MAX_LENGTH} characters or fewer.`);
   }
 
   const game = await loadGameRow(ctx.env.DB, gameId);

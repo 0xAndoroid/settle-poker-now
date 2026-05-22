@@ -6,15 +6,8 @@
  *   { clientEventId, action: 'busted_paid_host', playerId, amountCents, ... }
  */
 
-import {
-  LiveNotFoundError,
-  addBustedPaidHost,
-  addLiveEntry,
-} from '../../../lib/live-db';
-import type {
-  LiveEntryType,
-  LivePaymentMethod,
-} from '../../../../src/lib/types';
+import { LiveNotFoundError, addBustedPaidHost, addLiveEntry } from '../../../lib/live-db';
+import type { LiveEntryType, LivePaymentMethod } from '../../../../src/lib/types';
 import {
   OPTIONS_NO_CONTENT,
   errorResponse,
@@ -22,6 +15,7 @@ import {
   mapMutationError,
   readActorLabel,
   readClientEventId,
+  readJsonBody,
 } from '../../../lib/responses';
 
 interface Env {
@@ -45,12 +39,9 @@ export const onRequestOptions: PagesFunction<Env> = async () => OPTIONS_NO_CONTE
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const gameId = (ctx.params.id as string).trim();
-  let body: Body;
-  try {
-    body = (await ctx.request.json()) as Body;
-  } catch {
-    return errorResponse(400, 'Body must be JSON.');
-  }
+  const parsed = await readJsonBody<Body>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const clientEventId = readClientEventId(ctx.request, body);
   if (!clientEventId) return errorResponse(400, 'clientEventId is required.');
   if (typeof body.playerId !== 'string') return errorResponse(400, 'playerId is required.');

@@ -272,6 +272,13 @@
     background: rgb(var(--surface-2));
   }
 
+  .select-field {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    appearance: none;
+  }
+
   /* Single-purpose pill for tickers + status. Subtle. */
   .pill {
     display: inline-flex;
@@ -405,21 +412,6 @@
     border: 0;
   }
 
-  /* Ticker tape band — used in masthead. */
-  .tape {
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    overflow: hidden;
-    white-space: nowrap;
-    color: rgb(var(--fg-dim));
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  .tape-sep {
-    color: rgb(var(--line-strong));
-  }
 }
 
 @layer utilities {

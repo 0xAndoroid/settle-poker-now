@@ -27,131 +27,37 @@ import {
 } from '../../src/lib/aliases';
 import type {
   Adjustment,
+  AuditAction,
   IsolationRule,
   LedgerRow,
   LedgerUnit,
   PaymentPreference,
+  PersistedAdjustment,
+  PersistedAlias,
+  PersistedAuditEntry,
+  PersistedGame,
+  PersistedGameSnapshot,
+  PersistedIsolation,
+  PersistedPayment,
+  PersistedPaymentMethod,
+  PersistedPlayer,
   SourceKind,
   SettlementPlan,
   SettlementTxn,
+  UnitProvenance,
 } from '../../src/lib/types';
 
 /* ──────── Types ──────── */
 
-export type UnitProvenance = 'header' | 'heuristic' | 'user';
-
-export interface DbGame {
-  id: string;
-  pokernowGameId: string;
-  sourceKind: SourceKind;
-  sourceUnit: LedgerUnit;
-  unitProvenance: UnitProvenance;
-  startedAt: number | null;
-  endedAt: number | null;
-  createdAt: number;
-  updatedAt: number;
-  /** ms since epoch when the game was finalized; null when still editable. */
-  finalizedAt: number | null;
-  /** Actor label of whoever finalized; null when not finalized. */
-  finalizedBy: string | null;
-  /**
-   * Free-text per-game note. Used as the Venmo deep-link `note=` param
-   * and surfaced in the persistent UI. Null = unset; the application
-   * layer falls back to "dinner".
-   */
-  note: string | null;
-}
-
-export interface DbPlayer {
-  playerId: string;
-  nickname: string;
-  netCents: number;
-  buyInCents?: number | null;
-  buyOutCents?: number | null;
-}
-
-export interface DbPayment {
-  id: string;
-  fromPlayerId: string;
-  toPlayerId: string;
-  amountCents: number;
-  forced: boolean;
-  position: number;
-  completedAt: number | null;
-  completedBy: string | null;
-}
-
-export interface DbAdjustment {
-  id: string;
-  fromPlayerId: string;
-  toPlayerId: string;
-  amountCents: number;
-  createdAt: number;
-  createdBy: string | null;
-}
-
-export interface DbIsolation {
-  playerId: string;
-  counterpartId: string;
-  createdAt: number;
-}
-
-export interface DbAlias {
-  /** The duplicate player_id (folded out of the active roster). */
-  playerId: string;
-  /** Canonical target — chain-compressed on write so this never references another aliased player. */
-  aliasToPlayerId: string;
-  createdAt: number;
-  createdBy: string | null;
-}
-
-export interface DbPaymentMethod {
-  playerId: string;
-  /** Without leading '@'. */
-  venmoUsername: string | null;
-  /**
-   * Free-text Zelle handle — email, US phone, anything Zelle will accept.
-   * The user pastes whatever their bank app expects; we don't try to
-   * discriminate (it caused fiddly UI in the identity prompt).
-   */
-  zelleHandle: string | null;
-  updatedAt: number;
-  updatedBy: string | null;
-}
-
-export interface DbAuditEntry {
-  id: string;
-  action: AuditAction;
-  actorLabel: string | null;
-  payload: unknown;
-  createdAt: number;
-}
-
-export type AuditAction =
-  | 'create_game'
-  | 'complete_payment'
-  | 'reopen_payment'
-  | 'add_adjustment'
-  | 'remove_adjustment'
-  | 'set_isolation'
-  | 'clear_isolation'
-  | 'add_alias'
-  | 'remove_alias'
-  | 'finalize'
-  | 'unfinalize'
-  | 'set_payment_methods'
-  | 'set_note';
-
-export interface DbGameSnapshot {
-  game: DbGame;
-  players: DbPlayer[];
-  payments: DbPayment[];
-  adjustments: DbAdjustment[];
-  isolations: DbIsolation[];
-  aliases: DbAlias[];
-  paymentMethods: DbPaymentMethod[];
-  audit: DbAuditEntry[];
-}
+export type DbGame = PersistedGame & { sourceKind: SourceKind };
+export type DbPlayer = PersistedPlayer;
+export type DbPayment = PersistedPayment;
+export type DbAdjustment = PersistedAdjustment;
+export type DbIsolation = PersistedIsolation;
+export type DbAlias = PersistedAlias;
+export type DbPaymentMethod = PersistedPaymentMethod;
+export type DbAuditEntry = PersistedAuditEntry;
+export type DbGameSnapshot = Omit<PersistedGameSnapshot, 'game'> & { game: DbGame };
 
 /* ──────── Note normalisation ──────── */
 

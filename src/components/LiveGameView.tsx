@@ -7,6 +7,7 @@ import { LivePlayersPanel } from './LivePlayersPanel';
 import { LiveIsolationRulesPanel } from './LiveIsolationRulesPanel';
 import { LivePriorPaymentsPanel } from './LivePriorPaymentsPanel';
 import { SyncStatusPanel } from './SyncStatusPanel';
+import { CenteredStatusCard } from './CenteredStatusCard';
 import type { TickerItem } from './Masthead';
 import { useLiveGame } from '@/hooks/useLiveGame';
 import { formatDollars } from '@/lib/money';
@@ -76,11 +77,11 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
   );
 
   if (live.state.status === 'loading' && !snapshot) {
-    return <CenterMessage label="loading live game" />;
+    return <CenteredStatusCard label="loading live game" />;
   }
   if (live.state.status === 'error' || !snapshot) {
     return (
-      <CenterMessage
+      <CenteredStatusCard
         label="not found"
         body={live.state.error ?? `No live game with id "${gameId}".`}
       />
@@ -170,21 +171,5 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
         </div>
       </div>
     </main>
-  );
-}
-
-function CenterMessage({ label, body }: { label: string; body?: string }) {
-  return (
-    <div className="mx-auto max-w-2xl px-5 sm:px-6 py-12">
-      <div className="card">
-        <div className="card-header">
-          <span className="ticker-label-strong">
-            <span className="live-dot mr-2 align-middle" aria-hidden="true" />
-            {label}
-          </span>
-        </div>
-        {body && <div className="px-5 py-6 text-[14px] text-fg-dim leading-relaxed">{body}</div>}
-      </div>
-    </div>
   );
 }
