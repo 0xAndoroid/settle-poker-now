@@ -21,7 +21,7 @@ export function ErrorView({ message, gameId, onRetry, onReset }: ErrorViewProps)
           <p className="font-sans text-[15px] leading-relaxed text-fg">{message}</p>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onReset} className="btn">
-              new url
+              try another URL
             </button>
             <button type="button" onClick={onRetry} className="btn btn-fill">
               retry ›

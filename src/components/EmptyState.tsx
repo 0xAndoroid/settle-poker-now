@@ -69,7 +69,7 @@ export function EmptyState({
         <form onSubmit={handleAnalyze} className="card flex h-full flex-col">
           <div className="card-header">
             <span className="ticker-label-strong">› paste game url</span>
-            <span className="ticker-label hidden sm:inline">step 01 / 02</span>
+            <span className="ticker-label hidden sm:inline">step 01</span>
           </div>
           <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
             <div className="flex items-stretch gap-2 sm:gap-3">

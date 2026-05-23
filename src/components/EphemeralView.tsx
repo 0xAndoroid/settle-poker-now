@@ -5,6 +5,7 @@ import { ErrorView } from './ErrorView';
 import { MobileTabs, type EphemeralTabKey } from './MobileTabs';
 import { EphemeralDesktopPanels, EphemeralMobilePanels } from './EphemeralGamePanels';
 import type { TickerItem } from './Masthead';
+import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { useLedger } from '@/hooks/useLedger';
 import { computePlan } from '@/lib/settle';
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
@@ -28,20 +29,20 @@ import type {
 
 interface EphemeralViewProps {
   onTickerChange: (ticker: TickerItem[] | undefined) => void;
-  onResetRequest: () => void;
   /**
    * Imperatively register a reset handler so the parent's "new game" button
    * in the masthead can clear our state. We pass our `reset` up via a ref.
    */
   registerReset?: (reset: () => void) => void;
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
+  confirm: ConfirmFn;
 }
 
 export function EphemeralView({
   onTickerChange,
-  onResetRequest,
   registerReset,
   pushToast,
+  confirm,
 }: EphemeralViewProps) {
   const { state: ledgerState, fetchGame, reset: resetLedger } = useLedger();
 
@@ -301,7 +302,6 @@ export function EphemeralView({
     [aliases]
   );
 
-
   const handleFinalize = useCallback(async () => {
     if (!parsedLedger || !ledgerState.gameId) {
       pushToast('nothing to finalize yet', 'error');
@@ -312,18 +312,34 @@ export function EphemeralView({
       return;
     }
     const trimmedNote = note.trim();
-    const noteForConfirm =
-      trimmedNote.length > 0 ? trimmedNote : DEFAULT_PAYMENT_NOTE;
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(
-        `Finalize this game with note: "${noteForConfirm}"?\n\n` +
-          'The settlement plan will lock and a shareable link will be minted. ' +
-          'You can still mark payments complete, but you will not be able to add more aliases / adjustments / private rules.'
-      )
-    ) {
-      return;
-    }
+    const finalizeNote = trimmedNote.length > 0 ? trimmedNote : DEFAULT_PAYMENT_NOTE;
+    const finalizeTotal = plan.txns.reduce((acc, txn) => acc + txn.amountCents, 0);
+    const confirmed = await confirm({
+      title: 'Finalize this settlement?',
+      confirmLabel: 'finalize',
+      body: (
+        <div className="space-y-3">
+          <p>
+            The settlement plan will lock and a shareable link will be minted. The group can still
+            mark payments complete after finalization.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="border border-line bg-surface-2 p-3">
+              <p className="ticker-label mb-1">payments</p>
+              <p className="font-mono num text-fg font-bold">{plan.txns.length}</p>
+            </div>
+            <div className="border border-line bg-surface-2 p-3">
+              <p className="ticker-label mb-1">total moved</p>
+              <p className="font-mono num text-fg font-bold">{formatDollars(finalizeTotal)}</p>
+            </div>
+          </div>
+          <p>
+            Venmo note: <span className="font-mono text-fg">{finalizeNote}</span>
+          </p>
+        </div>
+      ),
+    });
+    if (!confirmed) return;
     setFinalizing(true);
     try {
       const game = await createFinalizedGame({
@@ -354,7 +370,7 @@ export function EphemeralView({
       pushToast(getErrorMessage(err, 'Could not finalize game.'), 'error');
       setFinalizing(false);
     }
-  }, [adjustments, aliases, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, pushToast]);
+  }, [adjustments, aliases, confirm, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, plan.txns, pushToast]);
 
   const reset = useCallback(() => {
     resetLedger();
@@ -395,7 +411,7 @@ export function EphemeralView({
     );
   }
   if (ledgerState.status === 'loading') {
-    return <LoadingView gameId={ledgerState.gameId ?? '…'} />;
+    return <LoadingView gameId={ledgerState.gameId ?? '...'} onCancel={reset} />;
   }
   if (ledgerState.status === 'error' || (parsedLedger === null && parseError)) {
     return (
@@ -403,7 +419,7 @@ export function EphemeralView({
         message={viewErrorMessage ?? 'unknown error'}
         gameId={ledgerState.gameId}
         onRetry={() => ledgerState.gameId && fetchGame(ledgerState.gameId)}
-        onReset={onResetRequest}
+        onReset={reset}
       />
     );
   }

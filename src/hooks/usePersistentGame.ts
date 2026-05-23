@@ -73,7 +73,7 @@ export function usePersistentGame(
     args: Omit<PaymentMethodInput, 'gameId' | 'actorLabel'>
   ) => Promise<void>;
   saveNote: (note: string | null) => Promise<void>;
-  finalizeLegacy: () => Promise<void>;
+  finalizeLegacy: () => Promise<boolean>;
 } {
   const [state, setState] = useState<PersistentGameState>({
     status: 'loading',
@@ -236,8 +236,10 @@ export function usePersistentGame(
       const game = await finalizeGameRemote({ gameId, actorLabel });
       markMutation();
       setState({ status: 'success', game, error: null });
+      return true;
     } catch (err) {
       reportError(err);
+      return false;
     }
   }, [actorLabel, gameId, markMutation, reportError]);
 

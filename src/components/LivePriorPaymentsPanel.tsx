@@ -58,6 +58,8 @@ export function LivePriorPaymentsPanel({ snapshot, onAddEntry }: LivePriorPaymen
         amountCents,
         toPlayerId: toId,
       });
+      setFromId('');
+      setToId('');
       setAmount('');
       setError(null);
     } catch (err) {

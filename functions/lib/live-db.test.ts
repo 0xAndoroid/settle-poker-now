@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Adjustment, LedgerRow } from '../../src/lib/types';
+import type { Adjustment, LedgerRow, LiveGameSnapshot } from '../../src/lib/types';
 import { CreateFinalizedValidationError } from './db';
-import { validateLiveIsolationRules } from './live-db';
+import { hasLivePlayerNameConflict, validateLiveIsolationRules } from './live-db';
 
 const rows: LedgerRow[] = [
   {
@@ -52,5 +52,20 @@ describe('validateLiveIsolationRules', () => {
         { playerId: 'bob', counterpartId: 'alice' },
       ])
     ).toThrow(/cycle/i);
+  });
+});
+
+describe('hasLivePlayerNameConflict', () => {
+  it('detects duplicate active live-player names after trimming, spacing, and case normalization', () => {
+    const snapshot = {
+      players: [
+        { playerId: 'a', name: 'Alice Smith', status: 'active' },
+        { playerId: 'b', name: 'Bob', status: 'removed' },
+      ],
+    } as unknown as LiveGameSnapshot;
+
+    expect(hasLivePlayerNameConflict(snapshot, ' alice   smith ')).toBe(true);
+    expect(hasLivePlayerNameConflict(snapshot, 'alice smith', 'a')).toBe(false);
+    expect(hasLivePlayerNameConflict(snapshot, 'bob')).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { MobileTabs, type PersistentTabKey } from './MobileTabs';
 import { CenteredStatusCard } from './CenteredStatusCard';
 import { PersistentDesktopPanels, PersistentMobilePanels } from './PersistentGamePanels';
 import type { TickerItem } from './Masthead';
+import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { usePersistentGame } from '@/hooks/usePersistentGame';
 import { useGameIdentity } from '@/hooks/useGameIdentity';
 import { gamePath } from '@/lib/routing';
@@ -18,6 +19,7 @@ interface PersistentGameViewProps {
   gameId: string;
   onTickerChange: (ticker: TickerItem[] | undefined) => void;
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
+  confirm: ConfirmFn;
 }
 
 /**
@@ -33,7 +35,12 @@ interface PersistentGameViewProps {
  * Legacy unfinalized games (created via the old POST /api/games before
  * finalize-on-create existed) render with a banner offering to lock them.
  */
-export function PersistentGameView({ gameId, onTickerChange, pushToast }: PersistentGameViewProps) {
+export function PersistentGameView({
+  gameId,
+  onTickerChange,
+  pushToast,
+  confirm,
+}: PersistentGameViewProps) {
   const { identity, setIdentity } = useGameIdentity(gameId);
   const actorLabel = identity?.nickname ?? null;
 
@@ -87,6 +94,14 @@ export function PersistentGameView({ gameId, onTickerChange, pushToast }: Persis
       { label: 'total', value: formatDollars(totalMoved) },
     ];
     onTickerChange(ticker);
+    if (typeof document !== 'undefined') {
+      document.title =
+        settled === state.game.payments.length && state.game.payments.length > 0
+          ? `Settled · ${state.game.players.length} players · ${formatDollars(totalMoved, {
+              fixedDecimals: false,
+            })} moved`
+          : `Settlement · ${state.game.players.length} players · ${state.game.payments.length} payments`;
+    }
   }, [onTickerChange, projection, state.game]);
 
   const handleCopyLink = useCallback(async () => {
@@ -119,19 +134,20 @@ export function PersistentGameView({ gameId, onTickerChange, pushToast }: Persis
   }, [gameId, pushToast]);
 
   const handleFinalizeLegacy = useCallback(async () => {
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(
-        'Finalize this game?\n\n' +
-          'After finalizing, no one can add more aliases, prior payments, or private rules. ' +
-          'Marking payments complete still works.'
-      )
-    ) {
-      return;
-    }
-    await finalizeLegacy();
-    pushToast('game finalized ✓', 'success');
-  }, [finalizeLegacy, pushToast]);
+    const confirmed = await confirm({
+      title: 'Finalize this game?',
+      confirmLabel: 'finalize',
+      body: (
+        <p>
+          After finalizing, no one can add more aliases, prior payments, or private rules. Marking
+          payments complete still works.
+        </p>
+      ),
+    });
+    if (!confirmed) return;
+    const finalized = await finalizeLegacy();
+    if (finalized) pushToast('game finalized ✓', 'success');
+  }, [confirm, finalizeLegacy, pushToast]);
 
   if (state.status === 'loading' && !projection) {
     return <CenteredStatusCard label="loading game" />;
@@ -177,7 +193,11 @@ export function PersistentGameView({ gameId, onTickerChange, pushToast }: Persis
           <div className="mb-5 card border-warn/60">
             <div className="card-header bg-warn/[0.08]">
               <span className="ticker-label-strong text-warn">⚠ legacy game · not finalized</span>
-              <button type="button" onClick={handleFinalizeLegacy} className="btn btn-fill btn-sm">
+              <button
+                type="button"
+                onClick={() => void handleFinalizeLegacy()}
+                className="btn btn-fill btn-sm"
+              >
                 finalize ›
               </button>
             </div>

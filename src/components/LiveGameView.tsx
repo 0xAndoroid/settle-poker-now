@@ -10,21 +10,27 @@ import { SyncStatusPanel } from './SyncStatusPanel';
 import { CenteredStatusCard } from './CenteredStatusCard';
 import type { TickerItem } from './Masthead';
 import { useLiveGame } from '@/hooks/useLiveGame';
+import type { ConfirmFn } from '@/hooks/useConfirmDialog';
+import { deleteLiveGameRemote } from '@/lib/liveApiClient';
+import { clearLiveGameLocalState } from '@/lib/liveStorage';
 import { formatDollars } from '@/lib/money';
 import { gamePath, navigate } from '@/lib/routing';
+import { errorMessage } from '@/lib/errors';
 import type { IsolationRule } from '@/lib/types';
 
 interface LiveGameViewProps {
   gameId: string;
   onTickerChange: (ticker: TickerItem[] | undefined) => void;
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
+  confirm: ConfirmFn;
 }
 
-export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameViewProps) {
+export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: LiveGameViewProps) {
   const live = useLiveGame(gameId, {
     onError: (message) => pushToast(message, 'error'),
   });
   const [finalizing, setFinalizing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
 
   const snapshot = live.state.game;
@@ -36,6 +42,9 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
   useEffect(() => {
     if (!snapshot) {
       onTickerChange(undefined);
+      if (typeof document !== 'undefined') {
+        document.title = `Live · ${gameId} · settle.andrew.ee`;
+      }
       return;
     }
     const bankIssues =
@@ -58,7 +67,13 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
         : []),
     ];
     onTickerChange(ticker);
-  }, [live.pendingCount, onTickerChange, snapshot]);
+    if (typeof document !== 'undefined') {
+      document.title = `Live · ${snapshot.players.length} players · ${formatDollars(
+        snapshot.bankSummary.chipsInPlayCents,
+        { fixedDecimals: false }
+      )} in play`;
+    }
+  }, [gameId, live.pendingCount, onTickerChange, snapshot]);
 
   const handleFinalize = useCallback(
     async (force: boolean, rules: IsolationRule[]) => {
@@ -75,6 +90,30 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
     },
     [live, pushToast]
   );
+
+  const handleDelete = useCallback(async () => {
+    const confirmed = await confirm({
+      title: 'Delete this live game?',
+      confirmLabel: 'delete game',
+      tone: 'danger',
+      body: (
+        <p>
+          Are you sure? This will permanently delete the game and all recorded data.
+        </p>
+      ),
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await deleteLiveGameRemote(gameId);
+      await clearLiveGameLocalState(gameId);
+      pushToast('live game deleted', 'success');
+      navigate('/');
+    } catch (err) {
+      pushToast(errorMessage(err, 'Could not delete live game.'), 'error');
+      setDeleting(false);
+    }
+  }, [confirm, gameId, pushToast]);
 
   if (live.state.status === 'loading' && !snapshot) {
     return <CenteredStatusCard label="loading live game" />;
@@ -143,6 +182,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
         pendingCount={live.pendingCount}
         finalizing={finalizing}
         isolations={isolations}
+        confirm={confirm}
         onFinalize={handleFinalize}
       />
     ),
@@ -167,7 +207,11 @@ export function LiveGameView({ gameId, onTickerChange, pushToast }: LiveGameView
           />
           {panels.bank}
           {panels.finalize}
-          <HostRecoveryPanel liveUrl={liveUrl} />
+          <HostRecoveryPanel
+            liveUrl={liveUrl}
+            deleting={deleting}
+            onDelete={() => void handleDelete()}
+          />
         </div>
       </div>
     </main>

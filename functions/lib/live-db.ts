@@ -82,6 +82,34 @@ function cleanName(raw: string): string {
   return trimmed;
 }
 
+function normalizePlayerName(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+}
+
+export function hasLivePlayerNameConflict(
+  snapshot: LiveGameSnapshot,
+  name: string,
+  excludePlayerId?: string
+): boolean {
+  const normalized = normalizePlayerName(name);
+  return snapshot.players.some(
+    (player) =>
+      player.status !== 'removed' &&
+      player.playerId !== excludePlayerId &&
+      normalizePlayerName(player.name) === normalized
+  );
+}
+
+function assertUniqueLivePlayerName(
+  snapshot: LiveGameSnapshot,
+  name: string,
+  excludePlayerId?: string
+): void {
+  if (hasLivePlayerNameConflict(snapshot, name, excludePlayerId)) {
+    throw new LiveValidationError(`Player "${name}" already exists in this live game.`);
+  }
+}
+
 function assertCents(value: number, label: string, allowZero = false): number {
   if (!Number.isFinite(value) || !Number.isInteger(value)) {
     throw new LiveValidationError(`${label} must be an integer cent amount.`);
@@ -237,6 +265,29 @@ export async function loadLiveGame(db: D1Database, id: string): Promise<LiveGame
     chipCheckpoints: (checkpointsRes.results ?? []).map(rowToLiveCheckpoint),
     audit: (auditRes.results ?? []).map(rowToLiveAudit),
   });
+}
+
+export async function deleteLiveGame(db: D1Database, id: string): Promise<void> {
+  const row = await db
+    .prepare('SELECT * FROM live_games WHERE id = ?')
+    .bind(id)
+    .first<Record<string, unknown>>();
+  if (!row) throw new LiveNotFoundError(`No live game with id "${id}".`);
+  const game = rowToLiveGame(row);
+  if (game.status === 'finalized' || game.status === 'finalizing') {
+    throw new LockedError(`Live game is ${game.status}.`);
+  }
+  if (game.status !== 'active' && game.status !== 'abandoned') {
+    throw new LockedError(`Live game is ${game.status}.`);
+  }
+
+  await db.batch([
+    db.prepare('DELETE FROM live_audit_log WHERE game_id = ?').bind(id),
+    db.prepare('DELETE FROM live_chip_checkpoints WHERE game_id = ?').bind(id),
+    db.prepare('DELETE FROM live_entries WHERE game_id = ?').bind(id),
+    db.prepare('DELETE FROM live_players WHERE game_id = ?').bind(id),
+    db.prepare('DELETE FROM live_games WHERE id = ?').bind(id),
+  ]);
 }
 
 export async function createLiveGame(
@@ -406,8 +457,9 @@ export async function addLivePlayer(
   if (await auditEventExists(db, args.gameId, args.clientEventId)) {
     return loadRequiredSnapshot(db, args.gameId);
   }
-  await ensureActiveLiveGame(db, args.gameId);
+  const snapshot = await loadActiveSnapshot(db, args.gameId);
   const name = cleanName(args.name);
+  assertUniqueLivePlayerName(snapshot, name);
   const now = Date.now();
   const playerId = newId('lp_');
   const orderRow = await db
@@ -502,6 +554,9 @@ export async function updateLivePlayer(
   }
 
   const nextName = args.name === undefined ? player.name : cleanName(args.name);
+  if (args.name !== undefined) {
+    assertUniqueLivePlayerName(snapshot, nextName, args.playerId);
+  }
   const nextStatus = args.status ?? player.status;
   const now = Date.now();
   const stmts: D1PreparedStatement[] = [];

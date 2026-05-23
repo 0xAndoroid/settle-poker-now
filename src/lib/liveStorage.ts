@@ -105,6 +105,11 @@ export async function putCachedLiveSnapshot(
   );
 }
 
+export async function deleteCachedLiveSnapshot(gameId: string): Promise<void> {
+  if (!hasIndexedDb()) return;
+  await tx<undefined>(SNAPSHOT_STORE, 'readwrite', (store) => store.delete(gameId));
+}
+
 export async function listLiveOutboxItems(
   gameId: string
 ): Promise<LiveOutboxItem[]> {
@@ -160,6 +165,36 @@ export async function updateLiveOutboxItem(
       reject(transaction.error ?? new Error('IndexedDB transaction failed.'));
     };
   });
+}
+
+export async function deleteLiveOutboxItems(gameId: string): Promise<void> {
+  if (!hasIndexedDb()) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(OUTBOX_STORE, 'readwrite');
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const index = store.index('gameId');
+    const req = index.openCursor(IDBKeyRange.only(gameId));
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) return;
+      cursor.delete();
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error ?? new Error('IndexedDB transaction failed.'));
+    };
+  });
+}
+
+export async function clearLiveGameLocalState(gameId: string): Promise<void> {
+  await Promise.all([deleteCachedLiveSnapshot(gameId), deleteLiveOutboxItems(gameId)]);
 }
 
 export function newClientEventId(): string {

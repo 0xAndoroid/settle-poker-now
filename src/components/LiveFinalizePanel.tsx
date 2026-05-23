@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel } from './SettlementPanel';
+import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { validateLiveFinalization } from '@/lib/liveProjection';
 import { formatDollars } from '@/lib/money';
 import { computePlan } from '@/lib/settle';
@@ -11,6 +12,7 @@ interface LiveFinalizePanelProps {
   pendingCount: number;
   finalizing: boolean;
   isolations: IsolationRule[];
+  confirm: ConfirmFn;
   onFinalize: (force: boolean, isolations: IsolationRule[]) => Promise<void>;
 }
 
@@ -19,6 +21,7 @@ export function LiveFinalizePanel({
   pendingCount,
   finalizing,
   isolations,
+  confirm,
   onFinalize,
 }: LiveFinalizePanelProps) {
   const [force, setForce] = useState(false);
@@ -53,13 +56,19 @@ export function LiveFinalizePanel({
     validation.rawRows.reduce((acc, row) => acc + row.netCents, 0)
   );
 
-  const handleFinalize = () => {
-    if (
-      imbalanceMessage &&
-      typeof window !== 'undefined' &&
-      !window.confirm(`${imbalanceMessage}\n\nContinue finalizing?`)
-    ) {
-      return;
+  const handleFinalize = async () => {
+    if (imbalanceMessage) {
+      const confirmed = await confirm({
+        title: 'Finalize with imbalance?',
+        confirmLabel: 'continue',
+        body: (
+          <div className="space-y-3">
+            <p>{imbalanceMessage}</p>
+            <p>The final ledger will include the proportional adjustment shown in the preview.</p>
+          </div>
+        ),
+      });
+      if (!confirmed) return;
     }
     void onFinalize(force, preview.isolations);
   };
@@ -71,7 +80,7 @@ export function LiveFinalizePanel({
           <span className="ticker-label-strong">finalize</span>
           <button
             type="button"
-            onClick={handleFinalize}
+            onClick={() => void handleFinalize()}
             disabled={finalizing || !validation.ok || hasIsolationCycle}
             className="btn btn-fill btn-sm"
           >

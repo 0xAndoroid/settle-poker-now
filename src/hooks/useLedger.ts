@@ -26,6 +26,8 @@ const INITIAL: LedgerState = {
   gameId: null,
 };
 
+const LEDGER_FETCH_TIMEOUT_MS = 15_000;
+
 function readUnitHeader(headerValue: string | null): LedgerUnit | null {
   if (headerValue == null) return null;
   const v = headerValue.trim().toLowerCase();
@@ -42,6 +44,11 @@ export function useLedger() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, LEDGER_FETCH_TIMEOUT_MS);
 
     setState({ ...INITIAL, status: 'loading', gameId });
 
@@ -69,9 +76,12 @@ export function useLedger() {
         gameId,
       });
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return;
-      const message =
-        err instanceof Error ? err.message : 'Unknown error';
+      if ((err as Error).name === 'AbortError' && !timedOut) return;
+      const message = timedOut
+        ? 'Could not fetch ledger — PokerNow did not respond within 15 seconds. The game may not exist or may be private.'
+        : err instanceof Error
+          ? err.message
+          : 'Unknown error';
       setState({
         status: 'error',
         csv: null,
@@ -79,6 +89,9 @@ export function useLedger() {
         error: message,
         gameId,
       });
+    } finally {
+      window.clearTimeout(timeout);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   }, []);
 

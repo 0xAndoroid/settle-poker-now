@@ -80,6 +80,14 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
         />
       </div>
 
+      {snapshot.chipCheckpoints.length === 0 && (
+        <div className="border-b border-line bg-surface-2 px-4 py-3 text-[12.5px] leading-relaxed text-fg-dim">
+          Set total to record the full chip bank. Use table count to compare physical chips on the
+          table against tracked buy-ins and cashouts. After a total is set, bank count checks the
+          tray against the expected remainder.
+        </div>
+      )}
+
       {(tableMismatch || bankMismatch) && (
         <div className="border-b border-line bg-loss/5 px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed">
           {tableMismatch && (

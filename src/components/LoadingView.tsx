@@ -1,8 +1,9 @@
 interface LoadingViewProps {
   gameId: string;
+  onCancel: () => void;
 }
 
-export function LoadingView({ gameId }: LoadingViewProps) {
+export function LoadingView({ gameId, onCancel }: LoadingViewProps) {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
       <div className="card">
@@ -20,6 +21,9 @@ export function LoadingView({ gameId }: LoadingViewProps) {
           <p className="ticker-label mt-3 text-fg-mute">
             proxy → pokernow.com → ledger.csv → cents-detect → settle
           </p>
+          <button type="button" onClick={onCancel} className="btn btn-sm mt-6">
+            cancel
+          </button>
         </div>
       </div>
     </div>

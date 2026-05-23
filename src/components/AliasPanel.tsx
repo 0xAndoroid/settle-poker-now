@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FormError, PlayerSelectField } from './FormControls';
 import type { PersistedAlias, PersistedPlayer } from '@/lib/types';
 
@@ -41,6 +41,14 @@ export function AliasPanel({
     () => new Map(players.map((p) => [p.playerId, p.nickname])),
     [players]
   );
+  const canonicalOptions = useMemo(
+    () => sortedPlayers.filter((player) => player.playerId !== fromId),
+    [fromId, sortedPlayers]
+  );
+
+  useEffect(() => {
+    if (fromId && toId === fromId) setToId('');
+  }, [fromId, toId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -109,7 +117,7 @@ export function AliasPanel({
             label="canonical"
             value={toId}
             onChange={setToId}
-            options={sortedPlayers.map((player) => ({
+            options={canonicalOptions.map((player) => ({
               value: player.playerId,
               label: player.nickname,
             }))}

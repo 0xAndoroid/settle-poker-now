@@ -75,6 +75,17 @@ export async function fetchLiveGameRemote(
   return ((await res.json()) as LiveGameResponse).game;
 }
 
+export async function deleteLiveGameRemote(
+  gameId: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const res = await fetch(`/api/live-games/${encodeURIComponent(gameId)}`, {
+    method: 'DELETE',
+    signal,
+  });
+  if (!res.ok) throw new ApiError(res.status, await readErrorBody(res));
+}
+
 export type LiveOutboxRequest =
   | {
       kind: 'add_player';

@@ -50,6 +50,10 @@ export function PaymentPreferencesPanel({
           venmo {venmoCount} · zelle {zelleCount}
         </span>
       </div>
+      <p className="border-b border-line px-4 py-3 text-[12.5px] leading-relaxed text-fg-dim">
+        Check a rail to restrict that player's payment links to only that method. Leave both
+        unchecked when either Venmo or Zelle is fine.
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line/70">
         <PreferenceColumn
           title="prefers only venmo"
