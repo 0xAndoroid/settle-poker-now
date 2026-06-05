@@ -120,6 +120,7 @@ export function LivePlayersPanel({
         }}
         className={inputClassName}
         autoComplete="off"
+        autoFocus
         disabled={renaming}
       />
       <div className={actionsClassName}>
