@@ -189,16 +189,16 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
+    <main className="mx-auto max-w-6xl px-3 sm:px-6 py-3 sm:py-8 pb-16 sm:pb-24">
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
-        <div className="space-y-5">
+        <div className="space-y-3 sm:space-y-5">
           {panels.players}
           {panels.priorPayments}
           {panels.isolationRules}
           {panels.activity}
         </div>
 
-        <div className="mt-5 lg:mt-0 lg:sticky lg:top-[88px] lg:self-start space-y-5">
+        <div className="mt-3 sm:mt-5 lg:mt-0 lg:sticky lg:top-[88px] lg:self-start space-y-3 sm:space-y-5">
           <SyncStatusPanel
             syncState={live.syncState}
             pendingCount={live.pendingCount}

@@ -38,6 +38,7 @@ export function LivePlayersPanel({
     mode: LiveEntryMode;
     playerId: string;
   } | null>(null);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
   const host = snapshot.players.find((player) => player.playerId === snapshot.game.hostPlayerId);
   const duplicateName = name.trim().length > 0 && hasExistingPlayerName(snapshot, name);
@@ -94,18 +95,69 @@ export function LivePlayersPanel({
     }
   };
 
+  const renderRenameForm = (
+    playerId: string,
+    {
+      className,
+      inputClassName,
+      actionsClassName,
+      saveClassName,
+      cancelClassName,
+    }: {
+      className: string;
+      inputClassName: string;
+      actionsClassName: string;
+      saveClassName: string;
+      cancelClassName: string;
+    }
+  ) => (
+    <form onSubmit={(event) => void submitRename(event, playerId)} className={className}>
+      <input
+        value={rename?.playerId === playerId ? rename.name : ''}
+        onChange={(event) => {
+          setRename({ playerId, name: event.target.value });
+          if (renameError) setRenameError(null);
+        }}
+        className={inputClassName}
+        autoComplete="off"
+        disabled={renaming}
+      />
+      <div className={actionsClassName}>
+        <button type="submit" className={saveClassName} disabled={renaming}>
+          save
+        </button>
+        <button
+          type="button"
+          className={cancelClassName}
+          onClick={() => {
+            setRename(null);
+            setRenameError(null);
+          }}
+          disabled={renaming}
+        >
+          cancel
+        </button>
+      </div>
+      {renameError && <FormError className="max-w-[220px]">{renameError}</FormError>}
+    </form>
+  );
+
   return (
     <section className="card" aria-labelledby="live-players-heading">
-      <div className="card-header">
+      <div className="card-header px-3 py-2.5 sm:px-[18px] sm:py-[14px]">
         <span id="live-players-heading" className="ticker-label-strong">
           players
           <span className="text-fg-mute font-normal ml-2">· {snapshot.playerSummaries.length}</span>
         </span>
-        {host && <span className="pill pill-accent">host · {host.name}</span>}
+        {host && (
+          <span className="pill pill-accent max-w-[190px] truncate sm:max-w-none">
+            host · {host.name}
+          </span>
+        )}
       </div>
 
-      <form onSubmit={addPlayer} className="border-b border-line p-4 flex gap-2">
-        <div className="flex-1 space-y-2">
+      <form onSubmit={addPlayer} className="border-b border-line p-2.5 sm:p-4 flex gap-2">
+        <div className="min-w-0 flex-1 space-y-2">
           <input
             value={name}
             onChange={(event) => {
@@ -113,7 +165,7 @@ export function LivePlayersPanel({
               if (nameError) setNameError(null);
             }}
             placeholder="add player"
-            className="field font-mono text-[14px]"
+            className="field h-11 min-h-11 font-mono text-[14px]"
             autoComplete="off"
             aria-invalid={addPlayerError ? 'true' : 'false'}
           />
@@ -121,7 +173,7 @@ export function LivePlayersPanel({
         </div>
         <button
           type="submit"
-          className="btn btn-fill h-11"
+          className="btn btn-fill h-11 min-w-[64px] px-4"
           disabled={adding || !name.trim() || duplicateName}
         >
           add
@@ -137,9 +189,110 @@ export function LivePlayersPanel({
             if (!player) return null;
             const lastEntry = findLastEntry(snapshot.entries, summary.playerId);
             const hasFinalCashout = summary.hasFinalCashout;
+            const isExpanded = expandedPlayerId === summary.playerId;
             return (
               <div key={summary.playerId} className="border-b border-line last:border-b-0">
-                <div className="p-4 space-y-3">
+                <div className="sm:hidden px-2.5 py-1.5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <h3 className="truncate text-[14px] font-semibold leading-tight">
+                          {summary.name}
+                        </h3>
+                        {summary.isHost && (
+                          <span className="pill pill-accent h-5 px-1.5 text-[9px] tracking-[0.1em]">
+                            host
+                          </span>
+                        )}
+                        <span className="pill h-5 px-1.5 text-[9px] tracking-[0.1em]">
+                          {compactStatus(summary.status)}
+                        </span>
+                      </div>
+                      <div className="mt-1 grid grid-cols-3 gap-2">
+                        <Metric label="in" value={formatDollars(summary.buyInCents)} compact />
+                        <Metric label="out" value={formatDollars(summary.cashOutCents)} compact />
+                        <Metric label="net" value={formatNet(summary.netCents)} compact />
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      <CompactActionButton
+                        label="+in"
+                        ariaLabel={`add buy-in for ${summary.name}`}
+                        onClick={() => setSheet({ mode: 'buy_in', playerId: summary.playerId })}
+                      />
+                      <CompactActionButton
+                        label="out"
+                        ariaLabel={`add cashout for ${summary.name}`}
+                        disabled={hasFinalCashout}
+                        onClick={() => setSheet({ mode: 'cash_out', playerId: summary.playerId })}
+                      />
+                      <CompactActionButton
+                        label="more"
+                        ariaLabel={`${isExpanded ? 'hide' : 'show'} more actions for ${summary.name}`}
+                        ariaExpanded={isExpanded}
+                        onClick={() =>
+                          setExpandedPlayerId((current) =>
+                            current === summary.playerId ? null : summary.playerId
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  {(summary.priorPaymentCents > 0 || summary.priorReceivedCents > 0) && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-fg-dim">
+                      {summary.priorPaymentCents > 0 && (
+                        <span className="pill h-5 px-1.5">
+                          paid {formatDollars(summary.priorPaymentCents)}
+                        </span>
+                      )}
+                      {summary.priorReceivedCents > 0 && (
+                        <span className="pill h-5 px-1.5">
+                          received {formatDollars(summary.priorReceivedCents)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {isExpanded && (
+                  <div className="sm:hidden border-t border-line px-2.5 pb-2 pt-1.5">
+                    {rename?.playerId === summary.playerId ? (
+                      renderRenameForm(summary.playerId, {
+                        className: 'space-y-2',
+                        inputClassName: 'field h-11 min-h-11 py-2 font-mono text-[14px]',
+                        actionsClassName: 'grid grid-cols-2 gap-1.5',
+                        saveClassName: 'btn btn-fill h-11',
+                        cancelClassName: 'btn h-11',
+                      })
+                    ) : (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <ActionButton
+                          label="rename"
+                          onClick={() => {
+                            setRename({ playerId: summary.playerId, name: summary.name });
+                            setRenameError(null);
+                            setExpandedPlayerId(summary.playerId);
+                          }}
+                        />
+                        <ActionButton
+                          label="host"
+                          disabled={summary.isHost}
+                          onClick={() => void onUpdatePlayer(summary.playerId, { isHost: true })}
+                        />
+                        <ActionButton
+                          label="void last"
+                          disabled={!lastEntry}
+                          onClick={() =>
+                            lastEntry && void onVoidEntry(lastEntry.id, 'voided from player panel')
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="hidden sm:block p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -168,45 +321,13 @@ export function LivePlayersPanel({
                       )}
                     </div>
                     {rename?.playerId === summary.playerId ? (
-                      <form
-                        onSubmit={(event) => void submitRename(event, summary.playerId)}
-                        className="min-w-[180px] space-y-2"
-                      >
-                        <input
-                          value={rename.name}
-                          onChange={(event) => {
-                            setRename({ playerId: summary.playerId, name: event.target.value });
-                            if (renameError) setRenameError(null);
-                          }}
-                          className="field min-h-9 py-1.5 font-mono text-[13px]"
-                          autoComplete="off"
-                          autoFocus
-                          disabled={renaming}
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="submit"
-                            className="btn btn-fill btn-sm"
-                            disabled={renaming}
-                          >
-                            save
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => {
-                              setRename(null);
-                              setRenameError(null);
-                            }}
-                            disabled={renaming}
-                          >
-                            cancel
-                          </button>
-                        </div>
-                        {renameError && (
-                          <FormError className="max-w-[220px]">{renameError}</FormError>
-                        )}
-                      </form>
+                      renderRenameForm(summary.playerId, {
+                        className: 'min-w-[180px] space-y-2',
+                        inputClassName: 'field min-h-9 py-1.5 font-mono text-[13px]',
+                        actionsClassName: 'flex gap-2',
+                        saveClassName: 'btn btn-fill btn-sm',
+                        cancelClassName: 'btn btn-sm',
+                      })
                     ) : (
                       <button
                         type="button"
@@ -271,11 +392,29 @@ export function LivePlayersPanel({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  compact?: boolean;
+}) {
   return (
-    <div>
-      <div className="ticker-label">{label}</div>
-      <div className="font-mono num font-semibold text-fg">{value}</div>
+    <div className="min-w-0">
+      <div className={compact ? 'ticker-label text-[8px] leading-none' : 'ticker-label'}>
+        {label}
+      </div>
+      <div
+        className={
+          compact
+            ? 'font-mono num truncate text-[11px] leading-tight font-semibold text-fg'
+            : 'font-mono num font-semibold text-fg'
+        }
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -299,6 +438,39 @@ function ActionButton({
       {label}
     </button>
   );
+}
+
+function CompactActionButton({
+  label,
+  ariaLabel,
+  ariaExpanded,
+  onClick,
+  disabled = false,
+}: {
+  label: string;
+  ariaLabel: string;
+  ariaExpanded?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      onClick={onClick}
+      disabled={disabled}
+      className="btn h-11 w-11 px-0 text-[10px] font-bold uppercase tracking-[0.06em]"
+    >
+      {label}
+    </button>
+  );
+}
+
+function compactStatus(status: LivePlayerStatus): string {
+  if (status === 'cashed_out') return 'out';
+  if (status === 'removed') return 'off';
+  return status;
 }
 
 function findLastEntry(entries: ReadonlyArray<LiveEntry>, playerId: string): LiveEntry | null {
