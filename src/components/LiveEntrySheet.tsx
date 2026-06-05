@@ -66,7 +66,7 @@ export function LiveEntrySheet({
   };
 
   return (
-    <form onSubmit={submit} className="border-t border-line bg-surface-2 p-4 space-y-3">
+    <form onSubmit={submit} className="border-t border-line bg-surface-2 p-3 sm:p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="ticker-label-strong">{label}</p>
@@ -92,7 +92,7 @@ export function LiveEntrySheet({
             key={value}
             type="button"
             onClick={() => setAmount(formatDollars(value, { symbol: false }))}
-            className="btn btn-sm min-h-[40px]"
+            className="btn btn-sm min-h-11"
           >
             {formatDollars(value, { fixedDecimals: false })}
           </button>
@@ -100,7 +100,7 @@ export function LiveEntrySheet({
       </div>
 
       {mode === 'cash_out' && (
-        <label className="flex items-center gap-2 text-[13px] text-fg-dim">
+        <label className="flex min-h-11 items-center gap-2 text-[13px] text-fg-dim">
           <input
             type="checkbox"
             checked={isFinal}
