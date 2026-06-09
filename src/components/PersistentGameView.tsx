@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PaymentCompletion } from './SettlementPanel';
-import { IdentityPrompt } from './IdentityPrompt';
+import { PaymentDetailsModal, type PaymentDetailsResult } from './PaymentDetailsModal';
 import { MobileTabs, type PersistentTabKey } from './MobileTabs';
 import { CenteredStatusCard } from './CenteredStatusCard';
 import { PersistentDesktopPanels, PersistentMobilePanels } from './PersistentGamePanels';
@@ -25,7 +25,9 @@ interface PersistentGameViewProps {
 /**
  * Post-finalize read-only view at /g/:id. Owns:
  *   - Server snapshot fetch + 8s polling (via `usePersistentGame`)
- *   - Identity selection per game (localStorage) + Venmo/Zelle registration
+ *   - The "get paid" modal — picking your name from the roster and
+ *     registering Venmo/Zelle handles. Identity (localStorage, per game)
+ *     is a side effect of that pick, never a separate step.
  *   - Mark-payment-settled toggle (the only structural mutation allowed
  *     after finalize — the worker enforces a 423 lock on everything else)
  *   - Read-only display: original ledger, modifications applied at
@@ -53,6 +55,7 @@ export function PersistentGameView({
   );
 
   const [activeTab, setActiveTab] = useState<PersistentTabKey>('payments');
+  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
 
   // Project the persisted snapshot into the same shape the panels expect.
   // Read-only: we render the ORIGINAL ledger (pre-modification players)
@@ -133,6 +136,31 @@ export function PersistentGameView({
     pushToast(ok ? 'link copied' : 'could not share or copy link', ok ? 'success' : 'error');
   }, [gameId, pushToast]);
 
+  const openPaymentDetails = useCallback(() => setPaymentDetailsOpen(true), []);
+
+  const handleSavePaymentDetails = useCallback(
+    (result: PaymentDetailsResult) => {
+      setPaymentDetailsOpen(false);
+      setIdentity(result.player);
+      const existing = paymentMethodsByPlayerId.get(result.player.playerId);
+      const changed =
+        (existing?.venmoUsername ?? null) !== result.venmoUsername ||
+        (existing?.zelleHandle ?? null) !== result.zelleHandle;
+      if (changed) {
+        void savePaymentMethods({
+          playerId: result.player.playerId,
+          venmoUsername: result.venmoUsername,
+          zelleHandle: result.zelleHandle,
+          actorLabel: result.player.nickname,
+        });
+        pushToast(`you are ${result.player.nickname} — payment handles saved`, 'success');
+      } else {
+        pushToast(`you are ${result.player.nickname}`, 'info');
+      }
+    },
+    [paymentMethodsByPlayerId, pushToast, savePaymentMethods, setIdentity]
+  );
+
   const handleFinalizeLegacy = useCallback(async () => {
     const confirmed = await confirm({
       title: 'Finalize this game?',
@@ -161,7 +189,6 @@ export function PersistentGameView({
     );
   }
 
-  const showIdentityPrompt = identity === null && !sessionDeclined();
   const isFinalized = state.game.game.finalizedAt !== null;
 
   // Map current persisted plan ordering to txn list.
@@ -208,31 +235,6 @@ export function PersistentGameView({
           </div>
         )}
 
-        {showIdentityPrompt && (
-          <div className="mb-6">
-            <IdentityPrompt
-              players={state.game.players}
-              paymentMethodsByPlayerId={paymentMethodsByPlayerId}
-              onPick={(result) => {
-                if (result.player) {
-                  setIdentity(result.player);
-                  pushToast(`identified as ${result.player.nickname}`, 'info');
-                  if (result.paymentMethods) {
-                    void savePaymentMethods({
-                      playerId: result.player.playerId,
-                      ...result.paymentMethods,
-                    });
-                  }
-                } else {
-                  declineIdentity();
-                  setIdentity(null);
-                  pushToast('continuing as spectator', 'info');
-                }
-              }}
-            />
-          </div>
-        )}
-
         <PersistentDesktopPanels
           gameId={gameId}
           snapshot={state.game}
@@ -244,6 +246,8 @@ export function PersistentGameView({
           onShare={handleShare}
           paymentMethodsByPlayerId={paymentMethodsByPlayerId}
           currentPaymentPlayerId={currentPaymentPlayerId}
+          identityNickname={identity?.nickname ?? null}
+          onEditPaymentDetails={openPaymentDetails}
           pushToast={pushToast}
           isFinalized={isFinalized}
           onSaveNote={saveNote}
@@ -261,21 +265,23 @@ export function PersistentGameView({
           onShare={handleShare}
           paymentMethodsByPlayerId={paymentMethodsByPlayerId}
           currentPaymentPlayerId={currentPaymentPlayerId}
+          identityNickname={identity?.nickname ?? null}
+          onEditPaymentDetails={openPaymentDetails}
           pushToast={pushToast}
           isFinalized={isFinalized}
           onSaveNote={saveNote}
         />
       </main>
+
+      {paymentDetailsOpen && (
+        <PaymentDetailsModal
+          players={state.game.players}
+          paymentMethodsByPlayerId={paymentMethodsByPlayerId}
+          initialPlayerId={identity?.playerId ?? null}
+          onCancel={() => setPaymentDetailsOpen(false)}
+          onSave={handleSavePaymentDetails}
+        />
+      )}
     </>
   );
-}
-
-/* ──────── In-memory "skip identity" flag ──────── */
-
-let identityDeclined = false;
-function declineIdentity(): void {
-  identityDeclined = true;
-}
-function sessionDeclined(): boolean {
-  return identityDeclined;
 }

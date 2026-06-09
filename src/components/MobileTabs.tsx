@@ -93,7 +93,7 @@ export function MobileTabs(props: MobileTabsProps) {
             aria-selected={props.active === t.key}
             onClick={() => onChange(t.key)}
             className={cn(
-              'flex-1 min-h-[44px] py-2.5 font-sans text-[11px] font-bold uppercase tracking-ticker relative',
+              'flex-1 min-h-[44px] px-1 py-2.5 font-sans text-[11px] font-bold uppercase tracking-ticker relative',
               props.active === t.key
                 ? 'text-fg'
                 : 'text-fg-mute hover:text-fg-dim'
