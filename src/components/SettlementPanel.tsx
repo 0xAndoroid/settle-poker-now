@@ -43,6 +43,13 @@ interface SettlementPanelProps {
   gameNote?: string | null;
   /** Persistent flow: selected local player's canonical id. */
   currentPlayerId?: string | null;
+  /** Persistent flow: selected local player's display name. */
+  identityNickname?: string | null;
+  /**
+   * Persistent flow: opens the "get paid" modal (pick your name + register
+   * Venmo / Zelle). Presence enables the identity strip under the header.
+   */
+  onEditPaymentDetails?: () => void;
   /** Toast hook so row icon clicks can surface confirmations. */
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
@@ -61,6 +68,8 @@ export function SettlementPanel({
   paymentMethodsByPlayerId,
   gameNote,
   currentPlayerId,
+  identityNickname,
+  onEditPaymentDetails,
   pushToast,
   onHighlight,
 }: SettlementPanelProps) {
@@ -96,6 +105,48 @@ export function SettlementPanel({
       }, 0)
     : totalMoved;
 
+  // One-line "what do I owe" readout for the identified player. Counts
+  // only OUTSTANDING payments so it ticks down as boxes get checked.
+  let identitySummary: string | null = null;
+  if (persistent && currentPlayerId && identityNickname) {
+    let payCents = 0;
+    let payCount = 0;
+    let collectCents = 0;
+    let collectCount = 0;
+    let involved = false;
+    plan.txns.forEach((t, i) => {
+      const isSender = t.fromId === currentPlayerId;
+      const isRecipient = t.toId === currentPlayerId;
+      if (!isSender && !isRecipient) return;
+      involved = true;
+      const id = paymentIds![i];
+      const c = id ? completionByPaymentId!.get(id) : undefined;
+      if (c && c.completedAt !== null) return;
+      if (isSender) {
+        payCents += t.amountCents;
+        payCount += 1;
+      } else {
+        collectCents += t.amountCents;
+        collectCount += 1;
+      }
+    });
+    const parts: string[] = [];
+    if (payCount > 0) {
+      parts.push(
+        `you pay ${formatDollars(payCents)}${payCount > 1 ? ` in ${payCount} payments` : ''}`
+      );
+    }
+    if (collectCount > 0) {
+      parts.push(
+        `${payCount > 0 ? 'collect' : 'you collect'} ${formatDollars(collectCents)}${
+          collectCount > 1 ? ` in ${collectCount} payments` : ''
+        }`
+      );
+    }
+    identitySummary =
+      parts.length > 0 ? parts.join(' · ') : involved ? "you're all settled" : "you're even";
+  }
+
   return (
     <section aria-labelledby="settlement-heading" className="card">
       <div className="card-header">
@@ -118,7 +169,7 @@ export function SettlementPanel({
               type="button"
               onClick={onFinalize}
               disabled={finalizing || plan.txns.length === 0 || hasCycle}
-              className="btn btn-fill btn-sm"
+              className="btn btn-fill btn-sm min-h-[44px] sm:min-h-0"
               aria-label="Finalize the plan and mint a shareable link"
             >
               {finalizing ? 'finalizing…' : 'finalize ›'}
@@ -138,7 +189,7 @@ export function SettlementPanel({
             <button
               type="button"
               onClick={onShare}
-              className="btn btn-fill btn-sm"
+              className="btn btn-fill btn-sm min-h-[44px] sm:min-h-0"
               aria-label="Share this game's URL"
             >
               share ›
@@ -146,6 +197,44 @@ export function SettlementPanel({
           )}
         </div>
       </div>
+
+      {onEditPaymentDetails && !identityNickname && (
+        <button
+          type="button"
+          onClick={onEditPaymentDetails}
+          className="w-full min-h-[48px] px-4 py-2.5 flex items-center justify-between gap-3 border-b border-line bg-accent/[0.06] text-left group"
+        >
+          <span className="text-[13px] text-fg-dim leading-snug">
+            <span className="font-semibold text-fg">Who are you?</span> Pick your name, add Venmo
+            / Zelle.
+          </span>
+          <span className="ticker-label-strong text-accent shrink-0 group-hover:underline underline-offset-4">
+            get paid ›
+          </span>
+        </button>
+      )}
+
+      {onEditPaymentDetails && identityNickname && (
+        <div className="pl-4 pr-2 py-1.5 flex items-center justify-between gap-3 border-b border-line bg-surface-2/60">
+          <span className="text-[12.5px] text-fg-dim min-w-0 truncate">
+            you are <span className="font-semibold text-fg">{identityNickname}</span>
+            {identitySummary && (
+              <>
+                {' · '}
+                <span className="text-fg">{identitySummary}</span>
+              </>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={onEditPaymentDetails}
+            className="btn btn-ghost btn-sm shrink-0"
+            aria-label="Edit who you are and your Venmo / Zelle handles"
+          >
+            edit
+          </button>
+        </div>
+      )}
 
       {hasCycle && (
         <div className="px-4 py-3 border-b border-line bg-loss/5">

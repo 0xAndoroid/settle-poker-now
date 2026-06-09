@@ -19,6 +19,8 @@ interface PersistentPanelsProps {
   onShare: () => void | Promise<void>;
   paymentMethodsByPlayerId: ReadonlyMap<string, PersistedPaymentMethod>;
   currentPaymentPlayerId: string | null;
+  identityNickname: string | null;
+  onEditPaymentDetails: () => void;
   pushToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
   isFinalized: boolean;
   onSaveNote: (next: string | null) => Promise<void>;
@@ -109,6 +111,8 @@ function PersistentSettlement({
   onShare,
   paymentMethodsByPlayerId,
   currentPaymentPlayerId,
+  identityNickname,
+  onEditPaymentDetails,
   pushToast,
 }: PersistentPanelsProps) {
   return (
@@ -123,6 +127,8 @@ function PersistentSettlement({
       paymentMethodsByPlayerId={paymentMethodsByPlayerId}
       gameNote={snapshot.game.note}
       currentPlayerId={currentPaymentPlayerId}
+      identityNickname={identityNickname}
+      onEditPaymentDetails={onEditPaymentDetails}
       pushToast={pushToast}
     />
   );

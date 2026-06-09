@@ -35,6 +35,15 @@ interface UsePersistentGameOptions {
 }
 
 /**
+ * `actorLabel` may override the hook-level label for this one call —
+ * needed when identity and payment handles are saved in the same tick
+ * (the hook's label still reflects the pre-pick identity).
+ */
+type SavePaymentMethodsArgs = Omit<PaymentMethodInput, 'gameId' | 'actorLabel'> & {
+  actorLabel?: string | null;
+};
+
+/**
  * Owns the lifecycle of the post-finalize persistent game view.
  *
  * Mutation surface intentionally narrow:
@@ -69,9 +78,7 @@ export function usePersistentGame(
   state: PersistentGameState;
   refresh: () => Promise<void>;
   togglePayment: (paymentId: string, completed: boolean) => Promise<void>;
-  savePaymentMethods: (
-    args: Omit<PaymentMethodInput, 'gameId' | 'actorLabel'>
-  ) => Promise<void>;
+  savePaymentMethods: (args: SavePaymentMethodsArgs) => Promise<void>;
   saveNote: (note: string | null) => Promise<void>;
   finalizeLegacy: () => Promise<boolean>;
 } {
@@ -213,12 +220,12 @@ export function usePersistentGame(
   );
 
   const savePaymentMethods = useCallback(
-    async (args: Omit<PaymentMethodInput, 'gameId' | 'actorLabel'>) => {
+    async ({ actorLabel: actorOverride, ...args }: SavePaymentMethodsArgs) => {
       markMutation();
       try {
         const game = await setPaymentMethodsRemote({
           gameId,
-          actorLabel,
+          actorLabel: actorOverride !== undefined ? actorOverride : actorLabel,
           ...args,
         });
         markMutation();

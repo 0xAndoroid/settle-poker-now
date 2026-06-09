@@ -108,8 +108,10 @@ export function SettlementRow({
         )}
       >
         {persistent ? (
+          // -mx/-my padding-eating keeps the checkbox visually in the old
+          // 24px column while the touch target spans 40px × full row height.
           <label
-            className="flex items-center justify-center w-6 flex-shrink-0 cursor-pointer"
+            className="flex items-center justify-center w-10 -mx-2 -my-3 self-stretch flex-shrink-0 cursor-pointer"
             onClick={(event) => event.stopPropagation()}
           >
             <input
