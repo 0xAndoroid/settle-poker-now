@@ -6,9 +6,14 @@ import { cn } from '@/lib/cn';
  *     The settlement plan rides under `ledger` so the user can see their
  *     work without losing the editing affordances on the same screen.
  *   - `persistent` (post-finalize read-only view): LEDGER · MODS · PAYMENTS · HISTORY.
+ *   - `live` (active table view): TABLE · BANK · SETTLE · LOG.
+ *     `table` is the during-play screen (buy-ins/cashouts); `bank` the chip
+ *     counts; `settle` the end-of-night flow (payments, rules, finalize);
+ *     `log` the activity feed plus link sharing and recovery.
  */
 export type EphemeralTabKey = 'ledger' | 'config';
 export type PersistentTabKey = 'ledger' | 'mods' | 'payments' | 'history';
+export type LiveTabKey = 'table' | 'bank' | 'settle' | 'log';
 
 interface BaseTabsProps {
   txnCount: number;
@@ -29,52 +34,88 @@ interface PersistentTabsProps extends BaseTabsProps {
   historyCount: number;
 }
 
-type MobileTabsProps = EphemeralTabsProps | PersistentTabsProps;
+interface LiveTabsProps {
+  mode: 'live';
+  active: LiveTabKey;
+  onChange: (k: LiveTabKey) => void;
+  playerCount: number;
+  /** Recorded (non-voided) prior payments. */
+  settleCount: number;
+  /** Entries + chip checkpoints + audit rows, matching the activity feed. */
+  logCount: number;
+  /** True when the latest chip count disagrees with the tracked ledger. */
+  bankAlert: boolean;
+}
+
+type MobileTabsProps = EphemeralTabsProps | PersistentTabsProps | LiveTabsProps;
 
 interface TabSpec {
   key: string;
   label: string;
   badge: number | null;
+  alert?: boolean;
 }
 
 export function MobileTabs(props: MobileTabsProps) {
-  const tabs: TabSpec[] = props.mode === 'ephemeral'
-    ? [
-        {
-          key: 'ledger',
-          label: 'ledger',
-          badge: props.playerCount > 0 ? props.playerCount : null,
-        },
-        { key: 'config', label: 'config', badge: null },
-      ]
-    : [
-        {
-          key: 'ledger',
-          label: 'ledger',
-          badge: props.playerCount > 0 ? props.playerCount : null,
-        },
-        {
-          key: 'mods',
-          label: 'mods',
-          badge: props.modsCount > 0 ? props.modsCount : null,
-        },
-        {
-          key: 'payments',
-          label: 'payments',
-          badge: props.txnCount > 0 ? props.txnCount : null,
-        },
-        {
-          key: 'history',
-          label: 'history',
-          badge: props.historyCount > 0 ? props.historyCount : null,
-        },
-      ];
+  const tabs: TabSpec[] =
+    props.mode === 'ephemeral'
+      ? [
+          {
+            key: 'ledger',
+            label: 'ledger',
+            badge: props.playerCount > 0 ? props.playerCount : null,
+          },
+          { key: 'config', label: 'config', badge: null },
+        ]
+      : props.mode === 'persistent'
+        ? [
+            {
+              key: 'ledger',
+              label: 'ledger',
+              badge: props.playerCount > 0 ? props.playerCount : null,
+            },
+            {
+              key: 'mods',
+              label: 'mods',
+              badge: props.modsCount > 0 ? props.modsCount : null,
+            },
+            {
+              key: 'payments',
+              label: 'payments',
+              badge: props.txnCount > 0 ? props.txnCount : null,
+            },
+            {
+              key: 'history',
+              label: 'history',
+              badge: props.historyCount > 0 ? props.historyCount : null,
+            },
+          ]
+        : [
+            {
+              key: 'table',
+              label: 'table',
+              badge: props.playerCount > 0 ? props.playerCount : null,
+            },
+            { key: 'bank', label: 'bank', badge: null, alert: props.bankAlert },
+            {
+              key: 'settle',
+              label: 'settle',
+              badge: props.settleCount > 0 ? props.settleCount : null,
+            },
+            {
+              key: 'log',
+              label: 'log',
+              badge: props.logCount > 0 ? props.logCount : null,
+            },
+          ];
 
   const onChange = (key: string) => {
     if (props.mode === 'ephemeral') {
       props.onChange(key as EphemeralTabKey);
-    } else {
+    } else if (props.mode === 'persistent') {
       props.onChange(key as PersistentTabKey);
+    } else {
+      props.onChange(key as LiveTabKey);
     }
   };
 
@@ -105,6 +146,12 @@ export function MobileTabs(props: MobileTabsProps) {
                 <span className="font-mono num text-[10px] text-fg-mute">
                   [{t.badge}]
                 </span>
+              )}
+              {t.alert === true && (
+                <span
+                  aria-label="needs attention"
+                  className="self-center h-1.5 w-1.5 rounded-full bg-loss"
+                />
               )}
             </span>
             {props.active === t.key && (

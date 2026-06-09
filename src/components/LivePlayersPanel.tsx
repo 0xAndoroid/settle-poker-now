@@ -1,12 +1,16 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { EmptyPanelMessage, FormError } from './FormControls';
 import { LiveEntrySheet, type LiveEntryMode } from './LiveEntrySheet';
+import type { ConfirmFn } from '@/hooks/useConfirmDialog';
+import { cn } from '@/lib/cn';
 import { errorMessage } from '@/lib/errors';
+import { sendLossToHostOffer, type SendLossToHostOffer } from '@/lib/livePlayers';
 import { formatDollars, formatNet } from '@/lib/money';
-import type { LiveEntry, LiveGameSnapshot, LivePlayerStatus } from '@/lib/types';
+import type { LiveEntry, LiveGameSnapshot, LivePlayerStatus, LivePlayerSummary } from '@/lib/types';
 
 interface LivePlayersPanelProps {
   snapshot: LiveGameSnapshot;
+  confirm: ConfirmFn;
   onAddPlayer: (name: string, isHost?: boolean) => Promise<void>;
   onUpdatePlayer: (
     playerId: string,
@@ -14,15 +18,18 @@ interface LivePlayersPanelProps {
   ) => Promise<void>;
   onAddEntry: (body: {
     playerId: string;
-    entryType: 'buy_in' | 'cash_out';
+    entryType: 'buy_in' | 'cash_out' | 'prior_payment';
     amountCents: number;
+    toPlayerId?: string | null;
     isFinal?: boolean;
+    note?: string | null;
   }) => Promise<void>;
   onVoidEntry: (entryId: string, reason?: string | null) => Promise<void>;
 }
 
 export function LivePlayersPanel({
   snapshot,
+  confirm,
   onAddPlayer,
   onUpdatePlayer,
   onAddEntry,
@@ -39,6 +46,7 @@ export function LivePlayersPanel({
     playerId: string;
   } | null>(null);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  const [sendingLossPlayerId, setSendingLossPlayerId] = useState<string | null>(null);
 
   const host = snapshot.players.find((player) => player.playerId === snapshot.game.hostPlayerId);
   const duplicateName = name.trim().length > 0 && hasExistingPlayerName(snapshot, name);
@@ -92,6 +100,35 @@ export function LivePlayersPanel({
       setRenameError(errorMessage(err, 'Could not rename player.'));
     } finally {
       setRenaming(false);
+    }
+  };
+
+  const sendLossToHost = async (summary: LivePlayerSummary, offer: SendLossToHostOffer) => {
+    const confirmed = await confirm({
+      title: `Send ${summary.name}'s loss to the host?`,
+      confirmLabel: 'record payment',
+      body: (
+        <p>
+          Records that <span className="font-semibold text-fg">{summary.name}</span> paid{' '}
+          <span className="font-semibold text-fg">{offer.hostName}</span>{' '}
+          <span className="font-mono num text-fg">{formatDollars(offer.amountCents)}</span> — their
+          full remaining loss. It shows in the activity log like any payment and can be voided
+          there.
+        </p>
+      ),
+    });
+    if (!confirmed) return;
+    setSendingLossPlayerId(summary.playerId);
+    try {
+      await onAddEntry({
+        playerId: summary.playerId,
+        entryType: 'prior_payment',
+        amountCents: offer.amountCents,
+        toPlayerId: offer.hostPlayerId,
+        note: 'full loss sent to host',
+      });
+    } finally {
+      setSendingLossPlayerId(null);
     }
   };
 
@@ -191,6 +228,8 @@ export function LivePlayersPanel({
             const lastEntry = findLastEntry(snapshot.entries, summary.playerId);
             const hasFinalCashout = summary.hasFinalCashout;
             const isExpanded = expandedPlayerId === summary.playerId;
+            const lossOffer = sendLossToHostOffer(snapshot, summary);
+            const sendingLoss = sendingLossPlayerId === summary.playerId;
             return (
               <div key={summary.playerId} className="border-b border-line last:border-b-0">
                 <div className="sm:hidden px-2.5 py-1.5">
@@ -253,6 +292,15 @@ export function LivePlayersPanel({
                         </span>
                       )}
                     </div>
+                  )}
+                  {lossOffer && (
+                    <SendLossToHostButton
+                      playerName={summary.name}
+                      offer={lossOffer}
+                      busy={sendingLoss}
+                      className="mt-1.5"
+                      onClick={() => void sendLossToHost(summary, lossOffer)}
+                    />
                   )}
                 </div>
 
@@ -343,6 +391,15 @@ export function LivePlayersPanel({
                     )}
                   </div>
 
+                  {lossOffer && (
+                    <SendLossToHostButton
+                      playerName={summary.name}
+                      offer={lossOffer}
+                      busy={sendingLoss}
+                      onClick={() => void sendLossToHost(summary, lossOffer)}
+                    />
+                  )}
+
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <ActionButton
                       label="buy-in"
@@ -417,6 +474,35 @@ function Metric({
         {value}
       </div>
     </div>
+  );
+}
+
+function SendLossToHostButton({
+  playerName,
+  offer,
+  busy,
+  className,
+  onClick,
+}: {
+  playerName: string;
+  offer: SendLossToHostOffer;
+  busy: boolean;
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`record that ${playerName} sent ${formatDollars(offer.amountCents)} to ${offer.hostName}`}
+      onClick={onClick}
+      disabled={busy}
+      className={cn(
+        'btn h-11 w-full border-accent text-accent text-[11px] font-bold uppercase tracking-[0.08em]',
+        className
+      )}
+    >
+      {busy ? 'recording...' : `send loss to host · ${formatDollars(offer.amountCents)}`}
+    </button>
   );
 }
 
