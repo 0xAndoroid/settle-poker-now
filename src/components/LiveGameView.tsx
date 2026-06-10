@@ -217,7 +217,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         active={activeTab}
         onChange={setActiveTab}
         playerCount={snapshot.playerSummaries.length}
-        settleCount={priorPaymentCount}
+        paymentsCount={priorPaymentCount}
         logCount={logCount}
         bankAlert={bankIssues > 0}
       />
@@ -240,13 +240,17 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         </div>
 
         <div className="lg:hidden space-y-3 sm:space-y-5">
-          {activeTab === 'table' && panels.players}
+          {activeTab === 'table' && (
+            <>
+              {panels.players}
+              {panels.finalize}
+            </>
+          )}
           {activeTab === 'bank' && panels.bank}
-          {activeTab === 'settle' && (
+          {activeTab === 'payments' && (
             <>
               {panels.priorPayments}
               {panels.isolationRules}
-              {panels.finalize}
             </>
           )}
           {activeTab === 'log' && (

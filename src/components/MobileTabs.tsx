@@ -6,14 +6,15 @@ import { cn } from '@/lib/cn';
  *     The settlement plan rides under `ledger` so the user can see their
  *     work without losing the editing affordances on the same screen.
  *   - `persistent` (post-finalize read-only view): LEDGER · MODS · PAYMENTS · HISTORY.
- *   - `live` (active table view): TABLE · BANK · SETTLE · LOG.
- *     `table` is the during-play screen (buy-ins/cashouts); `bank` the chip
- *     counts; `settle` the end-of-night flow (payments, rules, finalize);
- *     `log` the activity feed plus link sharing and recovery.
+ *   - `live` (active table view): TABLE · BANK · PAYMENTS · LOG.
+ *     `table` is the during-play screen (buy-ins/cashouts) ending in
+ *     finalize; `bank` the chip counts; `payments` the settlement
+ *     adjustments (prior payments, isolation rules); `log` the activity
+ *     feed plus link sharing and recovery.
  */
 export type EphemeralTabKey = 'ledger' | 'config';
 export type PersistentTabKey = 'ledger' | 'mods' | 'payments' | 'history';
-export type LiveTabKey = 'table' | 'bank' | 'settle' | 'log';
+export type LiveTabKey = 'table' | 'bank' | 'payments' | 'log';
 
 interface BaseTabsProps {
   txnCount: number;
@@ -40,7 +41,7 @@ interface LiveTabsProps {
   onChange: (k: LiveTabKey) => void;
   playerCount: number;
   /** Recorded (non-voided) prior payments. */
-  settleCount: number;
+  paymentsCount: number;
   /** Entries + chip checkpoints + audit rows, matching the activity feed. */
   logCount: number;
   /** True when the latest chip count disagrees with the tracked ledger. */
@@ -98,9 +99,9 @@ export function MobileTabs(props: MobileTabsProps) {
             },
             { key: 'bank', label: 'bank', badge: null, alert: props.bankAlert },
             {
-              key: 'settle',
-              label: 'settle',
-              badge: props.settleCount > 0 ? props.settleCount : null,
+              key: 'payments',
+              label: 'payments',
+              badge: props.paymentsCount > 0 ? props.paymentsCount : null,
             },
             {
               key: 'log',
