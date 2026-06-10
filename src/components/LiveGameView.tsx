@@ -6,6 +6,7 @@ import { LiveFinalizePanel } from './LiveFinalizePanel';
 import { LivePlayersPanel } from './LivePlayersPanel';
 import { LiveIsolationRulesPanel } from './LiveIsolationRulesPanel';
 import { LivePriorPaymentsPanel } from './LivePriorPaymentsPanel';
+import { MobileTabs, type LiveTabKey } from './MobileTabs';
 import { SyncStatusPanel } from './SyncStatusPanel';
 import { CenteredStatusCard } from './CenteredStatusCard';
 import type { TickerItem } from './Masthead';
@@ -32,12 +33,18 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
   const [finalizing, setFinalizing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
+  const [activeTab, setActiveTab] = useState<LiveTabKey>('table');
 
   const snapshot = live.state.game;
   const liveUrl = useMemo(() => {
     if (typeof window === 'undefined') return `/live/${gameId}`;
     return `${window.location.origin}/live/${gameId}`;
   }, [gameId]);
+
+  const bankIssues = snapshot
+    ? (snapshot.bankSummary.latestTableDeltaCents ? 1 : 0) +
+      (snapshot.bankSummary.latestBankDeltaCents ? 1 : 0)
+    : 0;
 
   useEffect(() => {
     if (!snapshot) {
@@ -47,9 +54,6 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
       }
       return;
     }
-    const bankIssues =
-      (snapshot.bankSummary.latestTableDeltaCents ? 1 : 0) +
-      (snapshot.bankSummary.latestBankDeltaCents ? 1 : 0);
     const ticker: TickerItem[] = [
       { label: 'live', value: snapshot.game.status, tone: 'accent' },
       { label: 'players', value: String(snapshot.players.length) },
@@ -73,7 +77,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         { fixedDecimals: false }
       )} in play`;
     }
-  }, [gameId, live.pendingCount, onTickerChange, snapshot]);
+  }, [bankIssues, gameId, live.pendingCount, onTickerChange, snapshot]);
 
   const handleFinalize = useCallback(
     async (force: boolean, rules: IsolationRule[]) => {
@@ -154,6 +158,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
     players: (
       <LivePlayersPanel
         snapshot={snapshot}
+        confirm={confirm}
         onAddPlayer={live.addPlayer}
         onUpdatePlayer={live.updatePlayer}
         onAddEntry={live.addEntry}
@@ -176,6 +181,14 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         onVoidEntry={live.voidEntry}
       />
     ),
+    sync: (
+      <SyncStatusPanel
+        syncState={live.syncState}
+        pendingCount={live.pendingCount}
+        liveUrl={liveUrl}
+        onToast={pushToast}
+      />
+    ),
     finalize: (
       <LiveFinalizePanel
         snapshot={snapshot}
@@ -186,34 +199,65 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         onFinalize={handleFinalize}
       />
     ),
+    recovery: (
+      <HostRecoveryPanel liveUrl={liveUrl} deleting={deleting} onDelete={() => void handleDelete()} />
+    ),
   };
 
+  const priorPaymentCount = snapshot.entries.filter(
+    (entry) => entry.entryType === 'prior_payment' && entry.voidedAt === null
+  ).length;
+  const logCount =
+    snapshot.entries.length + snapshot.chipCheckpoints.length + snapshot.audit.length;
+
   return (
-    <main className="mx-auto max-w-6xl px-3 sm:px-6 py-3 sm:py-8 pb-16 sm:pb-24">
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
-        <div className="space-y-3 sm:space-y-5">
-          {panels.players}
-          {panels.priorPayments}
-          {panels.isolationRules}
-          {panels.activity}
+    <>
+      <MobileTabs
+        mode="live"
+        active={activeTab}
+        onChange={setActiveTab}
+        playerCount={snapshot.playerSummaries.length}
+        settleCount={priorPaymentCount}
+        logCount={logCount}
+        bankAlert={bankIssues > 0}
+      />
+
+      <main className="mx-auto max-w-6xl px-3 sm:px-6 py-3 sm:py-8 pb-16 sm:pb-24">
+        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
+          <div className="space-y-5">
+            {panels.players}
+            {panels.priorPayments}
+            {panels.isolationRules}
+            {panels.activity}
+          </div>
+
+          <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
+            {panels.sync}
+            {panels.bank}
+            {panels.finalize}
+            {panels.recovery}
+          </div>
         </div>
 
-        <div className="mt-3 sm:mt-5 lg:mt-0 lg:sticky lg:top-[88px] lg:self-start space-y-3 sm:space-y-5">
-          <SyncStatusPanel
-            syncState={live.syncState}
-            pendingCount={live.pendingCount}
-            liveUrl={liveUrl}
-            onToast={pushToast}
-          />
-          {panels.bank}
-          {panels.finalize}
-          <HostRecoveryPanel
-            liveUrl={liveUrl}
-            deleting={deleting}
-            onDelete={() => void handleDelete()}
-          />
+        <div className="lg:hidden space-y-3 sm:space-y-5">
+          {activeTab === 'table' && panels.players}
+          {activeTab === 'bank' && panels.bank}
+          {activeTab === 'settle' && (
+            <>
+              {panels.priorPayments}
+              {panels.isolationRules}
+              {panels.finalize}
+            </>
+          )}
+          {activeTab === 'log' && (
+            <>
+              {panels.sync}
+              {panels.activity}
+              {panels.recovery}
+            </>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
