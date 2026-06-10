@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { activeLivePlayers, sendLossToHostOffer } from './livePlayers';
-import { deriveLiveBankSummary, deriveLivePlayerSummaries } from './liveProjection';
+import {
+  deriveFinalLedgerRows,
+  deriveLiveBankSummary,
+  deriveLivePlayerSummaries,
+  derivePriorPaymentAdjustments,
+} from './liveProjection';
+import { applyAdjustments } from './settle';
 import type { LiveGameSnapshot, LivePlayer, LivePlayerSummary } from './types';
 
 const now = 1_700_000_000_000;
@@ -299,5 +305,139 @@ describe('sendLossToHostOffer', () => {
       status: 'finalized',
     });
     expect(sendLossToHostOffer(finalized, summaryOf(finalized, 'kevin'))).toBeNull();
+  });
+
+  it('returns null when prior payments exceed the loss (never a negative offer)', () => {
+    const snap = snapshot({
+      players: [host, kevin],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'kevin', 'cash_out', 4_000, { isFinal: true }),
+        entry('e3', 'kevin', 'prior_payment', 9_000, { toPlayerId: 'host' }),
+      ],
+    });
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))).toBeNull();
+  });
+
+  it('counts payments to non-host players against the loss', () => {
+    const maya = player('maya', 'Maya', { sortOrder: 2 });
+    const snap = snapshot({
+      players: [host, kevin, maya],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'maya', 'buy_in', 10_000),
+        entry('e3', 'kevin', 'cash_out', 4_000, { isFinal: true }),
+        entry('e4', 'maya', 'cash_out', 16_000, { isFinal: true }),
+        entry('e5', 'kevin', 'prior_payment', 2_000, { toPlayerId: 'maya' }),
+      ],
+    });
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(4_000);
+  });
+
+  it('retargets to the new host after a mid-game host change', () => {
+    const maya = player('maya', 'Maya', { sortOrder: 2, isHost: true });
+    const snap = snapshot({
+      players: [player('host', 'Andrew'), kevin, maya],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'kevin', 'cash_out', 4_000, { isFinal: true }),
+      ],
+      hostPlayerId: 'maya',
+    });
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))).toEqual({
+      hostPlayerId: 'maya',
+      hostName: 'Maya',
+      amountCents: 6_000,
+    });
+
+    // The demoted host becomes offer-eligible like any other loser.
+    const exHostLosing = snapshot({
+      players: [player('host', 'Andrew'), kevin, maya],
+      entries: [
+        entry('e1', 'host', 'buy_in', 10_000),
+        entry('e2', 'host', 'cash_out', 0, { isFinal: true }),
+      ],
+      hostPlayerId: 'maya',
+    });
+    expect(sendLossToHostOffer(exHostLosing, summaryOf(exHostLosing, 'host'))?.amountCents).toBe(
+      10_000
+    );
+  });
+
+  it('offers the residual owed by a winner who received more than their winnings', () => {
+    const snap = snapshot({
+      players: [host, kevin],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'kevin', 'cash_out', 11_000, { isFinal: true }),
+        entry('e3', 'host', 'prior_payment', 5_000, { toPlayerId: 'kevin' }),
+      ],
+    });
+    // net +1_000 but holding 5_000 of received cash: settlement still asks
+    // kevin to pay 4_000 back into the pool.
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(4_000);
+  });
+
+  it('sums partial (non-final) cashouts into the net', () => {
+    const snap = snapshot({
+      players: [host, kevin],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'kevin', 'cash_out', 3_000),
+        entry('e3', 'kevin', 'cash_out', 1_000, { isFinal: true }),
+      ],
+    });
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(6_000);
+  });
+
+  it('recomputes against an existing payment after a voided final cashout is re-entered', () => {
+    const snap = snapshot({
+      players: [host, kevin],
+      entries: [
+        entry('e1', 'kevin', 'buy_in', 10_000),
+        entry('e2', 'kevin', 'cash_out', 4_000, { isFinal: true, voidedAt: now + 10 }),
+        entry('e3', 'kevin', 'prior_payment', 6_000, { toPlayerId: 'host' }),
+        entry('e4', 'kevin', 'cash_out', 1_000, { isFinal: true }),
+      ],
+    });
+    // New loss is 9_000; 6_000 already sent, so only the residual is offered.
+    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(3_000);
+  });
+
+  it('books exactly the amount that zeroes the payer in applyAdjustments', () => {
+    const maya = player('maya', 'Maya', { sortOrder: 2 });
+    const snap = snapshot({
+      players: [host, kevin, maya],
+      entries: [
+        entry('e01', 'host', 'buy_in', 10_000),
+        entry('e02', 'kevin', 'buy_in', 10_000),
+        entry('e03', 'kevin', 'buy_in', 5_000),
+        entry('e04', 'maya', 'buy_in', 10_000),
+        entry('e05', 'host', 'cash_out', 21_000, { isFinal: true }),
+        entry('e06', 'kevin', 'cash_out', 3_000, { isFinal: true }),
+        entry('e07', 'maya', 'cash_out', 11_000, { isFinal: true }),
+        entry('e08', 'kevin', 'prior_payment', 1_500, { toPlayerId: 'maya' }),
+        entry('e09', 'maya', 'prior_payment', 500, { toPlayerId: 'kevin' }),
+      ],
+    });
+    const offer = sendLossToHostOffer(snap, summaryOf(snap, 'kevin'));
+    expect(offer).not.toBeNull();
+
+    const booked = snapshot({
+      players: [host, kevin, maya],
+      entries: [
+        ...snap.entries,
+        entry('e10', 'kevin', 'prior_payment', offer!.amountCents, {
+          toPlayerId: offer!.hostPlayerId,
+        }),
+      ],
+    });
+    const balances = applyAdjustments(
+      deriveFinalLedgerRows(booked),
+      derivePriorPaymentAdjustments(booked)
+    );
+    expect(balances.find((b) => b.playerId === 'kevin')?.effectiveNetCents).toBe(0);
+    expect(sendLossToHostOffer(booked, summaryOf(booked, 'kevin'))).toBeNull();
+    expect(balances.reduce((acc, b) => acc + b.effectiveNetCents, 0)).toBe(0);
   });
 });
