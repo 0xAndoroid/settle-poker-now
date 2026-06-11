@@ -1,4 +1,5 @@
 import type { ChangeEvent } from 'react';
+import { Amount } from './Amount';
 import { PaymentMethodIcons } from './PaymentMethodIcons';
 import { copyText } from '@/lib/clipboard';
 import { cn } from '@/lib/cn';
@@ -95,9 +96,9 @@ export function SettlementRow({
   return (
     <li
       className={cn(
-        'border-b border-l-2 border-l-transparent border-line/60 last:border-b-0 transition-colors',
+        'border-b border-l-2 border-l-transparent border-line last:border-b-0 transition-colors duration-200',
         highlightsCurrentPlayer
-          ? 'border-l-accent bg-accent/[0.08]'
+          ? 'border-l-accent bg-accent/[0.07]'
           : isCompleted && 'bg-gain/[0.04]'
       )}
     >
@@ -127,7 +128,7 @@ export function SettlementRow({
             />
           </label>
         ) : (
-          <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
+          <span className="num text-fg-mute text-[11px] w-6 flex-shrink-0">
             {String(index).padStart(2, '0')}
           </span>
         )}
@@ -146,14 +147,14 @@ export function SettlementRow({
             <span className="font-semibold text-loss truncate flex-shrink min-w-0">
               {fromName}
             </span>
-            <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">
-              ↦
+            <span aria-hidden="true" className="text-fg-mute shrink-0">
+              →
             </span>
             <span className="font-semibold text-gain truncate flex-shrink min-w-0">
               {toName}
             </span>
             {forced && (
-              <span className="pill pill-accent shrink-0 hidden sm:inline-flex">
+              <span className="pill pill-forced shrink-0 hidden sm:inline-flex">
                 isolated
               </span>
             )}
@@ -165,14 +166,13 @@ export function SettlementRow({
             onVenmoClick={handleVenmoClick}
             onZelleClick={handleZelleClick}
           />
-          <span
+          <Amount
+            cents={amountCents}
             className={cn(
-              'font-mono num font-bold text-[14px] sm:text-[15px] flex-shrink-0 text-right',
+              'font-sans font-bold text-[15px] sm:text-[16px] flex-shrink-0 text-right',
               isCompleted ? 'text-fg-dim line-through' : 'text-fg'
             )}
-          >
-            {formatDollars(amountCents)}
-          </span>
+          />
         </div>
       </div>
 

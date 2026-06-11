@@ -5,7 +5,7 @@ interface LoadingViewProps {
 
 export function LoadingView({ gameId, onCancel }: LoadingViewProps) {
   return (
-    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 stagger">
       <div className="card">
         <div className="card-header">
           <span className="ticker-label-strong">
@@ -16,10 +16,7 @@ export function LoadingView({ gameId, onCancel }: LoadingViewProps) {
         </div>
         <div className="px-6 py-12 text-center">
           <p className="font-sans font-bold text-[14px] text-fg uppercase tracking-ticker">
-            <Dots /> printing
-          </p>
-          <p className="ticker-label mt-3 text-fg-mute">
-            proxy → pokernow.com → ledger.csv → cents-detect → settle
+            <Dots /> pulling the night&apos;s numbers
           </p>
           <button type="button" onClick={onCancel} className="btn btn-sm mt-6">
             cancel

@@ -51,8 +51,8 @@ export function ModificationsPanel({
             <span className="font-semibold text-fg truncate">
               {nameById.get(a.playerId) ?? a.playerId}
             </span>
-            <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">
-              ↦
+            <span aria-hidden="true" className="text-fg-mute shrink-0">
+              →
             </span>
             <span className="font-semibold text-fg truncate">
               {nameById.get(a.aliasToPlayerId) ?? a.aliasToPlayerId}
@@ -71,13 +71,13 @@ export function ModificationsPanel({
             <span className="font-semibold text-fg truncate">
               {nameById.get(a.fromPlayerId) ?? a.fromPlayerId}
             </span>
-            <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">
-              ↦
+            <span aria-hidden="true" className="text-fg-mute shrink-0">
+              →
             </span>
             <span className="font-semibold text-fg truncate">
               {nameById.get(a.toPlayerId) ?? a.toPlayerId}
             </span>
-            <span className="ml-auto font-mono num font-bold text-fg shrink-0">
+            <span className="ml-auto num font-bold text-fg shrink-0">
               {formatDollars(a.amountCents)}
             </span>
           </ModRow>
@@ -114,8 +114,8 @@ interface SubsectionProps {
 
 function Subsection({ title, empty, count, children }: SubsectionProps) {
   return (
-    <div className="border-b border-line/60 last:border-b-0">
-      <div className="px-4 py-2 bg-surface-2 border-b border-line/60 flex items-baseline justify-between gap-2">
+    <div className="border-b border-line last:border-b-0">
+      <div className="px-4 py-2 bg-fill-1 border-b border-line flex items-baseline justify-between gap-2">
         <span className="ticker-label-strong text-fg-dim">{title}</span>
         <span className="ticker-label">{count}</span>
       </div>
@@ -137,9 +137,9 @@ interface ModRowProps {
 
 function ModRow({ index, children }: ModRowProps) {
   return (
-    <li className="px-4 py-2.5 flex items-center gap-2 border-b border-line/60 last:border-b-0 text-[13px]">
+    <li className="px-4 py-2.5 flex items-center gap-2 border-b border-line last:border-b-0 text-[13px]">
       {index !== undefined && (
-        <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
+        <span className="num text-fg-mute text-[11px] w-6 flex-shrink-0">
           {String(index).padStart(2, '0')}
         </span>
       )}

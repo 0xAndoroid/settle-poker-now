@@ -11,7 +11,7 @@ export function ErrorView({ message, gameId, onRetry, onReset }: ErrorViewProps)
       <div className="card border-loss/60">
         <div className="card-header bg-loss/10 border-b-loss/40">
           <span className="ticker-label-strong text-loss">
-            ⚠ void · could not print
+            ⚠ could not fetch that ledger
           </span>
           {gameId && (
             <span className="ticker-label">game/{gameId}</span>

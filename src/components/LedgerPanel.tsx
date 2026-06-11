@@ -1,3 +1,4 @@
+import { Amount } from './Amount';
 import { ledgerBalances } from '@/lib/csv';
 import { formatNet } from '@/lib/money';
 import type { EffectiveBalance, LedgerRow, LedgerUnit } from '@/lib/types';
@@ -56,14 +57,14 @@ export function LedgerPanel({
         />
       )}
 
-      <table className="w-full font-mono num text-[13px]">
+      <table className="w-full num text-[13px]">
         <colgroup>
           <col className="w-[40px]" />
           <col />
           <col className="w-[120px]" />
         </colgroup>
         <thead>
-          <tr className="border-b border-line bg-surface-2">
+          <tr className="border-b border-line bg-fill-1">
             <th className="text-left ticker-label py-2 pl-4 pr-1 font-sans">#</th>
             <th className="text-left ticker-label py-2 px-2 font-sans">player</th>
             <th className="text-right ticker-label py-2 pr-4 pl-2 font-sans">net</th>
@@ -91,8 +92,8 @@ export function LedgerPanel({
                   onMouseEnter={() => onHighlight?.(b.playerId)}
                   onMouseLeave={() => onHighlight?.(null)}
                   className={cn(
-                    'border-b border-line/60 last:border-b-0 transition-colors',
-                    isHighlighted && 'bg-surface-2'
+                    'border-b border-line last:border-b-0 transition-colors',
+                    isHighlighted && 'bg-fill-1'
                   )}
                 >
                   <td className="pl-4 pr-1 py-3 text-fg-mute text-[11px] num align-top">
@@ -110,30 +111,38 @@ export function LedgerPanel({
                   </td>
                   <td
                     className={cn(
-                      'pr-4 pl-2 py-3 text-right font-mono num font-semibold leading-tight align-top',
+                      'pr-4 pl-2 py-3 text-right align-top',
                       isWin && 'text-gain',
                       isLoss && 'text-loss',
                       !isWin && !isLoss && 'text-fg-mute'
                     )}
                   >
-                    {formatNet(b.effectiveNetCents)}
+                    <Amount
+                      cents={b.effectiveNetCents}
+                      signed
+                      className="font-sans font-semibold text-[14px] leading-tight"
+                    />
                   </td>
                 </tr>
               );
             })}
         </tbody>
         <tfoot>
-          <tr className="border-t border-line-strong bg-surface-2">
+          <tr className="border-t border-line bg-fill-1">
             <td colSpan={2} className="py-2.5 pl-4 pr-2 ticker-label-strong">
               total
             </td>
             <td
               className={cn(
-                'pr-4 pl-2 py-2.5 text-right font-mono num font-bold text-[14px]',
+                'pr-4 pl-2 py-2.5 text-right',
                 ledgerCheck.isBalanced ? 'text-fg' : 'text-loss'
               )}
             >
-              {formatNet(ledgerCheck.sumCents)}
+              <Amount
+                cents={ledgerCheck.sumCents}
+                signed
+                className="font-sans font-bold text-[14px]"
+              />
             </td>
           </tr>
         </tfoot>
@@ -162,9 +171,13 @@ function UnitSwitch({
       : 'reported by pokernow';
 
   return (
-    <div className="px-4 py-2.5 border-b border-line bg-surface-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <div className="px-4 py-2.5 border-b border-line bg-fill-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <span className="ticker-label">unit</span>
-      <div role="radiogroup" aria-label="Ledger value unit" className="flex">
+      <div
+        role="radiogroup"
+        aria-label="Ledger value unit"
+        className="flex rounded-full border border-line bg-fill-1 p-0.5"
+      >
         <UnitButton
           label="dollars"
           active={unit === 'dollars'}
@@ -205,11 +218,9 @@ function UnitButton({ label, active, onClick }: UnitButtonProps) {
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        'min-h-[28px] px-2.5 font-sans text-[10px] uppercase tracking-ticker font-bold border border-line-strong',
-        '-ml-px first:ml-0',
-        active
-          ? 'bg-accent text-white border-accent'
-          : 'bg-surface text-fg-dim hover:text-fg hover:border-line-strong'
+        'min-h-[26px] px-3 font-sans text-[10px] uppercase tracking-ticker font-bold rounded-full',
+        'transition-colors duration-200',
+        active ? 'bg-accent text-[#0c1018]' : 'text-fg-dim hover:text-fg'
       )}
     >
       {label}

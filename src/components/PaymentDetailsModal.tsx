@@ -96,14 +96,14 @@ export function PaymentDetailsModal({
       <button
         type="button"
         aria-label="Cancel"
-        className="fixed inset-0 cursor-default bg-bg/75"
+        className="veil-in fixed inset-0 cursor-default bg-bg/60 backdrop-blur-md"
         onClick={onCancel}
       />
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-details-title"
-        className="card relative z-[61] w-full max-w-md"
+        className="card pop-in relative z-[61] w-full max-w-md"
       >
         <div className="card-header bg-accent/[0.08]">
           <span id="payment-details-title" className="ticker-label-strong text-accent">
@@ -124,10 +124,11 @@ export function PaymentDetailsModal({
                     type="button"
                     onClick={() => setPendingId(p.playerId)}
                     className={cn(
-                      'min-h-[44px] px-4 font-sans text-[14px] font-semibold border',
+                      'min-h-[44px] px-4 font-sans text-[14px] font-semibold border rounded-full',
+                      'transition-all duration-200 active:scale-95',
                       active
-                        ? 'border-accent bg-accent text-white'
-                        : 'border-line-strong bg-surface text-fg-dim hover:text-fg hover:border-accent/60'
+                        ? 'border-transparent bg-accent text-[#0c1018]'
+                        : 'border-line-strong bg-fill-1 text-fg-dim hover:text-fg hover:border-accent/50'
                     )}
                   >
                     {p.nickname}
@@ -139,7 +140,7 @@ export function PaymentDetailsModal({
 
           <div
             className={cn(
-              'space-y-3 pt-3 border-t border-line/60',
+              'space-y-3 pt-3 border-t border-line',
               pendingId === '' && 'opacity-40 pointer-events-none'
             )}
           >

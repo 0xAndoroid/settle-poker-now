@@ -96,7 +96,7 @@ export function AuditLogPanel({ entries, players }: AuditLogPanelProps) {
         {visible.map((e) => (
           <li
             key={e.id}
-            className="px-4 py-2.5 border-b border-line/60 last:border-b-0 flex items-center gap-3 text-[12.5px]"
+            className="px-4 py-2.5 border-b border-line last:border-b-0 flex items-center gap-3 text-[12.5px]"
           >
             <span className="ticker-label w-16 flex-shrink-0">
               {formatStamp(e.createdAt)}
@@ -114,7 +114,7 @@ export function AuditLogPanel({ entries, players }: AuditLogPanelProps) {
         ))}
       </ul>
       {entries.length > 6 && (
-        <div className="px-4 py-2 border-t border-line bg-surface-2 flex justify-center">
+        <div className="px-4 py-2 border-t border-line bg-fill-1 flex justify-center">
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}

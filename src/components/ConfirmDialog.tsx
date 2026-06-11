@@ -27,7 +27,7 @@ export function ConfirmDialog({
       <button
         type="button"
         aria-label="Cancel"
-        className="absolute inset-0 cursor-default bg-bg/75"
+        className="veil-in absolute inset-0 cursor-default bg-bg/60 backdrop-blur-md"
         onClick={() => onClose(false)}
       />
       <section
@@ -35,7 +35,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-body"
-        className="card relative z-[61] w-full max-w-md"
+        className="card pop-in relative z-[61] w-full max-w-md"
       >
         <div className="card-header">
           <span id="confirm-dialog-title" className="ticker-label-strong">

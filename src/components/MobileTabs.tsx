@@ -120,49 +120,62 @@ export function MobileTabs(props: MobileTabsProps) {
     }
   };
 
+  const activeIndex = Math.max(
+    0,
+    tabs.findIndex((t) => t.key === props.active)
+  );
+
   return (
-    <div
-      role="tablist"
-      aria-label="Switch sections"
-      className="lg:hidden sticky top-12 z-20 bg-bg border-b border-line"
-    >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 flex">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={props.active === t.key}
-            onClick={() => onChange(t.key)}
-            className={cn(
-              'flex-1 min-h-[44px] px-1 py-2.5 font-sans text-[11px] font-bold uppercase tracking-ticker relative',
-              props.active === t.key
-                ? 'text-fg'
-                : 'text-fg-mute hover:text-fg-dim'
-            )}
-          >
-            <span className="inline-flex items-baseline gap-2">
-              <span>{t.label}</span>
-              {t.badge !== null && (
-                <span className="font-mono num text-[10px] text-fg-mute">
-                  [{t.badge}]
-                </span>
+    <div className="lg:hidden sticky top-[90px] z-20 bg-bg/60 backdrop-blur-xl backdrop-saturate-150 border-b border-line">
+      <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2">
+        <div
+          role="tablist"
+          aria-label="Switch sections"
+          className="relative flex rounded-full border border-line bg-fill-1 p-1"
+        >
+          {/* Sliding thumb — one glass capsule morphing between tabs. */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-1 rounded-full border border-line-strong bg-fill-2 shadow-[inset_0_1px_0_rgb(var(--hairline)/0.06)] transition-transform duration-300 [transition-timing-function:var(--spring)]"
+            style={{
+              width: `calc((100% - 8px) / ${tabs.length})`,
+              transform: `translateX(${activeIndex * 100}%)`,
+            }}
+          />
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={props.active === t.key}
+              onClick={() => onChange(t.key)}
+              className={cn(
+                'relative z-10 flex-1 min-h-[38px] px-1 font-sans text-[11px] font-bold uppercase tracking-ticker rounded-full transition-colors duration-200',
+                props.active === t.key ? 'text-fg' : 'text-fg-mute hover:text-fg-dim'
               )}
-              {t.alert === true && (
-                <span
-                  aria-label="needs attention"
-                  className="self-center h-1.5 w-1.5 rounded-full bg-loss"
-                />
-              )}
-            </span>
-            {props.active === t.key && (
-              <span
-                aria-hidden="true"
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-12 bg-accent"
-              />
-            )}
-          </button>
-        ))}
+            >
+              <span className="inline-flex items-baseline gap-1.5">
+                <span>{t.label}</span>
+                {t.badge !== null && (
+                  <span
+                    className={cn(
+                      'num text-[10px] font-semibold transition-colors duration-200',
+                      props.active === t.key ? 'text-fg-dim' : 'text-fg-mute/70'
+                    )}
+                  >
+                    {t.badge}
+                  </span>
+                )}
+                {t.alert === true && (
+                  <span
+                    aria-label="needs attention"
+                    className="self-center h-1.5 w-1.5 rounded-full bg-loss"
+                  />
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

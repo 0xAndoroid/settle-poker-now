@@ -55,7 +55,7 @@ export function LiveActivityPanel({
       </div>
 
       {queueItems.length > 0 && (
-        <div className="border-b border-line bg-surface-2 px-4 py-3 space-y-2">
+        <div className="border-b border-line bg-fill-1 px-4 py-3 space-y-2">
           {queueItems.map((item) => (
             <div key={item.clientEventId} className="flex items-center justify-between gap-3">
               <span className="ticker-label">{pendingLabel(item, playerName)}</span>

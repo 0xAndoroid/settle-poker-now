@@ -102,7 +102,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
         loadSystemFonts: false,
       },
       fitTo: { mode: 'width', value: W },
-      background: '#0a0a0c',
+      background: '#0d0f16',
     });
     pngBytes = resvg.render().asPng();
   } catch (err) {
@@ -175,19 +175,19 @@ interface PaymentRowParams {
 
 /**
  * Render one ledger row inside the given column. Layout:
- *   [from-name]    ↦   [to-name]              [amount]
+ *   [from-name]    →   [to-name]              [amount]
  *   ⇡ left-anchored                ⇡ right-anchored
- * `from-name` is in red (#ff3645), `to-name` in green (#00d4a8),
+ * `from-name` is in red (#fc5d7c), `to-name` in green (#9ed072),
  * arrow muted, amount in off-white. Completed rows render
  * everything in low-opacity grey with a strikethrough effect via a
  * thin line crossing the row.
  */
 function renderRow({ layout, index, fromName, toName, amount, completed }: PaymentRowParams): string {
   const y = layout.y0 + index * layout.dy;
-  const fromColor = completed ? '#5a5a6c' : '#ff3645';
-  const toColor = completed ? '#5a5a6c' : '#00d4a8';
-  const arrowColor = completed ? '#3a3a4a' : '#5a5a6c';
-  const amountColor = completed ? '#5a5a6c' : '#ededf2';
+  const fromColor = completed ? '#6e738a' : '#fc5d7c';
+  const toColor = completed ? '#6e738a' : '#9ed072';
+  const arrowColor = completed ? '#3a4054' : '#6e738a';
+  const amountColor = completed ? '#6e738a' : '#eceef6';
 
   // Monospace char width is roughly fontSize * 0.6 for JetBrains Mono.
   const charW = layout.fontSize * 0.6;
@@ -203,7 +203,7 @@ function renderRow({ layout, index, fromName, toName, amount, completed }: Payme
 
   const lines = [
     `<text x="${fromX}" y="${y}" font-family="JetBrains Mono" font-size="${layout.fontSize}" font-weight="700" fill="${fromColor}">${truncatedFrom}</text>`,
-    `<text x="${arrowX}" y="${y}" font-family="JetBrains Mono" font-size="${layout.fontSize}" fill="${arrowColor}">↦</text>`,
+    `<text x="${arrowX}" y="${y}" font-family="JetBrains Mono" font-size="${layout.fontSize}" fill="${arrowColor}">→</text>`,
     `<text x="${toX}" y="${y}" font-family="JetBrains Mono" font-size="${layout.fontSize}" font-weight="700" fill="${toColor}">${truncatedTo}</text>`,
     `<text x="${amountX}" y="${y}" font-family="JetBrains Mono" font-size="${layout.fontSize}" font-weight="700" fill="${amountColor}" text-anchor="end">${escapeXml(amount)}</text>`,
   ];
@@ -212,7 +212,7 @@ function renderRow({ layout, index, fromName, toName, amount, completed }: Payme
     // Strikethrough rule a few px above baseline.
     const strikeY = y - layout.fontSize * 0.32;
     lines.push(
-      `<line x1="${fromX}" y1="${strikeY}" x2="${amountX}" y2="${strikeY}" stroke="#5a5a6c" stroke-width="1.5" stroke-opacity="0.6" />`
+      `<line x1="${fromX}" y1="${strikeY}" x2="${amountX}" y2="${strikeY}" stroke="#6e738a" stroke-width="1.5" stroke-opacity="0.6" />`
     );
   }
   return lines.join('');
@@ -235,21 +235,21 @@ function renderSvg(snap: DbGameSnapshot): string {
 
   const overflowText =
     overflow > 0
-      ? `<text x="${W / 2}" y="${H - 64}" font-family="JetBrains Mono" font-size="20" font-weight="600" fill="#5a5a6c" text-anchor="middle">+${overflow} more payment${overflow === 1 ? '' : 's'}</text>`
+      ? `<text x="${W / 2}" y="${H - 64}" font-family="JetBrains Mono" font-size="20" font-weight="600" fill="#6e738a" text-anchor="middle">+${overflow} more payment${overflow === 1 ? '' : 's'}</text>`
       : '';
 
   const emptyMessage =
     visiblePayments.length === 0
-      ? `<text x="${W / 2}" y="${H / 2}" font-family="JetBrains Mono" font-size="44" font-weight="800" fill="#5a5a6c" text-anchor="middle" letter-spacing="6">already settled.</text>`
+      ? `<text x="${W / 2}" y="${H / 2}" font-family="JetBrains Mono" font-size="44" font-weight="800" fill="#6e738a" text-anchor="middle" letter-spacing="6">already settled.</text>`
       : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <rect width="${W}" height="${H}" fill="#0a0a0c" />
+  <rect width="${W}" height="${H}" fill="#0d0f16" />
   ${rowsSvg}
   ${overflowText}
   ${emptyMessage}
-  <text x="${W - 36}" y="${H - 28}" font-family="JetBrains Mono" font-size="16" font-weight="500" fill="#ededf2" fill-opacity="0.32" text-anchor="end" letter-spacing="1">settle.andrew.ee</text>
+  <text x="${W - 36}" y="${H - 28}" font-family="JetBrains Mono" font-size="16" font-weight="500" fill="#eceef6" fill-opacity="0.32" text-anchor="end" letter-spacing="1">settle.andrew.ee</text>
 </svg>`;
 }
 

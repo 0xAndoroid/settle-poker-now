@@ -5,6 +5,7 @@ import type {
   SettlementPlan,
 } from '@/lib/types';
 import { orderPaymentsBySenderTotal } from '@/lib/paymentOrdering';
+import { Amount } from './Amount';
 import { SettlementRow } from './SettlementRow';
 
 export interface PaymentCompletion {
@@ -150,7 +151,7 @@ export function SettlementPanel({
   return (
     <section aria-labelledby="settlement-heading" className="card">
       <div className="card-header">
-        <span id="settlement-heading" className="ticker-label-strong">
+        <span id="settlement-heading" className="ticker-label-strong min-w-0">
           payments
           <span className="text-fg-mute font-normal ml-2">
             {plan.txns.length === 0
@@ -160,7 +161,7 @@ export function SettlementPanel({
                 : `· ${plan.txns.length} txn${plan.txns.length === 1 ? '' : 's'}`}
           </span>
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {preferenceSplitApplied && (
             <span className="pill pill-accent">rail safe</span>
           )}
@@ -215,7 +216,7 @@ export function SettlementPanel({
       )}
 
       {onEditPaymentDetails && identityNickname && (
-        <div className="pl-4 pr-2 py-1.5 flex items-center justify-between gap-3 border-b border-line bg-surface-2/60">
+        <div className="pl-4 pr-2 py-1.5 flex items-center justify-between gap-3 border-b border-line bg-fill-1">
           <span className="text-[12.5px] text-fg-dim min-w-0 truncate">
             you are <span className="font-semibold text-fg">{identityNickname}</span>
             {identitySummary && (
@@ -315,15 +316,19 @@ export function SettlementPanel({
       )}
 
       {plan.txns.length > 0 && (
-        <div className="border-t border-line-strong bg-surface-2 px-4 py-2.5 flex items-baseline justify-between gap-3">
+        <div className="border-t border-line bg-fill-1 px-4 py-2.5 flex items-baseline justify-between gap-3">
           <span className="ticker-label-strong">
             {persistent ? `outstanding · ${outstandingCount}` : 'total'}
           </span>
-          <span className="font-mono num font-bold text-[15px] text-fg">
-            {persistent
-              ? `${formatDollars(outstandingMoved)} / ${formatDollars(totalMoved)}`
-              : formatDollars(totalMoved)}
-          </span>
+          {persistent ? (
+            <span className="font-sans num font-bold text-[15px] text-fg">
+              <Amount cents={outstandingMoved} />
+              <span className="mx-1.5 font-normal text-fg-mute">/</span>
+              <Amount cents={totalMoved} className="text-fg-dim" />
+            </span>
+          ) : (
+            <Amount cents={totalMoved} className="font-sans font-bold text-[16px] text-fg" />
+          )}
         </div>
       )}
     </section>

@@ -63,7 +63,7 @@ export function AdjustmentsPanel({
         <span className="ticker-label">{adjustments.length} recorded</span>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-4 py-4 border-b border-line bg-surface-2 space-y-3">
+      <form onSubmit={handleSubmit} className="px-4 py-4 border-b border-line bg-fill-1 space-y-3">
         <p className="text-[12.5px] leading-relaxed text-fg-dim">
           Record cash that already changed hands. The plan recomputes
           automatically.
@@ -82,7 +82,7 @@ export function AdjustmentsPanel({
             placeholder="— pick from —"
             selectClassName="field font-sans font-semibold text-[14px] pr-8"
           />
-          <span aria-hidden="true" className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute font-mono">↦</span>
+          <span aria-hidden="true" className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute">→</span>
           <PlayerSelectField
             id="adj-to"
             label="to"
@@ -103,7 +103,7 @@ export function AdjustmentsPanel({
               amount usd
             </label>
             <div className="flex items-center gap-2">
-              <span aria-hidden="true" className="text-fg-mute font-mono select-none">$</span>
+              <span aria-hidden="true" className="text-fg-mute select-none">$</span>
               <input
                 id="adj-amount"
                 name="adj-amount"
@@ -115,7 +115,7 @@ export function AdjustmentsPanel({
                   if (error) setError(null);
                 }}
                 placeholder="40.00"
-                className="field flex-1 font-mono num text-[14px]"
+                className="field flex-1 num text-[14px]"
                 aria-label="Amount in dollars"
               />
             </div>
@@ -133,21 +133,21 @@ export function AdjustmentsPanel({
           {adjustments.map((adj, idx) => (
             <li
               key={adj.id}
-              className="px-4 py-2.5 flex items-center gap-3 border-b border-line/60 last:border-b-0 text-[13px]"
+              className="px-4 py-2.5 flex items-center gap-3 border-b border-line last:border-b-0 text-[13px]"
             >
-              <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
+              <span className="num text-fg-mute text-[11px] w-6 flex-shrink-0">
                 {String(idx + 1).padStart(2, '0')}
               </span>
               <div className="flex-1 min-w-0 flex items-center gap-2 font-sans">
                 <span className="font-semibold text-fg truncate">
                   {nameById.get(adj.fromId) ?? adj.fromId}
                 </span>
-                <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">↦</span>
+                <span aria-hidden="true" className="text-fg-mute shrink-0">→</span>
                 <span className="font-semibold text-fg truncate">
                   {nameById.get(adj.toId) ?? adj.toId}
                 </span>
               </div>
-              <span className="font-mono num font-bold text-fg flex-shrink-0">
+              <span className="num font-bold text-fg flex-shrink-0">
                 {formatDollars(adj.amountCents)}
               </span>
               <button

@@ -48,11 +48,11 @@ interface EphemeralPanelsProps {
 export function EphemeralDesktopPanels(props: EphemeralPanelsProps) {
   return (
     <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-6">
-      <div className="space-y-5">
+      <div className="space-y-5 stagger">
         <EphemeralLedgerPanel {...props} withHighlight />
         <EphemeralConfigPanels {...props} />
       </div>
-      <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
+      <div className="lg:sticky lg:top-[96px] lg:self-start space-y-5 stagger">
         <NotePromptCard value={props.note} onChange={props.onNoteChange} />
         <SettlementPanel
           plan={props.plan}
@@ -72,7 +72,7 @@ export function EphemeralMobilePanels({
   ...props
 }: EphemeralPanelsProps & { activeTab: EphemeralTabKey }) {
   return (
-    <div className="lg:hidden space-y-5">
+    <div className="lg:hidden space-y-5 stagger">
       {activeTab === 'ledger' && (
         <>
           <EphemeralLedgerPanel {...props} />

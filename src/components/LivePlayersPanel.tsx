@@ -111,7 +111,7 @@ export function LivePlayersPanel({
         <p>
           Records that <span className="font-semibold text-fg">{summary.name}</span> paid{' '}
           <span className="font-semibold text-fg">{offer.hostName}</span>{' '}
-          <span className="font-mono num text-fg">{formatDollars(offer.amountCents)}</span> — their
+          <span className="num text-fg">{formatDollars(offer.amountCents)}</span> — their
           full remaining loss. It shows in the activity log like any payment and can be voided
           there.
         </p>
@@ -188,7 +188,7 @@ export function LivePlayersPanel({
           <span className="text-fg-mute font-normal ml-2">· {snapshot.playerSummaries.length}</span>
         </span>
         {host && (
-          <span className="pill pill-accent max-w-[190px] truncate sm:max-w-none">
+          <span className="pill pill-live max-w-[190px] truncate sm:max-w-none">
             host · {host.name}
           </span>
         )}
@@ -203,7 +203,7 @@ export function LivePlayersPanel({
               if (nameError) setNameError(null);
             }}
             placeholder="add player"
-            className="field h-11 min-h-11 font-mono text-[14px]"
+            className="field h-11 min-h-11 text-[14px]"
             autoComplete="off"
             aria-invalid={addPlayerError ? 'true' : 'false'}
           />
@@ -240,7 +240,7 @@ export function LivePlayersPanel({
                           {summary.name}
                         </h3>
                         {summary.isHost && (
-                          <span className="pill pill-accent h-5 px-1.5 text-[9px] tracking-[0.1em]">
+                          <span className="pill pill-live h-5 px-1.5 text-[9px] tracking-[0.1em]">
                             host
                           </span>
                         )}
@@ -309,7 +309,7 @@ export function LivePlayersPanel({
                     {rename?.playerId === summary.playerId ? (
                       renderRenameForm(summary.playerId, {
                         className: 'space-y-2',
-                        inputClassName: 'field h-11 min-h-11 py-2 font-mono text-[14px]',
+                        inputClassName: 'field h-11 min-h-11 py-2 text-[14px]',
                         actionsClassName: 'grid grid-cols-2 gap-1.5',
                         saveClassName: 'btn btn-fill h-11',
                         cancelClassName: 'btn h-11',
@@ -346,7 +346,7 @@ export function LivePlayersPanel({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-[16px] font-semibold leading-tight">{summary.name}</h3>
-                        {summary.isHost && <span className="pill pill-accent">host</span>}
+                        {summary.isHost && <span className="pill pill-live">host</span>}
                         <span className="pill">{summary.status}</span>
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-3 text-[12px]">
@@ -372,7 +372,7 @@ export function LivePlayersPanel({
                     {rename?.playerId === summary.playerId ? (
                       renderRenameForm(summary.playerId, {
                         className: 'min-w-[180px] space-y-2',
-                        inputClassName: 'field min-h-9 py-1.5 font-mono text-[13px]',
+                        inputClassName: 'field min-h-9 py-1.5 text-[13px]',
                         actionsClassName: 'flex gap-2',
                         saveClassName: 'btn btn-fill btn-sm',
                         cancelClassName: 'btn btn-sm',
@@ -467,8 +467,8 @@ function Metric({
       <div
         className={
           compact
-            ? 'font-mono num truncate text-[11px] leading-tight font-semibold text-fg'
-            : 'font-mono num font-semibold text-fg'
+            ? 'num truncate text-[11px] leading-tight font-semibold text-fg'
+            : 'num font-semibold text-fg'
         }
       >
         {value}

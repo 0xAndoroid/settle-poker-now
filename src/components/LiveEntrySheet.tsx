@@ -66,7 +66,7 @@ export function LiveEntrySheet({
   };
 
   return (
-    <form onSubmit={submit} className="border-t border-line bg-surface-2 p-3 sm:p-4 space-y-3">
+    <form onSubmit={submit} className="border-t border-line bg-fill-1 p-3 sm:p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="ticker-label-strong">{label}</p>
@@ -81,7 +81,7 @@ export function LiveEntrySheet({
           onChange={(event) => setAmount(event.target.value)}
           inputMode="decimal"
           placeholder="$0.00"
-          className="field font-mono num text-[16px]"
+          className="field num text-[16px]"
           autoFocus
         />
       </label>

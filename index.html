@@ -4,8 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f8f8fa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d0f16" />
     <meta
       name="description"
       content="Minimum-payment settlement for PokerNow games. Paste a game URL, settle the night."
@@ -23,17 +22,6 @@
       href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('spn-theme');
-          // Default to DARK. Light only if user explicitly chose it.
-          var light = stored === 'light';
-          if (light) document.documentElement.classList.add('light');
-        } catch (_) {}
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

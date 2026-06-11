@@ -43,7 +43,7 @@ export function SyncStatusPanel({
               ? 'pill pill-gain'
               : syncState === 'error' || syncState === 'offline'
                 ? 'pill pill-loss'
-                : 'pill pill-accent'
+                : 'pill pill-live'
           }
         >
           {syncState}
@@ -52,7 +52,7 @@ export function SyncStatusPanel({
       <div className="p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <span className="ticker-label">unsynced</span>
-          <span className="font-mono num font-bold">{pendingCount}</span>
+          <span className="num font-bold">{pendingCount}</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={copy} className="btn h-11">
