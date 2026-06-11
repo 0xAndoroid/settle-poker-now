@@ -151,7 +151,7 @@ export function SettlementPanel({
   return (
     <section aria-labelledby="settlement-heading" className="card">
       <div className="card-header">
-        <span id="settlement-heading" className="ticker-label-strong">
+        <span id="settlement-heading" className="ticker-label-strong min-w-0">
           payments
           <span className="text-fg-mute font-normal ml-2">
             {plan.txns.length === 0
@@ -161,7 +161,7 @@ export function SettlementPanel({
                 : `· ${plan.txns.length} txn${plan.txns.length === 1 ? '' : 's'}`}
           </span>
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {preferenceSplitApplied && (
             <span className="pill pill-accent">rail safe</span>
           )}

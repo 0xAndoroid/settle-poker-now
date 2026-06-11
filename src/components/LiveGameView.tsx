@@ -55,7 +55,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
       return;
     }
     const ticker: TickerItem[] = [
-      { label: 'live', value: snapshot.game.status, tone: 'accent' },
+      { label: 'live', value: snapshot.game.status, tone: 'live' },
       { label: 'players', value: String(snapshot.players.length) },
       {
         label: 'in play',

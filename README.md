@@ -1,6 +1,6 @@
 # settle.andrew.ee
 
-> Minimum-payment settlement for PokerNow home games. Trading-terminal
+> Minimum-payment settlement for PokerNow home games. Glass-on-indigo
 > aesthetic with shareable game links.
 
 Paste a [PokerNow](https://www.pokernow.club/) game URL → fetch the ledger →
@@ -43,8 +43,8 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
 ## Stack
 
 - **Vite** + **React 19** + **TypeScript** (strict mode)
-- **Tailwind CSS** with a charcoal trading-terminal palette
-  (dark mode default, light mode opt-in via top-right sun/moon toggle)
+- **Tailwind CSS** — deep indigo-black canvas with translucent
+  slate-glass surfaces and Sonokai Andromeda accents (dark scheme only)
 - **Cloudflare Pages** for hosting + a Pages Function for the CSV proxy
 - **Vitest** — unit tests covering settlement, isolation chains + cycle
   detection, CSV parsing, URL parsing, money helpers, hash state

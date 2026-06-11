@@ -8,8 +8,8 @@ interface MastheadProps {
 export interface TickerItem {
   label: string;
   value: string;
-  /** Tone shifts the value color: gain (green) / loss (red) / accent (blue). */
-  tone?: 'gain' | 'loss' | 'accent';
+  /** Tone shifts the value color: gain (green) / loss (red) / accent (blue) / live (purple). */
+  tone?: 'gain' | 'loss' | 'accent' | 'live';
 }
 
 export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
@@ -66,7 +66,9 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
                         ? 'text-loss'
                         : item.tone === 'accent'
                           ? 'text-accent'
-                          : 'text-fg')
+                          : item.tone === 'live'
+                            ? 'text-live'
+                            : 'text-fg')
                   }
                 >
                   {item.value}
