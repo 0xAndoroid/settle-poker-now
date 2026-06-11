@@ -54,7 +54,7 @@ export function PaymentPreferencesPanel({
         Check a rail to restrict that player's payment links to only that method. Leave both
         unchecked when either Venmo or Zelle is fine.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line/70">
+      <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
         <PreferenceColumn
           title="prefers only venmo"
           rail="venmo"
@@ -91,10 +91,10 @@ function PreferenceColumn({
 }: PreferenceColumnProps) {
   return (
     <div>
-      <div className="px-4 py-2.5 border-b border-line/70 bg-surface-2">
+      <div className="px-4 py-2.5 border-b border-line bg-fill-1">
         <span className="ticker-label-strong">{title}</span>
       </div>
-      <div className="divide-y divide-line/50">
+      <div className="divide-y divide-line">
         {players.map((player) => {
           const checked = preferenceByPlayer.get(player.playerId) === rail;
           const claimedElsewhere =

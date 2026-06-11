@@ -8,6 +8,8 @@
  * react-router for two routes.
  */
 
+import { flushSync } from 'react-dom';
+
 export type Route =
   | { kind: 'home' }
   | { kind: 'game'; id: string }
@@ -34,8 +36,22 @@ export function liveGamePath(id: string): string {
 
 export function navigate(path: string, options: { replace?: boolean } = {}): void {
   if (typeof window === 'undefined') return;
-  const fn = options.replace ? 'replaceState' : 'pushState';
-  window.history[fn](null, '', path);
-  // Synthesize a popstate so the app can re-read the path.
-  window.dispatchEvent(new PopStateEvent('popstate'));
+  const apply = () => {
+    const fn = options.replace ? 'replaceState' : 'pushState';
+    window.history[fn](null, '', path);
+    // Synthesize a popstate so the app can re-read the path. flushSync so
+    // the new view is committed to the DOM inside the view-transition
+    // callback — otherwise the morph captures a stale frame.
+    flushSync(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+  };
+  if (
+    typeof document.startViewTransition === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    document.startViewTransition(apply);
+  } else {
+    apply();
+  }
 }

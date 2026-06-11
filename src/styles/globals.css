@@ -5,46 +5,31 @@
 @layer base {
   :root {
     /*
-     * Dark (default) — trading-terminal charcoal stack.
+     * Deep indigo-black canvas + slate-glass surfaces.
      * RGB triples (no `rgb(...)` wrapper) so Tailwind can compose with alpha.
      */
-    --bg: 10 10 12;            /* #0a0a0c */
-    --surface: 19 19 24;       /* #131318 */
-    --surface-2: 26 26 36;     /* #1a1a24 */
-    --surface-3: 36 36 48;     /* #242430 */
-    --line: 37 37 47;          /* #25252f */
-    --line-strong: 58 58 74;   /* #3a3a4a */
-    --fg: 237 237 242;         /* #ededf2 */
-    --fg-dim: 149 149 168;     /* #9595a8 */
-    --fg-mute: 90 90 108;      /* #5a5a6c */
-    --accent: 217 70 239;      /* #d946ef magenta */
-    --accent-2: 6 182 212;     /* #06b6d4 cyan */
-    --gain: 0 212 168;         /* #00d4a8 teal-cyan */
-    --loss: 255 54 69;          /* #ff3645 vivid red */
-    --warn: 255 184 0;         /* #ffb800 amber */
+    --bg: 13 15 22; /* #0d0f16 canvas */
+    --glass: 44 48 66; /* #2c3042 slate glass tint, used at 0.4–0.6 alpha */
+    --hairline: 234 238 250; /* cool white — hairline edges + vibrancy fills */
+    --fg: 236 238 246; /* #eceef6 */
+    --fg-dim: 160 164 184; /* #a0a4b8 */
+    --fg-mute: 110 115 138; /* #6e738a */
+
+    /* Sonokai Andromeda accents — one meaning each, never decorative:
+       green = money received · red = money paid · yellow = warning
+       blue = interactive/primary · purple = live/realtime · orange = forced rule */
+    --green: 158 208 114; /* #9ed072 */
+    --yellow: 231 198 100; /* #e7c664 */
+    --blue: 118 204 224; /* #76cce0 */
+    --purple: 179 157 243; /* #b39df3 */
+    --red: 252 93 124; /* #fc5d7c */
+    --orange: 243 150 96; /* #f39660 */
+
+    /* Motion vocabulary */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --spring: cubic-bezier(0.34, 1.36, 0.42, 1);
 
     color-scheme: dark;
-  }
-
-  :root.light {
-    /* Light mode — calm, paper-bright, same accents at darker shades.
-       --gain pulled to #007a5a for WCAG AA-normal contrast on small numerals. */
-    --bg: 248 248 250;
-    --surface: 255 255 255;
-    --surface-2: 240 240 244;
-    --surface-3: 226 226 232;
-    --line: 219 219 226;
-    --line-strong: 178 178 192;
-    --fg: 16 16 20;
-    --fg-dim: 95 95 110;
-    --fg-mute: 138 138 152;
-    --accent: 192 38 211;
-    --accent-2: 8 145 178;
-    --gain: 0 122 90;
-    --loss: 196 35 47;
-    --warn: 178 116 0;
-
-    color-scheme: light;
   }
 
   html,
@@ -68,19 +53,26 @@
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
     background-color: rgb(var(--bg));
-    /* Ambient grid texture — barely-visible 1px dot grid, evokes a CRT
-       trading terminal without being kitsch. */
-    background-image: radial-gradient(
-      rgb(var(--line) / 0.7) 1px,
-      transparent 1px
-    );
-    background-size: 32px 32px;
-    background-position: -1px -1px;
-    background-attachment: fixed;
+  }
+
+  /* Canvas light — single-hue luminance ramps in the indigo family so the
+     glass above has something to refract. Fixed pseudo-element (not
+     background-attachment, which iOS Safari ignores) so it never repaints
+     on scroll. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(1100px 540px at 50% -160px, rgb(30 34 52 / 0.55), transparent 70%),
+      radial-gradient(900px 640px at 92% 14%, rgb(25 29 46 / 0.38), transparent 65%),
+      linear-gradient(180deg, #11131c 0%, #0d0f16 42%);
   }
 
   *::selection {
-    background: rgb(var(--accent) / 0.32);
+    background: rgb(var(--blue) / 0.28);
     color: rgb(var(--fg));
   }
 
@@ -92,11 +84,11 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgb(var(--line-strong) / 0.6);
-    border-radius: 4px;
+    background: rgb(var(--hairline) / 0.14);
+    border-radius: 999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgb(var(--line-strong));
+    background: rgb(var(--hairline) / 0.24);
   }
 
   button,
@@ -122,9 +114,9 @@
   textarea:focus-visible,
   select:focus-visible,
   a:focus-visible {
-    outline: 2px solid rgb(var(--accent));
+    outline: 2px solid rgb(var(--blue) / 0.8);
     outline-offset: 2px;
-    border-radius: 2px;
+    border-radius: 6px;
   }
 
   h1,
@@ -136,21 +128,32 @@
     letter-spacing: -0.02em;
   }
 
-  /* Tabular figures for any number — Inter Tight + JetBrains Mono both
-     support `tnum`. */
+  /* Tabular lining figures for any number — keeps columns aligned while
+     numbers stay in the warm display face rather than a terminal mono. */
   .num,
   td.num,
   span.num {
-    font-feature-settings: 'tnum' on, 'lnum' on, 'zero' on;
-    font-variant-numeric: tabular-nums lining-nums slashed-zero;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }
 
 @layer components {
-  /* Card primitive — flat, hairline border, no shadow. The defining surface. */
+  /* ---------------------------------------------------------------- glass
+     Card primitive — translucent slate glass over the indigo canvas.
+     Depth comes from the backdrop blur, a top light-edge and a soft
+     ambient shadow, never from opaque gray steps. */
   .card {
-    background: rgb(var(--surface));
-    border: 1px solid rgb(var(--line));
+    position: relative;
+    background: rgb(var(--glass) / 0.45);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgb(var(--hairline) / 0.08);
+    border-radius: 16px;
+    overflow: clip;
+    box-shadow:
+      inset 0 1px 0 rgb(var(--hairline) / 0.05),
+      0 18px 44px -18px rgb(4 5 10 / 0.6);
   }
 
   .card-header {
@@ -158,9 +161,9 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 14px 18px;
-    border-bottom: 1px solid rgb(var(--line));
-    background: rgb(var(--surface-2));
+    padding: 13px 18px;
+    border-bottom: 1px solid rgb(var(--hairline) / 0.07);
+    background: rgb(var(--hairline) / 0.03);
   }
 
   .ticker-label {
@@ -168,7 +171,7 @@
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     color: rgb(var(--fg-dim));
   }
 
@@ -177,11 +180,14 @@
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     color: rgb(var(--fg));
   }
 
-  /* Buttons — flat, hairline border, accent-on-hover, no shadow. */
+  /* ---------------------------------------------------------------- btn
+     Buttons — frosted fills, hairline edges, springy press. Blue is the
+     one interactive accent; only the primary action gets the filled
+     treatment. */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -189,40 +195,44 @@
     gap: 8px;
     padding: 0 16px;
     height: 40px;
-    background: rgb(var(--surface));
+    background: rgb(var(--hairline) / 0.05);
     color: rgb(var(--fg));
-    border: 1px solid rgb(var(--line-strong));
+    border: 1px solid rgb(var(--hairline) / 0.1);
+    border-radius: 11px;
     font-family: 'Inter Tight', Inter, system-ui, sans-serif;
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0;
     cursor: pointer;
     transition:
-      background 80ms linear,
-      border-color 80ms linear,
-      color 80ms linear;
+      background 180ms var(--ease-out),
+      border-color 180ms var(--ease-out),
+      color 180ms var(--ease-out),
+      box-shadow 180ms var(--ease-out),
+      transform 240ms var(--spring);
   }
   .btn:hover:not(:disabled) {
-    border-color: rgb(var(--accent));
-    color: rgb(var(--accent));
+    background: rgb(var(--hairline) / 0.09);
+    border-color: rgb(var(--hairline) / 0.18);
   }
   .btn:active:not(:disabled) {
-    transform: translateY(1px);
+    transform: scale(0.97);
   }
   .btn:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   .btn-fill {
-    background: rgb(var(--accent));
-    color: white;
-    border-color: rgb(var(--accent));
+    background: rgb(var(--blue));
+    color: #0c1018;
+    border-color: transparent;
+    box-shadow: 0 6px 20px -8px rgb(var(--blue) / 0.5);
   }
   .btn-fill:hover:not(:disabled) {
-    background: transparent;
-    color: rgb(var(--accent));
-    border-color: rgb(var(--accent));
+    background: rgb(var(--blue));
+    border-color: transparent;
+    filter: brightness(1.08);
   }
 
   .btn-ghost {
@@ -233,11 +243,11 @@
     padding: 0 10px;
     font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     font-weight: 700;
   }
   .btn-ghost:hover:not(:disabled) {
-    background: rgb(var(--surface-2));
+    background: rgb(var(--hairline) / 0.06);
     color: rgb(var(--fg));
     border-color: transparent;
   }
@@ -245,31 +255,39 @@
   .btn-sm {
     height: 32px;
     padding: 0 12px;
+    border-radius: 9px;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     font-weight: 700;
   }
 
-  /* Inputs — minimal, hairline-bordered, focus highlights with accent. */
+  /* ---------------------------------------------------------------- field
+     Inputs — recessed glass wells; focus answers with the interactive
+     accent and a soft ring. */
   .field {
     display: block;
     width: 100%;
-    background: rgb(var(--surface));
-    border: 1px solid rgb(var(--line-strong));
+    background: rgb(var(--hairline) / 0.04);
+    border: 1px solid rgb(var(--hairline) / 0.1);
+    border-radius: 11px;
     color: rgb(var(--fg));
     padding: 10px 12px;
     font-size: 14px;
     min-height: 44px;
-    transition: border-color 80ms linear, background 80ms linear;
+    transition:
+      border-color 160ms var(--ease-out),
+      background 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out);
   }
   .field::placeholder {
     color: rgb(var(--fg-mute));
   }
   .field:focus {
     outline: none;
-    border-color: rgb(var(--accent));
-    background: rgb(var(--surface-2));
+    border-color: rgb(var(--blue) / 0.55);
+    background: rgb(var(--hairline) / 0.06);
+    box-shadow: 0 0 0 3px rgb(var(--blue) / 0.14);
   }
 
   /* iOS Safari zooms the page when a focused text control renders below
@@ -285,82 +303,111 @@
   }
 
   .select-field {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%239595a8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23a0a4b8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
     background-repeat: no-repeat;
     background-position: right 12px center;
     appearance: none;
   }
 
-  /* Single-purpose pill for tickers + status. Subtle. */
+  /* ---------------------------------------------------------------- pill
+     Status capsule. Tinted variants only ever carry meaning. */
   .pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     height: 22px;
-    padding: 0 8px;
-    border: 1px solid rgb(var(--line-strong));
-    background: rgb(var(--surface-2));
+    padding: 0 9px;
+    border: 1px solid rgb(var(--hairline) / 0.1);
+    background: rgb(var(--hairline) / 0.05);
     color: rgb(var(--fg-dim));
     font-family: 'Inter Tight', Inter, system-ui, sans-serif;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    border-radius: 2px;
+    letter-spacing: 0.12em;
+    border-radius: 999px;
   }
 
   .pill-gain {
-    background: rgb(var(--gain) / 0.12);
-    border-color: rgb(var(--gain) / 0.4);
-    color: rgb(var(--gain));
+    background: rgb(var(--green) / 0.12);
+    border-color: rgb(var(--green) / 0.32);
+    color: rgb(var(--green));
   }
   .pill-loss {
-    background: rgb(var(--loss) / 0.12);
-    border-color: rgb(var(--loss) / 0.4);
-    color: rgb(var(--loss));
+    background: rgb(var(--red) / 0.12);
+    border-color: rgb(var(--red) / 0.32);
+    color: rgb(var(--red));
   }
   .pill-accent {
-    background: rgb(var(--accent) / 0.14);
-    border-color: rgb(var(--accent) / 0.4);
-    color: rgb(var(--accent));
+    background: rgb(var(--blue) / 0.12);
+    border-color: rgb(var(--blue) / 0.32);
+    color: rgb(var(--blue));
+  }
+  .pill-live {
+    background: rgb(var(--purple) / 0.12);
+    border-color: rgb(var(--purple) / 0.32);
+    color: rgb(var(--purple));
+  }
+  .pill-warn {
+    background: rgb(var(--yellow) / 0.12);
+    border-color: rgb(var(--yellow) / 0.32);
+    color: rgb(var(--yellow));
+  }
+  .pill-forced {
+    background: rgb(var(--orange) / 0.12);
+    border-color: rgb(var(--orange) / 0.32);
+    color: rgb(var(--orange));
   }
 
-  /* Hard-edged custom checkbox in the trading-terminal palette. Native
-     <input type=checkbox> styling reset, then drawn manually. Matches the
-     accent magenta when checked. */
+  /* ---------------------------------------------------------------- checkbox
+     Custom checkbox. Green = payment landed; checking it should feel
+     like money arriving — a small spring pop. */
   .checkbox-poker {
     appearance: none;
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border: 1.5px solid rgb(var(--line-strong));
-    background: rgb(var(--surface));
+    width: 19px;
+    height: 19px;
+    border: 1.5px solid rgb(var(--hairline) / 0.22);
+    background: rgb(var(--hairline) / 0.04);
+    border-radius: 6px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition:
-      border-color 80ms linear,
-      background 80ms linear;
+      border-color 160ms var(--ease-out),
+      background 160ms var(--ease-out);
   }
   .checkbox-poker:hover:not(:disabled) {
-    border-color: rgb(var(--accent));
+    border-color: rgb(var(--green) / 0.7);
   }
   .checkbox-poker:checked {
-    background: rgb(var(--gain));
-    border-color: rgb(var(--gain));
+    background: rgb(var(--green));
+    border-color: rgb(var(--green));
+    animation: checkbox-pop 340ms var(--spring);
   }
   .checkbox-poker:checked::after {
     content: '';
     width: 10px;
     height: 6px;
-    border-left: 2px solid rgb(var(--bg));
-    border-bottom: 2px solid rgb(var(--bg));
+    border-left: 2px solid rgb(13 15 22);
+    border-bottom: 2px solid rgb(13 15 22);
     transform: rotate(-45deg) translate(1px, -1px);
   }
   .checkbox-poker:disabled {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
+  }
+  @keyframes checkbox-pop {
+    0% {
+      transform: scale(0.8);
+    }
+    55% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
 
   /* Fixed-width slot for the per-row Venmo / Zelle icons. Always 64px
@@ -386,19 +433,24 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    border: 1px solid rgb(var(--line-strong));
-    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--hairline) / 0.1);
+    background: rgb(var(--hairline) / 0.04);
+    border-radius: 9px;
     color: rgb(var(--fg-dim));
     cursor: pointer;
     transition:
-      color 80ms linear,
-      border-color 80ms linear,
-      background 80ms linear;
+      color 160ms var(--ease-out),
+      border-color 160ms var(--ease-out),
+      background 160ms var(--ease-out),
+      transform 240ms var(--spring);
   }
   .payment-icon:hover {
-    color: rgb(var(--accent));
-    border-color: rgb(var(--accent));
-    background: rgb(var(--accent) / 0.08);
+    color: rgb(var(--blue));
+    border-color: rgb(var(--blue) / 0.5);
+    background: rgb(var(--blue) / 0.1);
+  }
+  .payment-icon:active {
+    transform: scale(0.94);
   }
 
   /* On touch devices the deep-link icon IS the pay action — give it a
@@ -415,14 +467,14 @@
     }
   }
 
-  /* Live blip — small dot that pulses to signal "fresh data".
+  /* Live blip — purple is the one realtime signal in the palette.
      Static for users who request reduced motion. */
   .live-dot {
     display: inline-block;
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: rgb(var(--gain));
+    background: rgb(var(--purple));
     animation: live 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -434,10 +486,91 @@
   /* Hairline horizontal rule, used between sections inside a card. */
   .hr {
     height: 1px;
-    background: rgb(var(--line));
+    background: rgb(var(--hairline) / 0.07);
     border: 0;
   }
 
+  /* ---------------------------------------------------------------- motion
+     Entrance choreography. `.stagger` parents float their children in
+     one after another; transform/opacity only so it composites. */
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .stagger > * {
+    animation: rise-in 560ms var(--ease-out) backwards;
+  }
+  .stagger > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .stagger > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .stagger > *:nth-child(4) {
+    animation-delay: 180ms;
+  }
+  .stagger > *:nth-child(5) {
+    animation-delay: 240ms;
+  }
+  .stagger > *:nth-child(n + 6) {
+    animation-delay: 300ms;
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .pop-in {
+    animation: pop-in 360ms var(--spring) backwards;
+  }
+
+  @keyframes veil-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .veil-in {
+    animation: veil-in 240ms var(--ease-out) backwards;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .toast-in {
+    animation: toast-in 380ms var(--spring) backwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > *,
+    .pop-in,
+    .veil-in,
+    .toast-in {
+      animation: none;
+    }
+  }
 }
 
 @layer utilities {
@@ -452,5 +585,35 @@
   }
   .safe-bottom {
     padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+}
+
+/* -------------------------------------------------------------- morphs
+   Route changes morph rather than swap: the masthead holds its frame as
+   a shared element while the page content scales away and the next view
+   rises in. Driven by document.startViewTransition in lib/routing. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: vt-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  ::view-transition-new(root) {
+    animation: vt-in 440ms 50ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  ::view-transition-old(masthead),
+  ::view-transition-new(masthead) {
+    animation: none;
+  }
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: scale(0.988);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.992);
   }
 }

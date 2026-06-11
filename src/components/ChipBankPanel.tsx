@@ -81,7 +81,7 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
       </div>
 
       {snapshot.chipCheckpoints.length === 0 && (
-        <div className="border-b border-line bg-surface-2 px-4 py-3 text-[12.5px] leading-relaxed text-fg-dim">
+        <div className="border-b border-line bg-fill-1 px-4 py-3 text-[12.5px] leading-relaxed text-fg-dim">
           Set total to record the full chip bank. Use table count to compare physical chips on the
           table against tracked buy-ins and cashouts. After a total is set, bank count checks the
           tray against the expected remainder.
@@ -133,7 +133,7 @@ export function ChipBankPanel({ snapshot, onAddCheckpoint }: ChipBankPanelProps)
             onChange={(event) => setAmount(event.target.value)}
             placeholder="$0.00"
             inputMode="decimal"
-            className="field font-mono num"
+            className="field num"
           />
           <button type="submit" className="btn btn-fill h-11" disabled={saving}>
             record
@@ -155,9 +155,9 @@ function BankMetric({
   warn?: boolean;
 }) {
   return (
-    <div className="border border-line bg-surface-2 p-3">
+    <div className="border border-line bg-fill-1 p-3">
       <div className="ticker-label mb-1">{label}</div>
-      <div className={warn ? 'font-mono num font-bold text-loss' : 'font-mono num font-bold'}>
+      <div className={warn ? 'num font-bold text-loss' : 'num font-bold'}>
         {value}
       </div>
     </div>

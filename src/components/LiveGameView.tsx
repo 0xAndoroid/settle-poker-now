@@ -224,22 +224,22 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
 
       <main className="mx-auto max-w-6xl px-3 sm:px-6 py-3 sm:py-8 pb-16 sm:pb-24">
         <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.85fr)] lg:gap-6">
-          <div className="space-y-5">
+          <div className="space-y-5 stagger">
             {panels.players}
             {panels.priorPayments}
             {panels.isolationRules}
             {panels.activity}
           </div>
 
-          <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
+          <div className="lg:sticky lg:top-[96px] lg:self-start space-y-5 stagger">
+            {panels.finalize}
             {panels.sync}
             {panels.bank}
-            {panels.finalize}
             {panels.recovery}
           </div>
         </div>
 
-        <div className="lg:hidden space-y-3 sm:space-y-5">
+        <div className="lg:hidden space-y-3 sm:space-y-5 stagger">
           {activeTab === 'table' && (
             <>
               {panels.players}

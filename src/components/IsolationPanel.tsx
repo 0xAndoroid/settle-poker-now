@@ -46,7 +46,7 @@ export function IsolationPanel({
         </span>
       </div>
 
-      <div className="px-4 py-3 border-b border-line bg-surface-2">
+      <div className="px-4 py-3 border-b border-line bg-fill-1">
         <p className="text-[12.5px] leading-relaxed text-fg-dim">
           Mark a player as <span className="text-fg font-semibold">isolated</span> to
           settle them with one specific counterpart only. The counterpart
@@ -63,11 +63,11 @@ export function IsolationPanel({
             <li
               key={b.playerId}
               className={cn(
-                'px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border-b border-line/60 last:border-b-0',
+                'px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border-b border-line last:border-b-0',
                 inCycle && 'bg-loss/5'
               )}
             >
-              <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0 hidden sm:inline">
+              <span className="num text-fg-mute text-[11px] w-6 flex-shrink-0 hidden sm:inline">
                 {String(idx + 1).padStart(2, '0')}
               </span>
               <span className="font-sans font-semibold text-[14px] flex-shrink-0 min-w-[100px] text-fg">
@@ -84,9 +84,9 @@ export function IsolationPanel({
                     setRule(b.playerId, e.target.value || null)
                   }
                   className={cn(
-                    'font-sans text-[12px] font-semibold bg-surface border border-line-strong text-fg',
+                    'font-sans text-[12px] font-semibold bg-fill-1 border border-line-strong text-fg rounded-[9px]',
                     'pl-2.5 pr-8 py-1.5 min-h-[32px]',
-                    'hover:border-accent focus:border-accent outline-none',
+                    'transition-colors hover:border-accent/60 focus:border-accent/60 outline-none',
                     'select-field',
                     inCycle && 'border-loss text-loss'
                   )}

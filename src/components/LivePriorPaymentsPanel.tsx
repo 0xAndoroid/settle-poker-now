@@ -109,7 +109,7 @@ export function LivePriorPaymentsPanel({ snapshot, onAddEntry }: LivePriorPaymen
                 onChange={(event) => setAmount(event.target.value)}
                 inputMode="decimal"
                 placeholder="$0.00"
-                className="field font-mono num text-[14px]"
+                className="field num text-[14px]"
               />
             </label>
 

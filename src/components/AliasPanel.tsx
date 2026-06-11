@@ -84,7 +84,7 @@ export function AliasPanel({
 
       <form
         onSubmit={handleSubmit}
-        className="px-4 py-4 border-b border-line bg-surface-2 space-y-3"
+        className="px-4 py-4 border-b border-line bg-fill-1 space-y-3"
       >
         <p className="text-[12.5px] leading-relaxed text-fg-dim">
           Same person showed up twice (reconnected, rebought)? Fold the
@@ -108,9 +108,9 @@ export function AliasPanel({
           />
           <span
             aria-hidden="true"
-            className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute font-mono"
+            className="hidden sm:flex items-end pb-2.5 justify-center text-fg-mute"
           >
-            ↦
+            →
           </span>
           <PlayerSelectField
             id="alias-to"
@@ -149,17 +149,17 @@ export function AliasPanel({
           {aliases.map((a, idx) => (
             <li
               key={a.playerId}
-              className="px-4 py-2.5 flex items-center gap-3 border-b border-line/60 last:border-b-0 text-[13px]"
+              className="px-4 py-2.5 flex items-center gap-3 border-b border-line last:border-b-0 text-[13px]"
             >
-              <span className="font-mono num text-fg-mute text-[11px] w-6 flex-shrink-0">
+              <span className="num text-fg-mute text-[11px] w-6 flex-shrink-0">
                 {String(idx + 1).padStart(2, '0')}
               </span>
               <div className="flex-1 min-w-0 flex items-center gap-2 font-sans">
                 <span className="font-semibold text-fg truncate">
                   {nameById.get(a.playerId) ?? a.playerId}
                 </span>
-                <span aria-hidden="true" className="text-fg-mute font-mono shrink-0">
-                  ↦
+                <span aria-hidden="true" className="text-fg-mute shrink-0">
+                  →
                 </span>
                 <span className="font-semibold text-fg truncate">
                   {nameById.get(a.aliasToPlayerId) ?? a.aliasToPlayerId}

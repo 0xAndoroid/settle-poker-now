@@ -5,9 +5,9 @@ interface EmptyStateProps {
   /**
    * Pre-finalize ephemeral analyze step. Pulls the ledger by id, hydrates
    * the in-memory edit state, and lets the user add aliases / adjustments
-   * / private rules. Persistence happens later via the `[ FINALIZE › ]`
-   * button on the ephemeral view (this page has no shareable link CTA —
-   * see system rewire).
+   * / private rules. Persistence happens later via the finalize button on
+   * the ephemeral view (this page has no shareable link CTA — see system
+   * rewire).
    */
   onAnalyze: (gameId: string) => void;
   onStartLiveGame: () => void;
@@ -16,6 +16,7 @@ interface EmptyStateProps {
 }
 
 const PLACEHOLDER = 'pokernow.club/games/abc123…';
+const VERSION_LABEL = `v${__APP_VERSION__.split('.').slice(0, 2).join('.')}`;
 
 export function EmptyState({
   onAnalyze,
@@ -47,12 +48,11 @@ export function EmptyState({
   const isLoading = loading || submitting || startingLive;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20">
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20 stagger">
       {/* Hero */}
       <div className="mb-10 sm:mb-12">
-        <p className="ticker-label text-accent mb-4">
-          <span className="live-dot mr-2 align-middle" aria-hidden="true" />
-          poker night settlement · v0.5
+        <p className="ticker-label mb-4">
+          poker night settlement · {VERSION_LABEL}
         </p>
         <h2 className="font-sans font-bold text-[40px] sm:text-[60px] leading-[0.98] tracking-tight-3 text-balance max-w-[18ch]">
           Settle the night in the fewest possible payments.
@@ -65,41 +65,30 @@ export function EmptyState({
       </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-        {/* URL input — terminal-style entry */}
+        {/* URL input */}
         <form onSubmit={handleAnalyze} className="card flex h-full flex-col">
-          <div className="card-header">
-            <span className="ticker-label-strong">› paste game url</span>
-            <span className="ticker-label hidden sm:inline">step 01</span>
-          </div>
-          <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
-            <div className="flex items-stretch gap-2 sm:gap-3">
-              <span
-                aria-hidden="true"
-                className="flex items-center pl-1 text-accent font-mono text-[15px] font-semibold select-none"
-              >
-                ›
-              </span>
-              <input
-                id="game-url"
-                name="game-url"
-                type="text"
-                inputMode="url"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                value={value}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder={PLACEHOLDER}
-                disabled={isLoading}
-                className="field flex-1 font-mono text-[14px]"
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'game-url-error' : undefined}
-              />
-            </div>
+          <div className="flex flex-1 flex-col gap-4 p-5 sm:p-6">
+            <span className="ticker-label-strong">paste game url</span>
+            <input
+              id="game-url"
+              name="game-url"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder={PLACEHOLDER}
+              disabled={isLoading}
+              className="field font-mono text-[14px]"
+              aria-invalid={error ? 'true' : 'false'}
+              aria-describedby={error ? 'game-url-error' : undefined}
+            />
 
             {error && (
               <p
@@ -134,20 +123,17 @@ export function EmptyState({
         </form>
 
         <section className="card flex h-full flex-col">
-          <div className="card-header">
-            <span className="ticker-label-strong">› live game</span>
-            <span className="ticker-label hidden sm:inline">manual entry</span>
-          </div>
-          <div className="flex flex-1 flex-col gap-4 p-4 sm:p-5">
+          <div className="flex flex-1 flex-col gap-4 p-5 sm:p-6">
+            <span className="ticker-label-strong">live game</span>
             <p className="text-[13px] text-fg-dim leading-relaxed">
-              Start a shareable live table, record buy-ins and cashouts as they happen, then
-              finalize into the same settlement page.
+              No PokerNow? Start a shareable live table, record buy-ins and cashouts as they
+              happen, then finalize into the same settlement page.
             </p>
             <button
               type="button"
               onClick={onStartLiveGame}
               disabled={isLoading}
-              className="btn btn-fill mt-auto h-12 w-full text-[13px]"
+              className="btn mt-auto h-12 w-full text-[13px]"
             >
               {startingLive ? 'starting…' : 'start live game ›'}
             </button>
@@ -158,8 +144,8 @@ export function EmptyState({
       {/* Three-up feature row */}
       <div className="mt-8 grid sm:grid-cols-3 gap-3">
         {RULES.map((r, i) => (
-          <div key={r.title} className="card p-4">
-            <p className="ticker-label mb-2">
+          <div key={r.title} className="card p-5">
+            <p className="ticker-label mb-2.5">
               {String(i + 1).padStart(2, '0')} · {r.tag}
             </p>
             <h3 className="font-sans font-semibold text-[14px] mb-1.5 leading-tight">{r.title}</h3>

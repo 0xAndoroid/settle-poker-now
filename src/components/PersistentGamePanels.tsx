@@ -29,11 +29,11 @@ interface PersistentPanelsProps {
 export function PersistentDesktopPanels(props: PersistentPanelsProps) {
   return (
     <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-6">
-      <div className="space-y-5">
+      <div className="space-y-5 stagger">
         <PersistentLedgerStack snapshot={props.snapshot} projection={props.projection} />
         <PersistentModifications snapshot={props.snapshot} />
       </div>
-      <div className="lg:sticky lg:top-[88px] lg:self-start space-y-5">
+      <div className="lg:sticky lg:top-[96px] lg:self-start space-y-5 stagger">
         <PersistentSettlement {...props} />
         <AuditLogPanel entries={props.snapshot.audit} players={props.snapshot.players} />
         <PersistentColophon
@@ -54,7 +54,7 @@ export function PersistentMobilePanels({
   ...props
 }: PersistentPanelsProps & { activeTab: PersistentTabKey }) {
   return (
-    <div className="lg:hidden space-y-5">
+    <div className="lg:hidden space-y-5 stagger">
       {activeTab === 'ledger' && (
         <PersistentLedgerStack snapshot={props.snapshot} projection={props.projection} />
       )}

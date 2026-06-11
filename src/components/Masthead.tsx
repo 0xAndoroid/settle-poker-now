@@ -1,9 +1,4 @@
-import { ThemeToggle } from './ThemeToggle';
-import type { Theme } from '@/hooks/useTheme';
-
 interface MastheadProps {
-  theme: Theme;
-  onThemeToggle: () => void;
   onReset?: () => void;
   showReset?: boolean;
   /** Optional ticker-tape items to display in the top sub-bar. */
@@ -13,22 +8,19 @@ interface MastheadProps {
 export interface TickerItem {
   label: string;
   value: string;
-  /** Tone shifts the value color: gain (teal) / loss (red) / accent (magenta). */
+  /** Tone shifts the value color: gain (green) / loss (red) / accent (blue). */
   tone?: 'gain' | 'loss' | 'accent';
 }
 
-export function Masthead({
-  theme,
-  onThemeToggle,
-  onReset,
-  showReset,
-  ticker,
-}: MastheadProps) {
+export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
   return (
-    <header className="border-b border-line bg-bg sticky top-0 z-30">
+    <header
+      className="sticky top-0 z-30 border-b border-line bg-bg/60 backdrop-blur-xl backdrop-saturate-150"
+      style={{ viewTransitionName: 'masthead' }}
+    >
       {/* Row 1: brand + actions */}
-      <div className="border-b border-line">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-12 flex items-center justify-between gap-4">
+      <div className={ticker && ticker.length > 0 ? 'border-b border-line' : undefined}>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-[52px] flex items-center justify-between gap-4">
           <button
             type="button"
             onClick={onReset}
@@ -40,31 +32,24 @@ export function Masthead({
               settle<span className="text-fg-mute font-normal">.</span>andrew
               <span className="text-fg-mute font-normal">.</span>ee
             </span>
-            <span className="pill pill-accent ml-1">
-              <span className="live-dot" aria-hidden="true" />
-              live
-            </span>
           </button>
 
-          <div className="flex items-center gap-1.5">
-            {showReset && (
-              <button
-                type="button"
-                onClick={onReset}
-                className="btn btn-ghost"
-                aria-label="Start over with a new game"
-              >
-                new game
-              </button>
-            )}
-            <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-          </div>
+          {showReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="btn btn-ghost"
+              aria-label="Start over with a new game"
+            >
+              new game
+            </button>
+          )}
         </div>
       </div>
 
       {/* Row 2: ticker tape (only when populated) */}
       {ticker && ticker.length > 0 && (
-        <div className="bg-surface">
+        <div>
           <div className="mx-auto max-w-6xl px-4 sm:px-6 h-9 flex items-center gap-5 sm:gap-7 overflow-x-auto scrollbar-none">
             {ticker.map((item, i) => (
               <span
@@ -74,7 +59,7 @@ export function Masthead({
                 <span className="ticker-label">{item.label}</span>
                 <span
                   className={
-                    'font-mono num text-[12px] font-semibold tracking-tight-2 ' +
+                    'font-sans num text-[12px] font-semibold tracking-tight-2 ' +
                     (item.tone === 'gain'
                       ? 'text-gain'
                       : item.tone === 'loss'
@@ -103,24 +88,33 @@ export function Masthead({
 function Brandmark() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="22"
+      height="22"
       viewBox="0 0 32 32"
       role="img"
       aria-label="settle"
-      className="shrink-0"
+      className="shrink-0 transition-transform duration-300 group-active:scale-90"
     >
-      <rect x="2" y="2" width="28" height="28" fill="none" stroke="rgb(var(--line-strong))" strokeWidth="1" />
+      <rect
+        x="1.5"
+        y="1.5"
+        width="29"
+        height="29"
+        rx="9"
+        fill="rgb(var(--glass) / 0.6)"
+        stroke="rgb(var(--hairline) / 0.16)"
+        strokeWidth="1"
+      />
       <path
-        d="M5 22 L11 14 L16 18 L21 11 L27 8"
-        stroke="rgb(var(--accent))"
+        d="M7 21.5 L12.5 14.5 L17 18 L25 10.5"
+        stroke="rgb(var(--blue))"
         strokeWidth="2"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="11" cy="14" r="1.8" fill="rgb(var(--gain))" />
-      <circle cx="21" cy="11" r="1.8" fill="rgb(var(--loss))" />
+      <circle cx="12.5" cy="14.5" r="1.9" fill="rgb(var(--green))" />
+      <circle cx="25" cy="10.5" r="1.9" fill="rgb(var(--red))" />
     </svg>
   );
 }

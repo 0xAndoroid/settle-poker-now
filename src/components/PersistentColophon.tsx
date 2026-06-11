@@ -38,7 +38,7 @@ export function PersistentColophon({
       <hr className="hr my-3" />
       {isFinalized && stamp && (
         <p className="mb-3">
-          <span className="pill pill-accent">finalized</span>{' '}
+          <span className="pill pill-gain">finalized</span>{' '}
           <span className="text-fg font-semibold">{stamp}</span>
           {finalizedBy ? (
             <>

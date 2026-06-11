@@ -19,10 +19,10 @@ export function LedgerAdjustmentNotice({ adjustments, players }: LedgerAdjustmen
     <section className="card" aria-label="Ledger adjustment">
       <div className="card-header">
         <span className="ticker-label-strong">ledger adjustment</span>
-        <span className="pill pill-accent">live</span>
+        <span className="pill pill-live">live</span>
       </div>
       <div className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed border-b border-line">
-        Raw cashouts had <span className="font-mono num text-fg">{rawDeltaLabel}</span>. Final
+        Raw cashouts had <span className="num text-fg">{rawDeltaLabel}</span>. Final
         settlement nets were balanced proportionally before payments were generated.
       </div>
       <div className="divide-y divide-line">
@@ -34,7 +34,7 @@ export function LedgerAdjustmentNotice({ adjustments, players }: LedgerAdjustmen
             <span className="text-[13px] font-semibold">
               {nameById.get(adjustment.playerId) ?? adjustment.playerId}
             </span>
-            <span className="font-mono num text-[13px] text-fg">
+            <span className="num text-[13px] text-fg">
               {formatDollars(adjustment.amountCents, { signed: true })}
             </span>
           </div>
