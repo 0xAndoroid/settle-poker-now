@@ -118,10 +118,10 @@ export function EphemeralView({
   }, [ledgerState.status]);
 
   useEffect(() => {
-    if (ledgerState.status === 'error' && ledgerState.gameId) {
+    if (ledgerState.errorStatus === 404 && ledgerState.gameId) {
       markRecentGameMissing(getRecentGamesStorage(), 'ledger', ledgerState.gameId);
     }
-  }, [ledgerState.gameId, ledgerState.status]);
+  }, [ledgerState.errorStatus, ledgerState.gameId]);
 
   useEffect(() => {
     if (!parsedLedger) return;

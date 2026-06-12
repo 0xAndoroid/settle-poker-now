@@ -7,7 +7,7 @@ import {
   setPaymentMethodsRemote,
   type PaymentMethodInput,
 } from '@/lib/apiClient';
-import { errorMessage } from '@/lib/errors';
+import { errorMessage, errorStatus as getErrorStatus } from '@/lib/errors';
 import type { PersistedGameSnapshot } from '@/lib/types';
 
 export type LoadStatus = 'loading' | 'success' | 'error';
@@ -16,6 +16,7 @@ interface PersistentGameState {
   status: LoadStatus;
   game: PersistedGameSnapshot | null;
   error: string | null;
+  errorStatus: number | null;
 }
 
 const POLL_INTERVAL_MS = 8000;
@@ -86,6 +87,7 @@ export function usePersistentGame(
     status: 'loading',
     game: null,
     error: null,
+    errorStatus: null,
   });
 
   const abortRef = useRef<AbortController | null>(null);
@@ -108,16 +110,17 @@ export function usePersistentGame(
       if (Date.now() - lastMutationAtRef.current < MUTATION_POLL_GUARD_MS) {
         return;
       }
-      setState({ status: 'success', game, error: null });
+      setState({ status: 'success', game, error: null, errorStatus: null });
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       const message = errorMessage(err);
+      const status = getErrorStatus(err);
       setState((prev) =>
         // Don't tear down a successfully-loaded view on a transient
         // poll error; surface it via toast and keep the last good state.
         prev.game
-          ? { status: 'success', game: prev.game, error: message }
-          : { status: 'error', game: null, error: message }
+          ? { status: 'success', game: prev.game, error: message, errorStatus: status }
+          : { status: 'error', game: null, error: message, errorStatus: status }
       );
       onErrorRef.current?.(message);
     }
@@ -125,7 +128,7 @@ export function usePersistentGame(
 
   // Initial fetch.
   useEffect(() => {
-    setState({ status: 'loading', game: null, error: null });
+    setState({ status: 'loading', game: null, error: null, errorStatus: null });
     lastMutationAtRef.current = 0;
     refresh();
   }, [refresh]);
@@ -207,11 +210,11 @@ export function usePersistentGame(
           actorLabel,
         });
         markMutation();
-        setState({ status: 'success', game, error: null });
+        setState({ status: 'success', game, error: null, errorStatus: null });
       } catch (err) {
         if (priorGame) {
           const reverted = priorGame;
-          setState((prev) => ({ ...prev, game: reverted, error: null }));
+          setState((prev) => ({ ...prev, game: reverted, error: null, errorStatus: null }));
         }
         reportError(err);
       }
@@ -229,7 +232,7 @@ export function usePersistentGame(
           ...args,
         });
         markMutation();
-        setState({ status: 'success', game, error: null });
+        setState({ status: 'success', game, error: null, errorStatus: null });
       } catch (err) {
         reportError(err);
       }
@@ -242,7 +245,7 @@ export function usePersistentGame(
     try {
       const game = await finalizeGameRemote({ gameId, actorLabel });
       markMutation();
-      setState({ status: 'success', game, error: null });
+      setState({ status: 'success', game, error: null, errorStatus: null });
       return true;
     } catch (err) {
       reportError(err);
@@ -256,7 +259,7 @@ export function usePersistentGame(
       try {
         const game = await setGameNoteRemote({ gameId, note, actorLabel });
         markMutation();
-        setState({ status: 'success', game, error: null });
+        setState({ status: 'success', game, error: null, errorStatus: null });
       } catch (err) {
         reportError(err);
       }

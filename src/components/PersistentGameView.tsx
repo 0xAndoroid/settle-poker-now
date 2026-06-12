@@ -93,10 +93,10 @@ export function PersistentGameView({
   }, [game, identity]);
 
   useEffect(() => {
-    if (state.status === 'error') {
+    if (state.errorStatus === 404) {
       markRecentGameMissing(getRecentGamesStorage(), 'game', gameId);
     }
-  }, [gameId, state.status]);
+  }, [gameId, state.errorStatus]);
 
   useEffect(() => {
     if (!state.game) return;

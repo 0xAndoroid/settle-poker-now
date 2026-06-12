@@ -142,7 +142,7 @@ export function EmptyState({
         </section>
       </div>
 
-      <RecentGamesPanel />
+      <RecentGamesPanel onOpenLedger={onAnalyze} />
 
       {/* Three-up feature row */}
       <div className="mt-8 grid sm:grid-cols-3 gap-3">

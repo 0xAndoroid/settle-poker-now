@@ -2,7 +2,11 @@ import { navigate } from '@/lib/routing';
 import type { RecentGameEntry, RecentGameStatus } from '@/lib/recentGames';
 import { useRecentGames } from '@/hooks/useRecentGames';
 
-export function RecentGamesPanel() {
+interface RecentGamesPanelProps {
+  onOpenLedger: (gameId: string) => void;
+}
+
+export function RecentGamesPanel({ onOpenLedger }: RecentGamesPanelProps) {
   const { entries, remove } = useRecentGames();
   if (entries.length === 0) return null;
 
@@ -26,7 +30,10 @@ export function RecentGamesPanel() {
           >
             <button
               type="button"
-              onClick={() => navigate(entry.path)}
+              onClick={() => {
+                navigate(entry.path);
+                if (entry.kind === 'ledger') onOpenLedger(entry.id);
+              }}
               className="min-w-0 flex-1 text-left"
               aria-label={`Open ${entry.label}`}
             >

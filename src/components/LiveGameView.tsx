@@ -60,10 +60,10 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
   }, [gameId]);
 
   useEffect(() => {
-    if (live.state.status === 'error') {
+    if (live.state.errorStatus === 404) {
       markRecentGameMissing(getRecentGamesStorage(), 'live', gameId);
     }
-  }, [gameId, live.state.status]);
+  }, [gameId, live.state.errorStatus]);
 
   useEffect(() => {
     if (!snapshot) return;
