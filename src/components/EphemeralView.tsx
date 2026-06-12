@@ -18,6 +18,12 @@ import { errorMessage as getErrorMessage } from '@/lib/errors';
 import { createLiveGameRemote } from '@/lib/liveApiClient';
 import { gamePath, liveGamePath, navigate } from '@/lib/routing';
 import { type AliasRule, canonicalize } from '@/lib/aliases';
+import {
+  buildLedgerRecentGameEntry,
+  getRecentGamesStorage,
+  markRecentGameMissing,
+  upsertRecentGame,
+} from '@/lib/recentGames';
 import type {
   Adjustment,
   IsolationRule,
@@ -112,6 +118,12 @@ export function EphemeralView({
   }, [ledgerState.status]);
 
   useEffect(() => {
+    if (ledgerState.status === 'error' && ledgerState.gameId) {
+      markRecentGameMissing(getRecentGamesStorage(), 'ledger', ledgerState.gameId);
+    }
+  }, [ledgerState.gameId, ledgerState.status]);
+
+  useEffect(() => {
     if (!parsedLedger) return;
     const validIds = new Set(parsedLedger.rows.map((r) => r.playerId));
     setAdjustments((current) => {
@@ -138,6 +150,17 @@ export function EphemeralView({
       return filtered.length === current.length ? current : filtered;
     });
   }, [parsedLedger]);
+
+  useEffect(() => {
+    if (ledgerState.status !== 'success' || !ledgerState.gameId || !parsedLedger) return;
+    upsertRecentGame(
+      getRecentGamesStorage(),
+      buildLedgerRecentGameEntry({
+        gameId: ledgerState.gameId,
+        ledger: parsedLedger,
+      })
+    );
+  }, [ledgerState.gameId, ledgerState.status, parsedLedger]);
 
   const { balances, plan } = useMemo(() => {
     if (!parsedLedger) {

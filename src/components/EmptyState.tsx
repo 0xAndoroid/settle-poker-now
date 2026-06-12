@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { RecentGamesPanel } from './RecentGamesPanel';
 import { extractGameId } from '@/lib/pokernow';
 
 interface EmptyStateProps {
@@ -140,6 +141,8 @@ export function EmptyState({
           </div>
         </section>
       </div>
+
+      <RecentGamesPanel />
 
       {/* Three-up feature row */}
       <div className="mt-8 grid sm:grid-cols-3 gap-3">
