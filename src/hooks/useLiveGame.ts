@@ -4,7 +4,7 @@ import {
   finalizeLiveGameRemote,
   type LiveOutboxRequest,
 } from '@/lib/liveApiClient';
-import { errorMessage } from '@/lib/errors';
+import { errorMessage, errorStatus as getErrorStatus } from '@/lib/errors';
 import { deriveLiveBankSummary, deriveLivePlayerSummaries } from '@/lib/liveProjection';
 import {
   getCachedLiveSnapshot,
@@ -31,6 +31,7 @@ interface LiveGameState {
   game: LiveGameSnapshot | null;
   serverGame: LiveGameSnapshot | null;
   error: string | null;
+  errorStatus: number | null;
 }
 
 interface Options {
@@ -82,6 +83,7 @@ export function useLiveGame(
     game: null,
     serverGame: null,
     error: null,
+    errorStatus: null,
   });
   const abortRef = useRef<AbortController | null>(null);
   const lastMutationAtRef = useRef(0);
@@ -104,14 +106,13 @@ export function useLiveGame(
   const setAuthoritative = useCallback(
     (snapshot: LiveGameSnapshot) => {
       void putCachedLiveSnapshot(snapshot);
-      setState((prev) => {
-        const projected = projectPending(snapshot, []);
-        return {
-          status: 'success',
-          game: projected,
-          serverGame: snapshot,
-          error: prev.error,
-        };
+      const projected = projectPending(snapshot, []);
+      setState({
+        status: 'success',
+        game: projected,
+        serverGame: snapshot,
+        error: null,
+        errorStatus: null,
       });
       publishSnapshot(snapshot);
     },
@@ -131,7 +132,13 @@ export function useLiveGame(
   });
 
   useEffect(() => {
-    setState({ status: 'loading', game: null, serverGame: null, error: null });
+    setState({
+      status: 'loading',
+      game: null,
+      serverGame: null,
+      error: null,
+      errorStatus: null,
+    });
     lastMutationAtRef.current = 0;
     void getCachedLiveSnapshot(gameId).then((cached) => {
       if (cached) {
@@ -140,6 +147,7 @@ export function useLiveGame(
           game: cached,
           serverGame: cached,
           error: null,
+          errorStatus: null,
         });
       }
     });
@@ -160,14 +168,22 @@ export function useLiveGame(
         game: projectPending(snapshot, items),
         serverGame: snapshot,
         error: null,
+        errorStatus: null,
       });
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
       const message = errorMessage(err);
+      const status = getErrorStatus(err);
       setState((prev) =>
         prev.game
-          ? { ...prev, error: message }
-          : { status: 'error', game: null, serverGame: null, error: message }
+          ? { ...prev, error: message, errorStatus: status }
+          : {
+              status: 'error',
+              game: null,
+              serverGame: null,
+              error: message,
+              errorStatus: status,
+            }
       );
       onErrorRef.current?.(message);
     }
@@ -201,6 +217,7 @@ export function useLiveGame(
           game: data.snapshot,
           serverGame: data.snapshot,
           error: null,
+          errorStatus: null,
         });
       } else {
         void reload().then(() => flush());

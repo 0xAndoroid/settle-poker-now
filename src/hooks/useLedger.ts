@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError } from '@/lib/apiClient';
+import { errorStatus as getErrorStatus } from '@/lib/errors';
 import { ledgerProxyUrl } from '@/lib/pokernow';
 import type { LedgerUnit } from '@/lib/types';
 
@@ -15,6 +17,7 @@ export interface LedgerState {
    */
   headerUnit: LedgerUnit | null;
   error: string | null;
+  errorStatus: number | null;
   gameId: string | null;
 }
 
@@ -23,6 +26,7 @@ const INITIAL: LedgerState = {
   csv: null,
   headerUnit: null,
   error: null,
+  errorStatus: null,
   gameId: null,
 };
 
@@ -60,7 +64,8 @@ export function useLedger() {
 
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(
+        throw new ApiError(
+          res.status,
           `Couldn't fetch ledger (HTTP ${res.status}). ${detail.slice(0, 200) || 'Check the game URL.'}`
         );
       }
@@ -73,6 +78,7 @@ export function useLedger() {
         csv,
         headerUnit,
         error: null,
+        errorStatus: null,
         gameId,
       });
     } catch (err) {
@@ -87,6 +93,7 @@ export function useLedger() {
         csv: null,
         headerUnit: null,
         error: message,
+        errorStatus: timedOut ? null : getErrorStatus(err),
         gameId,
       });
     } finally {

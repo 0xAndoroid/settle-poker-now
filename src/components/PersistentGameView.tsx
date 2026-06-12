@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PaymentCompletion } from './SettlementPanel';
 import { PaymentDetailsModal, type PaymentDetailsResult } from './PaymentDetailsModal';
 import { MobileTabs, type PersistentTabKey } from './MobileTabs';
@@ -13,6 +13,12 @@ import { copyText } from '@/lib/clipboard';
 import { formatDollars } from '@/lib/money';
 import { canonicalOf, buildCanonicalMap } from '@/lib/aliases';
 import { projectPersistedSnapshot } from '@/lib/persistedProjection';
+import {
+  buildPersistedRecentGameEntry,
+  getRecentGamesStorage,
+  markRecentGameMissing,
+  upsertRecentGame,
+} from '@/lib/recentGames';
 import type { PersistedPaymentMethod } from '@/lib/types';
 
 interface PersistentGameViewProps {
@@ -56,6 +62,13 @@ export function PersistentGameView({
 
   const [activeTab, setActiveTab] = useState<PersistentTabKey>('payments');
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  const recentVisitAtRef = useRef<number | null>(null);
+  const recentSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    recentVisitAtRef.current = null;
+    recentSignatureRef.current = null;
+  }, [gameId]);
 
   // Project the persisted snapshot into the same shape the panels expect.
   // Read-only: we render the ORIGINAL ledger (pre-modification players)
@@ -78,6 +91,25 @@ export function PersistentGameView({
     if (!identity || !game) return null;
     return canonicalOf(identity.playerId, buildCanonicalMap(game.aliases));
   }, [game, identity]);
+
+  useEffect(() => {
+    if (state.errorStatus === 404) {
+      markRecentGameMissing(getRecentGamesStorage(), 'game', gameId);
+    }
+  }, [gameId, state.errorStatus]);
+
+  useEffect(() => {
+    if (!state.game) return;
+    recentVisitAtRef.current ??= Date.now();
+    const entry = buildPersistedRecentGameEntry({
+      snapshot: state.game,
+      visitedAt: recentVisitAtRef.current,
+    });
+    const signature = `${entry.id}:${entry.label}:${entry.status}`;
+    if (recentSignatureRef.current === signature) return;
+    recentSignatureRef.current = signature;
+    upsertRecentGame(getRecentGamesStorage(), entry);
+  }, [state.game]);
 
   // Push ticker updates upward whenever the snapshot changes.
   useEffect(() => {

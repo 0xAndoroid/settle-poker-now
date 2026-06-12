@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChipBankPanel } from './ChipBankPanel';
 import { HostRecoveryPanel } from './HostRecoveryPanel';
 import { LiveActivityPanel } from './LiveActivityPanel';
@@ -17,6 +17,12 @@ import { clearLiveGameLocalState } from '@/lib/liveStorage';
 import { formatDollars } from '@/lib/money';
 import { gamePath, navigate } from '@/lib/routing';
 import { errorMessage } from '@/lib/errors';
+import {
+  buildLiveRecentGameEntry,
+  getRecentGamesStorage,
+  markRecentGameMissing,
+  upsertRecentGame,
+} from '@/lib/recentGames';
 import type { IsolationRule } from '@/lib/types';
 
 interface LiveGameViewProps {
@@ -34,6 +40,8 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
   const [deleting, setDeleting] = useState(false);
   const [isolations, setIsolations] = useState<IsolationRule[]>([]);
   const [activeTab, setActiveTab] = useState<LiveTabKey>('table');
+  const recentVisitAtRef = useRef<number | null>(null);
+  const recentSignatureRef = useRef<string | null>(null);
 
   const snapshot = live.state.game;
   const liveUrl = useMemo(() => {
@@ -45,6 +53,30 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
     ? (snapshot.bankSummary.latestTableDeltaCents ? 1 : 0) +
       (snapshot.bankSummary.latestBankDeltaCents ? 1 : 0)
     : 0;
+
+  useEffect(() => {
+    recentVisitAtRef.current = null;
+    recentSignatureRef.current = null;
+  }, [gameId]);
+
+  useEffect(() => {
+    if (live.state.errorStatus === 404) {
+      markRecentGameMissing(getRecentGamesStorage(), 'live', gameId);
+    }
+  }, [gameId, live.state.errorStatus]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    recentVisitAtRef.current ??= Date.now();
+    const entry = buildLiveRecentGameEntry({
+      snapshot,
+      visitedAt: recentVisitAtRef.current,
+    });
+    const signature = `${entry.id}:${entry.label}:${entry.status}`;
+    if (recentSignatureRef.current === signature) return;
+    recentSignatureRef.current = signature;
+    upsertRecentGame(getRecentGamesStorage(), entry);
+  }, [snapshot]);
 
   useEffect(() => {
     if (!snapshot) {
@@ -85,6 +117,22 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
       try {
         const result = await live.finalize(force, rules);
         if (result) {
+          if (snapshot) {
+            upsertRecentGame(
+              getRecentGamesStorage(),
+              buildLiveRecentGameEntry({
+                snapshot: {
+                  ...snapshot,
+                  game: {
+                    ...snapshot.game,
+                    status: 'finalized',
+                    finalizedAt: Date.now(),
+                    finalizedGameId: result.game.game.id,
+                  },
+                },
+              })
+            );
+          }
           pushToast('live game finalized', 'success');
           navigate(result.redirectPath);
         }
@@ -92,7 +140,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         setFinalizing(false);
       }
     },
-    [live, pushToast]
+    [live, pushToast, snapshot]
   );
 
   const handleDelete = useCallback(async () => {
