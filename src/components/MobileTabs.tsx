@@ -131,12 +131,12 @@ export function MobileTabs(props: MobileTabsProps) {
         <div
           role="tablist"
           aria-label="Switch sections"
-          className="relative flex rounded-full border border-line bg-fill-1 p-1"
+          className="relative flex rounded-full bg-bg/40 p-1"
         >
           {/* Sliding thumb — one glass capsule morphing between tabs. */}
           <span
             aria-hidden="true"
-            className="absolute inset-y-1 rounded-full border border-line-strong bg-fill-2 shadow-[inset_0_1px_0_rgb(var(--hairline)/0.06)] transition-transform duration-300 [transition-timing-function:var(--spring)]"
+            className="glass-thumb absolute inset-y-1 rounded-full transition-transform duration-300 [transition-timing-function:var(--spring)]"
             style={{
               width: `calc((100% - 8px) / ${tabs.length})`,
               transform: `translateX(${activeIndex * 100}%)`,

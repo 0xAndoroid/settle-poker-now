@@ -4,6 +4,7 @@ import { EphemeralView } from './components/EphemeralView';
 import { LiveGameView } from './components/LiveGameView';
 import { PersistentGameView } from './components/PersistentGameView';
 import { ToastViewport } from './components/Toast';
+import { GlassDefs } from './components/GlassDefs';
 import { useToast } from './hooks/useToast';
 import { useRoute } from './hooks/useRoute';
 import { useConfirmDialog } from './hooks/useConfirmDialog';
@@ -43,6 +44,7 @@ export default function App() {
 
   return (
     <div className="min-h-full">
+      <GlassDefs />
       <Masthead onReset={handleReset} showReset={showHeader} ticker={ticker} />
 
       {route.kind === 'home' && (
