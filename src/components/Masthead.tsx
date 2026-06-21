@@ -95,7 +95,7 @@ function Brandmark() {
       viewBox="0 0 32 32"
       role="img"
       aria-label="settle"
-      className="shrink-0 transition-transform duration-300 group-active:scale-90"
+      className="shrink-0 transition-transform duration-300 group-active:scale-[0.96]"
     >
       <rect
         x="1.5"

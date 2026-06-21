@@ -144,13 +144,13 @@ export function SettlementRow({
               isCompleted && 'line-through opacity-60'
             )}
           >
-            <span className="font-semibold text-loss truncate flex-shrink min-w-0">
+            <span className="font-semibold text-loss truncate flex-shrink min-w-0" title={fromName}>
               {fromName}
             </span>
             <span aria-hidden="true" className="text-fg-mute shrink-0">
               →
             </span>
-            <span className="font-semibold text-gain truncate flex-shrink min-w-0">
+            <span className="font-semibold text-gain truncate flex-shrink min-w-0" title={toName}>
               {toName}
             </span>
             {forced && (
