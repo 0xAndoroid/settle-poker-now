@@ -1,5 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/cn';
+
+/** Matches the `.toast-out` keyframe duration in globals.css. */
+const EXIT_MS = 180;
 
 export type ToastVariant = 'success' | 'error' | 'info';
 
@@ -15,10 +18,21 @@ interface ToastProps {
 }
 
 export function Toast({ toast, onDismiss }: ToastProps) {
+  const [leaving, setLeaving] = useState(false);
+
+  // Dwell, then begin the exit. Manual dismiss takes the same path so the
+  // toast always animates out rather than vanishing.
   useEffect(() => {
-    const timer = window.setTimeout(() => onDismiss(toast.id), 3000);
+    const timer = window.setTimeout(() => setLeaving(true), 3000);
     return () => window.clearTimeout(timer);
-  }, [toast.id, onDismiss]);
+  }, []);
+
+  // Once leaving, let the exit play before the parent unmounts the node.
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = window.setTimeout(() => onDismiss(toast.id), EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [leaving, toast.id, onDismiss]);
 
   const prefix =
     toast.variant === 'success'
@@ -31,7 +45,8 @@ export function Toast({ toast, onDismiss }: ToastProps) {
     <div
       role={toast.variant === 'error' ? 'alert' : 'status'}
       className={cn(
-        'toast-in pointer-events-auto flex items-center gap-3 min-w-[260px] max-w-[420px]',
+        leaving ? 'toast-out' : 'toast-in',
+        'pointer-events-auto flex items-center gap-3 min-w-[260px] max-w-[420px]',
         'px-4 py-3 font-sans rounded-[14px] border bg-glass/70 backdrop-blur-xl backdrop-saturate-150',
         'shadow-[inset_0_1px_0_rgb(var(--hairline)/0.06),0_16px_36px_-12px_rgb(4_5_10/0.7)]',
         toast.variant === 'success' && 'border-gain/40 text-gain',
@@ -45,7 +60,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       </span>
       <button
         type="button"
-        onClick={() => onDismiss(toast.id)}
+        onClick={() => setLeaving(true)}
         className="text-[14px] flex-shrink-0 opacity-60 transition-opacity hover:opacity-100"
         aria-label="Dismiss"
       >

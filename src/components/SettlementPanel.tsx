@@ -153,7 +153,7 @@ export function SettlementPanel({
       <div className="card-header">
         <span id="settlement-heading" className="ticker-label-strong min-w-0">
           payments
-          <span className="text-fg-mute font-normal ml-2">
+          <span className="text-fg-mute font-normal ml-2 tabular-nums">
             {plan.txns.length === 0
               ? '· none'
               : persistent
@@ -222,7 +222,7 @@ export function SettlementPanel({
             {identitySummary && (
               <>
                 {' · '}
-                <span className="text-fg">{identitySummary}</span>
+                <span className="text-fg tabular-nums">{identitySummary}</span>
               </>
             )}
           </span>
@@ -317,7 +317,7 @@ export function SettlementPanel({
 
       {plan.txns.length > 0 && (
         <div className="border-t border-line bg-fill-1 px-4 py-2.5 flex items-baseline justify-between gap-3">
-          <span className="ticker-label-strong">
+          <span className="ticker-label-strong tabular-nums">
             {persistent ? `outstanding · ${outstandingCount}` : 'total'}
           </span>
           {persistent ? (

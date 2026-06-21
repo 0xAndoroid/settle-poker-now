@@ -126,6 +126,14 @@
     margin: 0;
     font-weight: 600;
     letter-spacing: -0.02em;
+    /* Even line lengths on short headings; silently ignored past ~6 lines. */
+    text-wrap: balance;
+  }
+
+  /* Keep descriptions and captions from dropping a lone orphan on the last
+     line. No line-count cap, unlike balance, so it's safe as a default. */
+  p {
+    text-wrap: pretty;
   }
 
   /* Tabular lining figures for any number — keeps columns aligned while
@@ -210,6 +218,7 @@
       border-color 180ms var(--ease-out),
       color 180ms var(--ease-out),
       box-shadow 180ms var(--ease-out),
+      filter 180ms var(--ease-out),
       transform 240ms var(--spring);
   }
   .btn:hover:not(:disabled) {
@@ -217,7 +226,7 @@
     border-color: rgb(var(--hairline) / 0.18);
   }
   .btn:active:not(:disabled) {
-    transform: scale(0.97);
+    transform: scale(0.96);
   }
   .btn:disabled {
     opacity: 0.4;
@@ -451,7 +460,7 @@
     background: rgb(var(--blue) / 0.1);
   }
   .payment-icon:active {
-    transform: scale(0.94);
+    transform: scale(0.96);
   }
 
   /* On touch devices the deep-link icon IS the pay action — give it a
@@ -564,11 +573,24 @@
     animation: toast-in 380ms var(--spring) backwards;
   }
 
+  /* Subtle exit — a small upward drift + fade, shorter than the enter so it
+     cedes attention rather than competing for it. */
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.98);
+    }
+  }
+  .toast-out {
+    animation: toast-out 180ms var(--ease-out) forwards;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .stagger > *,
     .pop-in,
     .veil-in,
-    .toast-in {
+    .toast-in,
+    .toast-out {
       animation: none;
     }
   }

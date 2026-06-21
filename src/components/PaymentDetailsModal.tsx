@@ -125,7 +125,7 @@ export function PaymentDetailsModal({
                     onClick={() => setPendingId(p.playerId)}
                     className={cn(
                       'min-h-[44px] px-4 font-sans text-[14px] font-semibold border rounded-full',
-                      'transition-all duration-200 active:scale-95',
+                      'transition-[background-color,border-color,color,scale] duration-200 active:scale-[0.96]',
                       active
                         ? 'border-transparent bg-accent text-[#0c1018]'
                         : 'border-line-strong bg-fill-1 text-fg-dim hover:text-fg hover:border-accent/50'
