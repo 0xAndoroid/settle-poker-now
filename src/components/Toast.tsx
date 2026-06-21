@@ -32,9 +32,8 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       role={toast.variant === 'error' ? 'alert' : 'status'}
       className={cn(
         'toast-in pointer-events-auto flex items-center gap-3 min-w-[260px] max-w-[420px]',
-        'px-4 py-3 font-sans rounded-[14px] border',
-        'bg-glass/70 backdrop-blur-xl backdrop-saturate-150',
-        'shadow-[inset_0_1px_0_rgb(var(--hairline)/0.18),0_16px_36px_-12px_rgb(4_5_10/0.7)]',
+        'px-4 py-3 font-sans rounded-[14px] border bg-glass/70 backdrop-blur-xl backdrop-saturate-150',
+        'shadow-[inset_0_1px_0_rgb(var(--hairline)/0.06),0_16px_36px_-12px_rgb(4_5_10/0.7)]',
         toast.variant === 'success' && 'border-gain/40 text-gain',
         toast.variant === 'error' && 'border-loss/40 text-loss',
         toast.variant === 'info' && 'border-line-strong text-fg'
