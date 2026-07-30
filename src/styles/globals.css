@@ -46,36 +46,45 @@
       0 22px 52px -18px rgb(3 5 12 / 0.72);
 
     /* Motion vocabulary. The spring is a sampled damped physical spring
-       (~4% overshoot, quick settle) — keep the provenance when retuning. */
+       (~4% overshoot, quick settle) — keep the provenance when retuning.
+       Bezier default so browsers without linear() still animate (var()
+       substitution of an unsupported function is IACVT → animation drops
+       entirely); the sampled curve is layered on via @supports below. */
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-    --spring: linear(
-      0,
-      0.012,
-      0.058,
-      0.142,
-      0.252,
-      0.378,
-      0.508,
-      0.632,
-      0.743,
-      0.837,
-      0.911,
-      0.967,
-      1.005,
-      1.027,
-      1.037,
-      1.038,
-      1.033,
-      1.026,
-      1.018,
-      1.01,
-      1.004,
-      1,
-      0.997,
-      1
-    );
+    --spring: cubic-bezier(0.34, 1.36, 0.42, 1);
 
     color-scheme: dark;
+  }
+
+  @supports (animation-timing-function: linear(0, 1)) {
+    :root {
+      --spring: linear(
+        0,
+        0.012,
+        0.058,
+        0.142,
+        0.252,
+        0.378,
+        0.508,
+        0.632,
+        0.743,
+        0.837,
+        0.911,
+        0.967,
+        1.005,
+        1.027,
+        1.037,
+        1.038,
+        1.033,
+        1.026,
+        1.018,
+        1.01,
+        1.004,
+        1,
+        0.997,
+        1
+      );
+    }
   }
 
   html,
@@ -316,14 +325,6 @@
     line-height: 1.65;
     font-variant-numeric: oldstyle-nums proportional-nums;
     text-wrap: pretty;
-  }
-
-  /* Hero figures — vertical luminance-clip on big numbers. */
-  .grad-num {
-    background: linear-gradient(180deg, rgb(var(--fg)), rgb(236 238 246 / 0.66));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
   }
 
   /* ---------------------------------------------------------------- btn
