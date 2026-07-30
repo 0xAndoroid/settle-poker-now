@@ -144,13 +144,13 @@ export function SettlementRow({
               isCompleted && 'line-through opacity-60'
             )}
           >
-            <span className="font-semibold text-loss truncate flex-shrink min-w-0" title={fromName}>
+            <span className="font-medium text-loss/90 truncate flex-shrink min-w-0" title={fromName}>
               {fromName}
             </span>
-            <span aria-hidden="true" className="text-fg-mute shrink-0">
+            <span aria-hidden="true" className="text-fg-mute/80 shrink-0">
               →
             </span>
-            <span className="font-semibold text-gain truncate flex-shrink min-w-0" title={toName}>
+            <span className="font-medium text-gain/90 truncate flex-shrink min-w-0" title={toName}>
               {toName}
             </span>
             {forced && (
@@ -169,7 +169,7 @@ export function SettlementRow({
           <Amount
             cents={amountCents}
             className={cn(
-              'font-sans font-bold text-[15px] sm:text-[16px] flex-shrink-0 text-right',
+              'font-semibold text-[14px] sm:text-[15px] flex-shrink-0 text-right',
               isCompleted ? 'text-fg-dim line-through' : 'text-fg'
             )}
           />

@@ -55,7 +55,7 @@ export function AdjustmentsPanel({
   };
 
   return (
-    <section aria-labelledby="adj-heading" className="card">
+    <section aria-labelledby="adj-heading" className="card kc-green">
       <div className="card-header">
         <span id="adj-heading" className="ticker-label-strong">
           prior payments

@@ -16,7 +16,7 @@ const ACTION_LABEL: Record<string, string> = {
   clear_isolation: 'cleared isolation',
   add_alias: 'aliased player',
   remove_alias: 'unfolded alias',
-  finalize: 'finalized 🔒',
+  finalize: 'finalized · locked',
   unfinalize: 'unfinalized',
   set_payment_methods: 'set payment handles',
   set_note: 'set venmo note',

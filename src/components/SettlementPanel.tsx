@@ -149,7 +149,7 @@ export function SettlementPanel({
   }
 
   return (
-    <section aria-labelledby="settlement-heading" className="card">
+    <section aria-labelledby="settlement-heading" className="card kc-yellow">
       <div className="card-header">
         <span id="settlement-heading" className="ticker-label-strong min-w-0">
           payments
@@ -270,11 +270,11 @@ export function SettlementPanel({
 
       {plan.txns.length === 0 ? (
         <div className="px-6 py-10 text-center">
-          <p className="ticker-label-strong text-fg">
-            {hasCycle ? '— pending —' : 'already settled.'}
+          <p className="font-serif italic text-[21px] font-[480] text-fg tracking-[-0.01em]">
+            {hasCycle ? '— pending —' : 'Already settled.'}
           </p>
           {!hasCycle && (
-            <p className="text-[12px] text-fg-mute mt-1.5">
+            <p className="text-[12px] text-fg-mute mt-2">
               No payments necessary. Everybody&apos;s even.
             </p>
           )}
@@ -321,13 +321,13 @@ export function SettlementPanel({
             {persistent ? `outstanding · ${outstandingCount}` : 'total'}
           </span>
           {persistent ? (
-            <span className="font-sans num font-bold text-[15px] text-fg">
+            <span className="num font-bold text-[15px] text-fg">
               <Amount cents={outstandingMoved} />
               <span className="mx-1.5 font-normal text-fg-mute">/</span>
               <Amount cents={totalMoved} className="text-fg-dim" />
             </span>
           ) : (
-            <Amount cents={totalMoved} className="font-sans font-bold text-[16px] text-fg" />
+            <Amount cents={totalMoved} className="font-bold text-[16px] text-fg" />
           )}
         </div>
       )}

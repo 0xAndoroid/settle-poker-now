@@ -44,7 +44,7 @@ export function LiveActivityPanel({
   ].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
-    <section className="card" aria-labelledby="live-activity-heading">
+    <section className="card kc-purple" aria-labelledby="live-activity-heading">
       <div className="card-header">
         <span id="live-activity-heading" className="ticker-label-strong">
           activity

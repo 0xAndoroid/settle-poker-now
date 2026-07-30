@@ -197,8 +197,8 @@ function NotePromptCard({
 
 function EphemeralColophon() {
   return (
-    <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
-      <p className="ticker-label-strong mb-2">¶ how it works</p>
+    <aside className="card p-5 prose-panel text-fg-dim">
+      <p className="ticker-label-strong mb-2.5">¶ how it works</p>
       <p>
         <span className="text-fg font-semibold">Optimal subset-sum partitioning.</span>{' '}
         Solves min-transactions exactly for N ≤ 15 players via bitmask DP — partitions the table

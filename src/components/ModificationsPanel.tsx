@@ -31,7 +31,7 @@ export function ModificationsPanel({
   const total = aliases.length + adjustments.length + isolations.length;
 
   return (
-    <section aria-labelledby="mods-heading" className="card">
+    <section aria-labelledby="mods-heading" className="card kc-purple">
       <div className="card-header">
         <span id="mods-heading" className="ticker-label-strong">
           modifications applied

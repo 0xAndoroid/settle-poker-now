@@ -28,7 +28,7 @@ export function PersistentColophon({
       })
     : null;
   return (
-    <aside className="card p-5 text-[12.5px] leading-relaxed text-fg-dim">
+    <aside className="card p-5 prose-panel text-fg-dim">
       <p className="ticker-label-strong mb-2">¶ persistent link</p>
       <p>
         <span className="text-fg font-semibold">/g/{gameId}</span> is the canonical URL for this

@@ -50,15 +50,20 @@ export function EmptyState({
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20 stagger">
-      {/* Hero */}
+      {/* Hero — editorial serif display, same voice as the report system. */}
       <div className="mb-10 sm:mb-12">
-        <p className="ticker-label mb-4">
+        <p className="ticker-label mb-4 flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-block h-px w-7 bg-warn shadow-[0_0_12px_rgb(var(--yellow)/0.28)]"
+          />
           poker night settlement · {VERSION_LABEL}
         </p>
-        <h2 className="font-sans font-bold text-[40px] sm:text-[60px] leading-[0.98] tracking-tight-3 text-balance max-w-[18ch]">
-          Settle the night in the fewest possible payments.
+        <h2 className="font-serif font-[580] text-[44px] sm:text-[64px] leading-[0.98] tracking-[-0.026em] text-balance max-w-[17ch]">
+          Settle the night in the{' '}
+          <em className="font-[450] text-fg-dim">fewest possible</em> payments.
         </h2>
-        <p className="mt-5 text-fg-dim text-[15px] sm:text-[16px] leading-relaxed max-w-[52ch]">
+        <p className="mt-5 prose-panel text-fg-dim text-[16px] sm:text-[17px] max-w-[46ch]">
           Paste the PokerNow URL, fold duplicate players, record cash that changed hands, set
           private settlement rules — then finalize to mint a shareable link your group can mark off
           as they pay.
@@ -148,10 +153,16 @@ export function EmptyState({
       <div className="mt-8 grid sm:grid-cols-3 gap-3">
         {RULES.map((r, i) => (
           <div key={r.title} className="card p-5">
-            <p className="ticker-label mb-2.5">
-              {String(i + 1).padStart(2, '0')} · {r.tag}
+            <p className="ticker-label mb-3 flex items-center gap-2.5">
+              <span className="num text-fg-mute normal-case tracking-normal">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span aria-hidden="true" className="inline-block h-px w-4 bg-line-strong" />
+              {r.tag}
             </p>
-            <h3 className="font-sans font-semibold text-[14px] mb-1.5 leading-tight">{r.title}</h3>
+            <h3 className="font-serif font-[600] text-[17px] mb-1.5 leading-snug tracking-[-0.01em]">
+              {r.title}
+            </h3>
             <p className="text-[12.5px] text-fg-dim leading-relaxed">{r.body}</p>
           </div>
         ))}

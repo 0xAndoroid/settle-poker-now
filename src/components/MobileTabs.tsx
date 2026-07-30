@@ -136,7 +136,7 @@ export function MobileTabs(props: MobileTabsProps) {
           {/* Sliding thumb — one glass capsule morphing between tabs. */}
           <span
             aria-hidden="true"
-            className="absolute inset-y-1 rounded-full border border-line-strong bg-fill-2 shadow-[inset_0_1px_0_rgb(var(--hairline)/0.06)] transition-transform duration-300 [transition-timing-function:var(--spring)]"
+            className="absolute inset-y-1 rounded-full border border-line-strong bg-[rgb(var(--hairline)/0.14)] shadow-[inset_0_1px_0_rgb(var(--hairline)/0.1)] transition-transform duration-[420ms] [transition-timing-function:var(--spring)] will-change-transform"
             style={{
               width: `calc((100% - 8px) / ${tabs.length})`,
               transform: `translateX(${activeIndex * 100}%)`,
