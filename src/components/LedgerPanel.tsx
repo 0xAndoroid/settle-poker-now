@@ -32,7 +32,7 @@ export function LedgerPanel({
   );
 
   return (
-    <section aria-labelledby="ledger-heading" className="card">
+    <section aria-labelledby="ledger-heading" className="card kc-blue">
       <div className="card-header">
         <span id="ledger-heading" className="ticker-label-strong">
           ledger
@@ -120,7 +120,7 @@ export function LedgerPanel({
                     <Amount
                       cents={b.effectiveNetCents}
                       signed
-                      className="font-sans font-semibold text-[14px] leading-tight"
+                      className="font-semibold text-[13.5px] leading-tight"
                     />
                   </td>
                 </tr>
@@ -141,7 +141,7 @@ export function LedgerPanel({
               <Amount
                 cents={ledgerCheck.sumCents}
                 signed
-                className="font-sans font-bold text-[14px]"
+                className="font-bold text-[13.5px]"
               />
             </td>
           </tr>
@@ -220,7 +220,9 @@ function UnitButton({ label, active, onClick }: UnitButtonProps) {
       className={cn(
         'min-h-[26px] px-3 font-sans text-[10px] uppercase tracking-ticker font-bold rounded-full',
         'transition-colors duration-200',
-        active ? 'bg-accent text-[#0c1018]' : 'text-fg-dim hover:text-fg'
+        active
+          ? 'bg-[rgb(var(--hairline)/0.14)] text-fg shadow-[inset_0_1px_0_rgb(var(--hairline)/0.1)]'
+          : 'text-fg-dim hover:text-fg'
       )}
     >
       {label}

@@ -4,23 +4,28 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        // System stacks only — no webfonts. Matches the report design system:
+        // sans body, editorial serif display, mono for money / URLs / IDs.
         sans: [
-          '"Inter Tight"',
-          'Inter',
           '-apple-system',
           'BlinkMacSystemFont',
-          'Segoe UI',
+          '"SF Pro Text"',
+          'Inter',
+          'ui-sans-serif',
           'system-ui',
+          '"Segoe UI"',
           'sans-serif',
         ],
-        mono: [
-          '"JetBrains Mono"',
-          'ui-monospace',
-          'SFMono-Regular',
-          'Menlo',
-          'Consolas',
-          'monospace',
+        serif: [
+          '"Iowan Old Style"',
+          '"Palatino Linotype"',
+          'Palatino',
+          '"Hoefler Text"',
+          'ui-serif',
+          'Georgia',
+          'serif',
         ],
+        mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
       },
       colors: {
         // Deep indigo-black canvas + slate glass; see globals.css for the

@@ -181,7 +181,7 @@ export function LivePlayersPanel({
   );
 
   return (
-    <section className="card" aria-labelledby="live-players-heading">
+    <section className="card kc-purple" aria-labelledby="live-players-heading">
       <div className="card-header px-3 py-2.5 sm:px-[18px] sm:py-[14px]">
         <span id="live-players-heading" className="ticker-label-strong">
           players

@@ -74,7 +74,7 @@ export function AliasPanel({
   };
 
   return (
-    <section aria-labelledby="alias-heading" className="card">
+    <section aria-labelledby="alias-heading" className="card kc-purple">
       <div className="card-header">
         <span id="alias-heading" className="ticker-label-strong">
           aliases

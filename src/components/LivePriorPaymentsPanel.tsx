@@ -70,7 +70,7 @@ export function LivePriorPaymentsPanel({ snapshot, onAddEntry }: LivePriorPaymen
   };
 
   return (
-    <section className="card" aria-labelledby="live-prior-payments-heading">
+    <section className="card kc-green" aria-labelledby="live-prior-payments-heading">
       <div className="card-header">
         <span id="live-prior-payments-heading" className="ticker-label-strong">
           prior payments

@@ -28,9 +28,9 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
             aria-label="settle.andrew.ee — start over"
           >
             <Brandmark />
-            <span className="font-sans font-bold text-[14px] tracking-tight-2">
-              settle<span className="text-fg-mute font-normal">.</span>andrew
-              <span className="text-fg-mute font-normal">.</span>ee
+            <span className="font-serif font-[620] text-[16px] tracking-[-0.012em]">
+              settle
+              <span className="text-fg-mute font-[450]">.andrew.ee</span>
             </span>
           </button>
 
@@ -59,7 +59,7 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
                 <span className="ticker-label">{item.label}</span>
                 <span
                   className={
-                    'font-sans num text-[12px] font-semibold tracking-tight-2 ' +
+                    'num text-[12px] font-semibold ' +
                     (item.tone === 'gain'
                       ? 'text-gain'
                       : item.tone === 'loss'

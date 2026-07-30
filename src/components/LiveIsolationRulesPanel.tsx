@@ -60,7 +60,7 @@ export function LiveIsolationRulesPanel({
   const playerName = (id: string) => nameById.get(id) ?? id;
 
   return (
-    <section className="card" aria-labelledby="live-isolation-rules-heading">
+    <section className="card kc-orange" aria-labelledby="live-isolation-rules-heading">
       <div className="card-header">
         <span id="live-isolation-rules-heading" className="ticker-label-strong">
           isolation rules

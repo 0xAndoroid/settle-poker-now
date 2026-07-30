@@ -36,7 +36,7 @@ export function IsolationPanel({
   };
 
   return (
-    <section aria-labelledby="isolation-heading" className="card">
+    <section aria-labelledby="isolation-heading" className="card kc-orange">
       <div className="card-header">
         <span id="isolation-heading" className="ticker-label-strong">
           private rules

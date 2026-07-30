@@ -41,7 +41,7 @@ export function PaymentPreferencesPanel({
   };
 
   return (
-    <section aria-labelledby="payment-preferences-heading" className="card">
+    <section aria-labelledby="payment-preferences-heading" className="card kc-blue">
       <div className="card-header">
         <span id="payment-preferences-heading" className="ticker-label-strong">
           payment prefs
