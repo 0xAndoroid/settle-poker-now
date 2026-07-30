@@ -251,7 +251,8 @@
   .card-header > .ticker-label-strong:first-child {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    flex-wrap: wrap; /* count suffixes wrap under the label, never overflow */
+    gap: 2px 10px;
     min-width: 0;
   }
   .card-header > .ticker-label-strong:first-child::before {
