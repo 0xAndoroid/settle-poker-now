@@ -8,7 +8,11 @@ import { EphemeralDesktopPanels, EphemeralMobilePanels } from './EphemeralGamePa
 import type { TickerItem } from './Masthead';
 import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { useLedger } from '@/hooks/useLedger';
-import { computePlan, roundLedgerRowsToDollars } from '@/lib/settle';
+import {
+  computePlan,
+  roundAdjustmentAmountsToDollars,
+  roundLedgerRowsToDollars,
+} from '@/lib/settle';
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
@@ -186,7 +190,7 @@ export function EphemeralView({
     }
     return computePlan(
       roundToDollars ? roundLedgerRowsToDollars(parsedLedger.rows) : parsedLedger.rows,
-      adjustments,
+      roundToDollars ? roundAdjustmentAmountsToDollars(adjustments) : adjustments,
       isolations,
       aliases,
       paymentPreferences

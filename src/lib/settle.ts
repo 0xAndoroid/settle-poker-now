@@ -82,6 +82,22 @@ export function roundLedgerRowsToDollars(rows: ReadonlyArray<LedgerRow>): Ledger
   return out;
 }
 
+/**
+ * Round adjustment (prior-payment) amounts to whole dollars for
+ * whole-dollar settlement mode. An adjustment is a symmetric transfer
+ * (payer +X, recipient −X), so rounding X keeps the ledger sum intact —
+ * no remainder redistribution needed. Without this, cent-valued prior
+ * payments leak cents back into an otherwise whole-dollar payment list.
+ */
+export function roundAdjustmentAmountsToDollars<T extends { amountCents: number }>(
+  adjustments: ReadonlyArray<T>
+): T[] {
+  return adjustments.map((adjustment) => ({
+    ...adjustment,
+    amountCents: roundToHundred(adjustment.amountCents),
+  }));
+}
+
 function roundToHundred(cents: number): number {
   // Math.round rounds -50 toward zero; use sign-symmetric rounding so wins
   // and losses round identically. Guard against IEEE -0.

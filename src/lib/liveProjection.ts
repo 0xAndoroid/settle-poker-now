@@ -1,6 +1,6 @@
 import { ledgerBalances } from './csv';
 import { formatDollars, formatNet } from './money';
-import { roundLedgerRowsToDollars } from './settle';
+import { roundAdjustmentAmountsToDollars, roundLedgerRowsToDollars } from './settle';
 import type {
   Adjustment,
   LedgerRow,
@@ -286,8 +286,15 @@ export function validateLiveFinalization(
 ): LiveFinalizationValidation {
   const pendingCount = options.pendingCount ?? 0;
   const force = options.force === true;
+  const roundToDollars = options.roundToDollars === true;
   const rawRows = deriveFinalLedgerRows(snapshot);
-  const adjustments = derivePriorPaymentAdjustments(snapshot);
+  const rawAdjustments = derivePriorPaymentAdjustments(snapshot);
+  // Whole-dollar mode rounds prior payments too — they feed the effective
+  // balances, so cent-valued adjustments would otherwise leak cents back
+  // into the payment list. Symmetric transfers round sum-preservingly.
+  const adjustments = roundToDollars
+    ? roundAdjustmentAmountsToDollars(rawAdjustments)
+    : rawAdjustments;
   const summaries = deriveLivePlayerSummaries(snapshot);
   const missingFinals = summaries.filter(
     (summary) => summary.buyInCents > 0 && !summary.hasFinalCashout
@@ -305,8 +312,7 @@ export function validateLiveFinalization(
     ? balanceFinalLedgerRows(rawRows)
     : { rows: rawRows.map((row) => ({ ...row })), proportionalAdjustments: [] };
   const { proportionalAdjustments } = balanced;
-  const rows =
-    options.roundToDollars === true ? roundLedgerRowsToDollars(balanced.rows) : balanced.rows;
+  const rows = roundToDollars ? roundLedgerRowsToDollars(balanced.rows) : balanced.rows;
   const rowIds = new Set(rows.map((row) => row.playerId));
   const playerIds = new Set(snapshot.players.map((p) => p.playerId));
   const bank = deriveLiveBankSummary(snapshot);

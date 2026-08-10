@@ -17,6 +17,7 @@
 import {
   applyAdjustments,
   buildSettlementPlan,
+  roundAdjustmentAmountsToDollars,
   roundLedgerRowsToDollars,
 } from '../../src/lib/settle';
 import {
@@ -469,7 +470,10 @@ export async function createGameFinalized(
     startedAt: input.startedAt,
     endedAt: input.endedAt,
     rows: input.roundToDollars === true ? roundLedgerRowsToDollars(input.rows) : input.rows,
-    adjustments: input.adjustments,
+    adjustments:
+      input.roundToDollars === true
+        ? roundAdjustmentAmountsToDollars(input.adjustments)
+        : input.adjustments,
     isolations: input.isolations,
     aliases: input.aliases,
     paymentPreferences: input.paymentPreferences,

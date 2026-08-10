@@ -337,6 +337,26 @@ describe('liveProjection', () => {
     // Proportionally-balanced nets were ±5_250; rounding lands on ±5_300 / ±5_200
     // is not required — only whole dollars and zero sum are.
   });
+
+  it('rounds cent-valued prior payments in whole-dollar mode', () => {
+    const snap = snapshot([
+      entry('e1', 'kevin', 'buy_in', 10_000),
+      entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
+      entry('e3', 'host', 'buy_in', 10_000),
+      entry('e4', 'host', 'cash_out', 20_000, { isFinal: true }),
+      // Kevin already venmo'd the host a cent-valued amount.
+      entry('e5', 'kevin', 'prior_payment', 4_233, { toPlayerId: 'host' }),
+    ]);
+
+    const rounded = validateLiveFinalization(snap, { roundToDollars: true });
+    expect(rounded.adjustments).toEqual([
+      { id: 'e5', fromId: 'kevin', toId: 'host', amountCents: 4_200 },
+    ]);
+
+    // Toggle off keeps the exact recorded amount.
+    const exact = validateLiveFinalization(snap);
+    expect(exact.adjustments[0]?.amountCents).toBe(4_233);
+  });
 });
 
 /**

@@ -96,4 +96,38 @@ describe('projectPending', () => {
     expect(kevin?.buyInCents).toBe(5_000);
     expect(projected.entries).toHaveLength(1);
   });
+
+  it('does not replay a busted_paid_host op the server persisted under suffixed ids', () => {
+    // The server splits busted_paid_host into two entries with
+    // `<clientEventId>:cashout` / `<clientEventId>:payment` event ids.
+    const cashout = {
+      ...entry('evt2:cashout', 'kevin', 0),
+      entryType: 'cash_out' as const,
+      isFinal: true,
+      clientEventId: 'evt2:cashout',
+    };
+    const payment = {
+      ...entry('evt2:payment', 'kevin', 5_000),
+      entryType: 'prior_payment' as const,
+      toPlayerId: 'kevin2',
+      clientEventId: 'evt2:payment',
+    };
+    const item: LiveOutboxItem = {
+      clientEventId: 'evt2',
+      gameId: 'live1',
+      request: {
+        kind: 'busted_paid_host',
+        body: { playerId: 'kevin', amountCents: 5_000, toPlayerId: 'kevin2' },
+      },
+      createdAt: now,
+      attempts: 1,
+      status: 'error',
+      lastError: 'network',
+    };
+
+    const projected = projectPending(snapshot([cashout, payment]), [item]);
+    expect(projected.entries).toHaveLength(2);
+    const kevin = projected.playerSummaries.find((s) => s.playerId === 'kevin');
+    expect(kevin?.priorPaymentCents).toBe(5_000);
+  });
 });

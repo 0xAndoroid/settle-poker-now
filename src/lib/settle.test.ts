@@ -4,6 +4,7 @@ import {
   applyAdjustments,
   buildSettlementPlan,
   computePlan,
+  roundAdjustmentAmountsToDollars,
   roundLedgerRowsToDollars,
 } from './settle';
 import type {
@@ -787,5 +788,20 @@ describe('roundLedgerRowsToDollars', () => {
 
   it('handles an empty ledger', () => {
     expect(roundLedgerRowsToDollars([])).toEqual([]);
+  });
+
+  it('rounds adjustment amounts symmetrically so payments stay whole-dollar', () => {
+    const rows = [row('a', 'A', 10_000), row('b', 'B', -10_000)];
+    const adjustments: Adjustment[] = [
+      { id: 'adj1', fromId: 'b', toId: 'a', amountCents: 4_233 },
+    ];
+    const { balances, plan } = computePlan(
+      roundLedgerRowsToDollars(rows),
+      roundAdjustmentAmountsToDollars(adjustments),
+      []
+    );
+    for (const txn of plan.txns) expect(txn.amountCents % 100).toBe(0);
+    expect(plan.txns).toEqual([{ fromId: 'b', toId: 'a', amountCents: 5_800 }]);
+    expectBalanced(plan.txns, balances);
   });
 });

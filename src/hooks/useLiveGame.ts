@@ -355,8 +355,14 @@ export function projectPending(
   const appliedEventIds = new Set<string>();
   for (const entry of snapshot.entries) appliedEventIds.add(entry.clientEventId);
   for (const checkpoint of snapshot.chipCheckpoints) appliedEventIds.add(checkpoint.clientEventId);
+  // busted_paid_host persists as TWO entries with suffixed event ids
+  // (functions/lib/live-db.ts), so match those alongside the bare id.
+  const serverApplied = (clientEventId: string) =>
+    appliedEventIds.has(clientEventId) ||
+    appliedEventIds.has(`${clientEventId}:cashout`) ||
+    appliedEventIds.has(`${clientEventId}:payment`);
   const pending = items.filter(
-    (item) => item.status !== 'synced' && !appliedEventIds.has(item.clientEventId)
+    (item) => item.status !== 'synced' && !serverApplied(item.clientEventId)
   );
   if (pending.length === 0) return snapshot;
   const game = { ...snapshot.game };
