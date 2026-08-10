@@ -4,6 +4,7 @@ import {
   applyAdjustments,
   buildSettlementPlan,
   computePlan,
+  roundLedgerRowsToDollars,
 } from './settle';
 import type {
   Adjustment,
@@ -731,5 +732,60 @@ describe('payment preferences — rail-safe routing', () => {
     expect(plan.txns).toEqual([
       { fromId: 'a', toId: 'b', amountCents: 10000 },
     ]);
+  });
+});
+
+describe('roundLedgerRowsToDollars', () => {
+  it('rounds every net to a whole dollar and preserves a balanced sum', () => {
+    const rows = [
+      row('a', 'A', 5_250), // → 5_300
+      row('b', 'B', -5_249), // → -5_200
+      row('c', 'C', -1), // → 0
+    ];
+    const rounded = roundLedgerRowsToDollars(rows);
+    for (const r of rounded) expect(Math.abs(r.netCents % 100)).toBe(0);
+    expect(rounded.reduce((acc, r) => acc + r.netCents, 0)).toBe(0);
+  });
+
+  it('folds the accumulated remainder into the largest balance', () => {
+    const rows = [
+      row('a', 'A', 10_050), // → 10_100 (half away from zero)
+      row('b', 'B', -5_025), // → -5_000
+      row('c', 'C', -5_025), // → -5_000
+    ];
+    const rounded = roundLedgerRowsToDollars(rows);
+    expect(rounded.reduce((acc, r) => acc + r.netCents, 0)).toBe(0);
+    // Residual (-100) lands on the largest |net| — player a.
+    expect(rounded.find((r) => r.playerId === 'a')?.netCents).toBe(10_000);
+    expect(rounded.find((r) => r.playerId === 'b')?.netCents).toBe(-5_000);
+    expect(rounded.find((r) => r.playerId === 'c')?.netCents).toBe(-5_000);
+  });
+
+  it('rounds symmetric wins and losses identically', () => {
+    const rounded = roundLedgerRowsToDollars([row('a', 'A', 150), row('b', 'B', -150)]);
+    expect(rounded.find((r) => r.playerId === 'a')?.netCents).toBe(200);
+    expect(rounded.find((r) => r.playerId === 'b')?.netCents).toBe(-200);
+  });
+
+  it('keeps a deliberately unbalanced ledger at its rounded discrepancy', () => {
+    const rows = [row('a', 'A', 10_020), row('b', 'B', -5_000)];
+    const rounded = roundLedgerRowsToDollars(rows);
+    expect(rounded.reduce((acc, r) => acc + r.netCents, 0)).toBe(5_000);
+    for (const r of rounded) expect(Math.abs(r.netCents % 100)).toBe(0);
+  });
+
+  it('produces whole-dollar settlement payments end to end', () => {
+    const rows = [
+      row('a', 'A', 12_345),
+      row('b', 'B', -6_170),
+      row('c', 'C', -6_175),
+    ];
+    const { balances, plan } = computePlan(roundLedgerRowsToDollars(rows), [], []);
+    for (const txn of plan.txns) expect(txn.amountCents % 100).toBe(0);
+    expectBalanced(plan.txns, balances);
+  });
+
+  it('handles an empty ledger', () => {
+    expect(roundLedgerRowsToDollars([])).toEqual([]);
   });
 });

@@ -5,7 +5,8 @@ import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { validateLiveFinalization } from '@/lib/liveProjection';
 import { formatDollars } from '@/lib/money';
 import { computePlan } from '@/lib/settle';
-import type { IsolationRule, LiveGameSnapshot } from '@/lib/types';
+import { cn } from '@/lib/cn';
+import type { IsolationRule, LiveFinalizationCheck, LiveGameSnapshot } from '@/lib/types';
 
 interface LiveFinalizePanelProps {
   snapshot: LiveGameSnapshot;
@@ -13,7 +14,11 @@ interface LiveFinalizePanelProps {
   finalizing: boolean;
   isolations: IsolationRule[];
   confirm: ConfirmFn;
-  onFinalize: (force: boolean, isolations: IsolationRule[]) => Promise<void>;
+  onFinalize: (
+    force: boolean,
+    isolations: IsolationRule[],
+    roundToDollars: boolean
+  ) => Promise<void>;
 }
 
 export function LiveFinalizePanel({
@@ -25,9 +30,10 @@ export function LiveFinalizePanel({
   onFinalize,
 }: LiveFinalizePanelProps) {
   const [force, setForce] = useState(false);
+  const [roundToDollars, setRoundToDollars] = useState(true);
   const validation = useMemo(
-    () => validateLiveFinalization(snapshot, { pendingCount, force }),
-    [force, pendingCount, snapshot]
+    () => validateLiveFinalization(snapshot, { pendingCount, force, roundToDollars }),
+    [force, pendingCount, roundToDollars, snapshot]
   );
   const preview = useMemo(() => {
     const rows = validation.rows;
@@ -52,6 +58,8 @@ export function LiveFinalizePanel({
   const chipCheck = validation.checks.find((check) => check.key === 'chip_bank');
   const canForceChip = chipCheck && !chipCheck.ok;
   const hasIsolationCycle = preview.plan.cyclePlayerIds.length > 0;
+  const blockedCount = validation.checks.filter((check) => check.blocking && !check.ok).length;
+  const canFinalize = !finalizing && validation.ok && !hasIsolationCycle;
   const imbalanceMessage = formatImbalanceConfirmation(
     validation.rawRows.reduce((acc, row) => acc + row.netCents, 0)
   );
@@ -70,29 +78,42 @@ export function LiveFinalizePanel({
       });
       if (!confirmed) return;
     }
-    void onFinalize(force, preview.isolations);
+    void onFinalize(force, preview.isolations, roundToDollars);
   };
 
   return (
     <section className="space-y-5" aria-label="Finalize live game">
-      <div className="card">
+      <div className="card kc-yellow">
         <div className="card-header">
           <span className="ticker-label-strong">finalize</span>
+          {!canFinalize && !finalizing && (
+            <span className="pill pill-warn">
+              {hasIsolationCycle
+                ? 'cycle'
+                : `${blockedCount} check${blockedCount === 1 ? '' : 's'} to fix`}
+            </span>
+          )}
+        </div>
+        <div className="px-4 pt-4 pb-3 border-b border-line">
           <button
             type="button"
             onClick={() => void handleFinalize()}
-            disabled={finalizing || !validation.ok || hasIsolationCycle}
-            className="btn btn-fill btn-sm"
+            disabled={!canFinalize}
+            className="btn btn-fill w-full h-12 text-[14px] tracking-[0.02em]"
+            aria-label="Finalize the game and mint the shareable settlement"
           >
-            {finalizing ? 'finalizing...' : 'finalize'}
+            {finalizing ? 'finalizing…' : 'finalize game ›'}
           </button>
+          <p className="mt-2 text-[11.5px] text-fg-mute leading-snug text-center">
+            {canFinalize
+              ? 'locks the ledger and mints the shareable payment list'
+              : 'clears once every check below passes'}
+          </p>
         </div>
         <div className="divide-y divide-line">
           {validation.checks.map((check) => (
             <div key={check.key} className="px-4 py-3 flex items-start gap-3">
-              <span className={check.ok ? 'pill pill-gain' : 'pill pill-loss'}>
-                {check.ok ? 'ok' : 'fix'}
-              </span>
+              <span className={cn('pill', checkPillClass(check))}>{checkPillLabel(check)}</span>
               <div>
                 <p className="text-[13px] font-semibold">{check.label}</p>
                 {check.detail && <p className="text-[12px] text-fg-dim mt-1">{check.detail}</p>}
@@ -122,11 +143,25 @@ export function LiveFinalizePanel({
             unitWasInferred={false}
             hasUserOverride={false}
           />
-          <SettlementPanel plan={preview.plan} balances={preview.balances} />
+          <SettlementPanel
+            plan={preview.plan}
+            balances={preview.balances}
+            rounding={{ enabled: roundToDollars, onChange: setRoundToDollars }}
+          />
         </>
       )}
     </section>
   );
+}
+
+function checkPillClass(check: LiveFinalizationCheck): string {
+  if (!check.ok) return 'pill-loss';
+  return check.warn ? 'pill-warn' : 'pill-gain';
+}
+
+function checkPillLabel(check: LiveFinalizationCheck): string {
+  if (!check.ok) return 'fix';
+  return check.warn ? 'warn' : 'ok';
 }
 
 function formatImbalanceConfirmation(rawDeltaCents: number): string | null {

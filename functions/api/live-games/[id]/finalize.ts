@@ -24,6 +24,7 @@ interface Body {
   clientEventId?: string;
   actorLabel?: string | null;
   force?: boolean;
+  roundToDollars?: boolean;
   isolations?: Array<{ playerId?: unknown; counterpartId?: unknown }>;
 }
 
@@ -56,6 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       clientEventId,
       actorLabel,
       force: body.force === true,
+      roundToDollars: body.roundToDollars !== false,
       isolations,
     });
     return jsonResponse(result);

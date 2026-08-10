@@ -112,10 +112,10 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
   }, [bankIssues, gameId, live.pendingCount, onTickerChange, snapshot]);
 
   const handleFinalize = useCallback(
-    async (force: boolean, rules: IsolationRule[]) => {
+    async (force: boolean, rules: IsolationRule[], roundToDollars: boolean) => {
       setFinalizing(true);
       try {
-        const result = await live.finalize(force, rules);
+        const result = await live.finalize(force, rules, roundToDollars);
         if (result) {
           if (snapshot) {
             upsertRecentGame(

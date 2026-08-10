@@ -17,6 +17,7 @@
 import {
   applyAdjustments,
   buildSettlementPlan,
+  roundLedgerRowsToDollars,
 } from '../../src/lib/settle';
 import {
   buildCanonicalMap,
@@ -454,6 +455,8 @@ export async function createGameFinalized(
     isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
     aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
     paymentPreferences?: ReadonlyArray<PaymentPreference>;
+    /** Round persisted nets (and therefore all payments) to whole dollars. */
+    roundToDollars?: boolean;
     actorLabel: string | null;
     note?: string | null;
   }
@@ -465,7 +468,7 @@ export async function createGameFinalized(
     unitProvenance: input.unitProvenance,
     startedAt: input.startedAt,
     endedAt: input.endedAt,
-    rows: input.rows,
+    rows: input.roundToDollars === true ? roundLedgerRowsToDollars(input.rows) : input.rows,
     adjustments: input.adjustments,
     isolations: input.isolations,
     aliases: input.aliases,

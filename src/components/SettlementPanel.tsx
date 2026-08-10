@@ -54,6 +54,12 @@ interface SettlementPanelProps {
   /** Toast hook so row icon clicks can surface confirmations. */
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
+  /**
+   * Round-to-dollars toggle. Present only in plan-computing contexts
+   * (ephemeral + live finalize preview) — persistent games render the
+   * payments exactly as they were finalized.
+   */
+  rounding?: { enabled: boolean; onChange: (enabled: boolean) => void };
 }
 
 export function SettlementPanel({
@@ -73,6 +79,7 @@ export function SettlementPanel({
   onEditPaymentDetails,
   pushToast,
   onHighlight,
+  rounding,
 }: SettlementPanelProps) {
   const nameById = new Map(balances.map((b) => [b.playerId, b.nickname]));
   const orderedPayments = orderPaymentsBySenderTotal(plan.txns);
@@ -198,6 +205,23 @@ export function SettlementPanel({
           )}
         </div>
       </div>
+
+      {rounding && (
+        <label className="px-4 py-2 flex items-center justify-between gap-3 border-b border-line bg-fill-1 cursor-pointer select-none">
+          <span className="text-[12.5px] text-fg-dim leading-snug">
+            <span className="font-semibold text-fg">round to dollars</span>
+            <span className="hidden sm:inline"> · whole-dollar payments, no cents</span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Round settlement payments to the nearest dollar"
+            checked={rounding.enabled}
+            onChange={(event) => rounding.onChange(event.target.checked)}
+            className="switch-poker"
+          />
+        </label>
+      )}
 
       {onEditPaymentDetails && !identityNickname && (
         <button

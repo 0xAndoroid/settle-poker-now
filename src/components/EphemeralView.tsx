@@ -8,7 +8,7 @@ import { EphemeralDesktopPanels, EphemeralMobilePanels } from './EphemeralGamePa
 import type { TickerItem } from './Masthead';
 import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { useLedger } from '@/hooks/useLedger';
-import { computePlan } from '@/lib/settle';
+import { computePlan, roundLedgerRowsToDollars } from '@/lib/settle';
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
@@ -64,6 +64,7 @@ export function EphemeralView({
   const [finalizing, setFinalizing] = useState(false);
   const [note, setNote] = useState('');
   const [startingLive, setStartingLive] = useState(false);
+  const [roundToDollars, setRoundToDollars] = useState(true);
 
   // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
@@ -184,13 +185,13 @@ export function EphemeralView({
       };
     }
     return computePlan(
-      parsedLedger.rows,
+      roundToDollars ? roundLedgerRowsToDollars(parsedLedger.rows) : parsedLedger.rows,
       adjustments,
       isolations,
       aliases,
       paymentPreferences
     );
-  }, [parsedLedger, adjustments, isolations, aliases, paymentPreferences]);
+  }, [parsedLedger, adjustments, isolations, aliases, paymentPreferences, roundToDollars]);
 
   // Push ticker upward on every settlement change.
   useEffect(() => {
@@ -389,6 +390,7 @@ export function EphemeralView({
           aliasToPlayerId: a.aliasToPlayerId,
         })),
         paymentPreferences,
+        roundToDollars,
         note: trimmedNote.length > 0 ? trimmedNote : null,
       });
       navigate(gamePath(game.game.id));
@@ -396,7 +398,7 @@ export function EphemeralView({
       pushToast(getErrorMessage(err, 'Could not finalize game.'), 'error');
       setFinalizing(false);
     }
-  }, [adjustments, aliases, confirm, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, plan.txns, pushToast]);
+  }, [adjustments, aliases, confirm, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, plan.txns, pushToast, roundToDollars]);
 
   const reset = useCallback(() => {
     resetLedger();
@@ -485,6 +487,7 @@ export function EphemeralView({
           onNoteChange={setNote}
           onFinalize={handleFinalize}
           finalizing={finalizing}
+          rounding={{ enabled: roundToDollars, onChange: setRoundToDollars }}
         />
 
         <EphemeralMobilePanels
@@ -511,6 +514,7 @@ export function EphemeralView({
           onNoteChange={setNote}
           onFinalize={handleFinalize}
           finalizing={finalizing}
+          rounding={{ enabled: roundToDollars, onChange: setRoundToDollars }}
         />
       </main>
     </>

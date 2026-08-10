@@ -574,6 +574,58 @@
     }
   }
 
+  /* ---------------------------------------------------------------- switch
+     Sliding toggle — glass track, brass knob when on. Same material
+     language as checkbox-poker but for persistent on/off settings
+     (e.g. round-to-dollars on the settlement panel). */
+  .switch-poker {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    width: 38px;
+    height: 23px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1.5px solid rgb(var(--hairline) / 0.18);
+    background: rgb(var(--hairline) / 0.05);
+    cursor: pointer;
+    transition:
+      background 200ms var(--ease-out),
+      border-color 200ms var(--ease-out);
+  }
+  .switch-poker::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: rgb(var(--fg-dim));
+    box-shadow: 0 1px 2px rgb(3 5 11 / 0.45);
+    transition:
+      transform 300ms var(--spring),
+      background 200ms var(--ease-out);
+  }
+  .switch-poker:hover:not(:disabled) {
+    border-color: rgb(var(--hairline) / 0.3);
+  }
+  .switch-poker:checked {
+    background: rgb(var(--yellow) / 0.16);
+    border-color: rgb(var(--yellow) / 0.5);
+  }
+  .switch-poker:checked::after {
+    transform: translateX(15px);
+    background: rgb(var(--yellow));
+    box-shadow:
+      0 1px 2px rgb(3 5 11 / 0.45),
+      0 0 10px rgb(var(--yellow) / 0.35);
+  }
+  .switch-poker:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   /* Fixed-width slot for the per-row Venmo / Zelle icons. Always 64px
      so the amount column lines up across rows regardless of how many
      icons the recipient has registered (0, 1, or 2). Anchors right —

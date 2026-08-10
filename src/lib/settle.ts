@@ -46,6 +46,50 @@ function emptyPaymentPreferenceStatus(): SettlementPlan['paymentPreferenceStatus
 }
 
 /**
+ * Round ledger nets to whole dollars while preserving the ledger's total.
+ *
+ * Each row's `netCents` is rounded to the nearest 100 (half away from
+ * zero). Because independent rounding can shift the sum, the accumulated
+ * remainder — always a whole number of dollars, since target and rounded
+ * sums are both multiples of 100 — is folded into the row with the
+ * largest |net| (deterministic tie-break by playerId). A balanced ledger
+ * therefore stays balanced and every value is a whole dollar amount, so
+ * every downstream settlement payment is a whole dollar amount too.
+ *
+ * `buyInCents` / `buyOutCents` are left untouched — they are raw reported
+ * figures, not settlement inputs.
+ */
+export function roundLedgerRowsToDollars(rows: ReadonlyArray<LedgerRow>): LedgerRow[] {
+  const out = rows.map((row) => ({
+    ...row,
+    netCents: roundToHundred(row.netCents),
+  }));
+  if (out.length === 0) return out;
+
+  const targetSum = roundToHundred(rows.reduce((acc, row) => acc + row.netCents, 0));
+  const roundedSum = out.reduce((acc, row) => acc + row.netCents, 0);
+  const residual = targetSum - roundedSum;
+  if (residual !== 0) {
+    const largest = out.reduce((best, row) =>
+      Math.abs(row.netCents) > Math.abs(best.netCents) ||
+      (Math.abs(row.netCents) === Math.abs(best.netCents) &&
+        row.playerId.localeCompare(best.playerId) < 0)
+        ? row
+        : best
+    );
+    largest.netCents += residual;
+  }
+  return out;
+}
+
+function roundToHundred(cents: number): number {
+  // Math.round rounds -50 toward zero; use sign-symmetric rounding so wins
+  // and losses round identically. Guard against IEEE -0.
+  const magnitude = Math.round(Math.abs(cents) / 100) * 100;
+  return magnitude === 0 ? 0 : cents < 0 ? -magnitude : magnitude;
+}
+
+/**
  * Apply already-paid adjustments to the ledger nets. Each adjustment is
  * symmetric: `from` paid `to`, so `from`'s net rises by X (less owed) and
  * `to`'s net drops by X (less owed back). Sum is preserved.

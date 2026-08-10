@@ -70,6 +70,8 @@ interface CreateBody {
   isolations?: IsolationBody[];
   aliases?: AliasBody[];
   paymentPreferences?: PaymentPreferenceBody[];
+  /** Round persisted nets + payments to whole dollars (defaults on). */
+  roundToDollars?: boolean;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -168,6 +170,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         isolations,
         aliases,
         paymentPreferences,
+        roundToDollars: body.roundToDollars !== false,
         actorLabel: body.actorLabel ?? null,
         note,
       });

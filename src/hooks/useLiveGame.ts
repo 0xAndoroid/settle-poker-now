@@ -74,7 +74,8 @@ export function useLiveGame(
   }) => Promise<void>;
   finalize: (
     force?: boolean,
-    isolations?: ReadonlyArray<IsolationRule>
+    isolations?: ReadonlyArray<IsolationRule>,
+    roundToDollars?: boolean
   ) => Promise<{ game: PersistedGameSnapshot; redirectPath: string } | null>;
 } {
   const actorLabel = options.actorLabel ?? null;
@@ -272,7 +273,11 @@ export function useLiveGame(
   );
 
   const finalize = useCallback(
-    async (force = false, isolations: ReadonlyArray<IsolationRule> = []) => {
+    async (
+      force = false,
+      isolations: ReadonlyArray<IsolationRule> = [],
+      roundToDollars = true
+    ) => {
       if (pendingCount > 0) {
         onErrorRef.current?.('Sync pending live changes before finalizing.');
         return null;
@@ -283,6 +288,7 @@ export function useLiveGame(
           gameId,
           actorLabel,
           force,
+          roundToDollars,
           isolations,
           clientEventId: newClientEventId(),
         });
@@ -338,11 +344,20 @@ export function useLiveGame(
   );
 }
 
-function projectPending(
+export function projectPending(
   snapshot: LiveGameSnapshot,
   items: ReadonlyArray<LiveOutboxItem>
 ): LiveGameSnapshot {
-  const pending = items.filter((item) => item.status !== 'synced');
+  // An item can be applied server-side before the outbox learns about it
+  // (response lost, retry pending) — a poll snapshot then already contains
+  // the entry. Replaying it on top would double-count the amount, so any
+  // clientEventId already present in the snapshot is skipped.
+  const appliedEventIds = new Set<string>();
+  for (const entry of snapshot.entries) appliedEventIds.add(entry.clientEventId);
+  for (const checkpoint of snapshot.chipCheckpoints) appliedEventIds.add(checkpoint.clientEventId);
+  const pending = items.filter(
+    (item) => item.status !== 'synced' && !appliedEventIds.has(item.clientEventId)
+  );
   if (pending.length === 0) return snapshot;
   const game = { ...snapshot.game };
   const players: LivePlayer[] = snapshot.players.map((player) => ({ ...player }));

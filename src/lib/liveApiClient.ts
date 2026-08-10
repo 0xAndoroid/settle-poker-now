@@ -206,6 +206,7 @@ export async function finalizeLiveGameRemote(
     clientEventId: string;
     actorLabel: string | null;
     force?: boolean;
+    roundToDollars?: boolean;
     isolations?: ReadonlyArray<IsolationRule>;
   },
   signal?: AbortSignal
@@ -221,6 +222,7 @@ export async function finalizeLiveGameRemote(
       clientEventId: args.clientEventId,
       actorLabel: args.actorLabel,
       force: args.force === true,
+      roundToDollars: args.roundToDollars !== false,
       isolations: (args.isolations ?? []).map((rule) => ({
         playerId: rule.playerId,
         counterpartId: rule.counterpartId,

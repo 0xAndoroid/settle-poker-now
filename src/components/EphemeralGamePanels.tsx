@@ -43,6 +43,7 @@ interface EphemeralPanelsProps {
   onNoteChange: (next: string) => void;
   onFinalize: () => void | Promise<void>;
   finalizing: boolean;
+  rounding: { enabled: boolean; onChange: (enabled: boolean) => void };
 }
 
 export function EphemeralDesktopPanels(props: EphemeralPanelsProps) {
@@ -60,6 +61,7 @@ export function EphemeralDesktopPanels(props: EphemeralPanelsProps) {
           onHighlight={props.onHighlight}
           onFinalize={props.onFinalize}
           finalizing={props.finalizing}
+          rounding={props.rounding}
         />
         <EphemeralColophon />
       </div>
@@ -82,6 +84,7 @@ export function EphemeralMobilePanels({
             balances={props.balances}
             onFinalize={props.onFinalize}
             finalizing={props.finalizing}
+            rounding={props.rounding}
           />
         </>
       )}

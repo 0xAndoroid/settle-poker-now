@@ -378,6 +378,12 @@ export interface LiveFinalizationCheck {
   ok: boolean;
   blocking: boolean;
   detail: string | null;
+  /**
+   * Passing but with a caveat the host should see (e.g. cashouts ≠ buyins
+   * absorbed by proportional adjustments). Renders as an amber WARN pill
+   * instead of a green OK.
+   */
+  warn: boolean;
 }
 
 export interface LiveFinalizationValidation {

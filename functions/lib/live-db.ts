@@ -881,6 +881,8 @@ export async function finalizeLiveGame(
     clientEventId: string;
     actorLabel: string | null;
     force?: boolean;
+    /** Round the final ledger to whole dollars (defaults on). */
+    roundToDollars?: boolean;
     isolations?: ReadonlyArray<{ playerId: string; counterpartId: string }>;
   }
 ): Promise<{ game: DbGameSnapshot; redirectPath: string }> {
@@ -901,6 +903,7 @@ export async function finalizeLiveGame(
   const validation = validateLiveFinalization(existing, {
     pendingCount: 0,
     force: args.force === true,
+    roundToDollars: args.roundToDollars !== false,
   });
   if (!validation.ok) {
     throw new CreateFinalizedValidationError(validation.errors.join(' '));

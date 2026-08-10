@@ -1,5 +1,6 @@
 import { ledgerBalances } from './csv';
 import { formatDollars, formatNet } from './money';
+import { roundLedgerRowsToDollars } from './settle';
 import type {
   Adjustment,
   LedgerRow,
@@ -281,14 +282,31 @@ export function derivePriorPaymentAdjustments(snapshot: LiveGameSnapshot): Adjus
 
 export function validateLiveFinalization(
   snapshot: LiveGameSnapshot,
-  options: { pendingCount?: number; force?: boolean } = {}
+  options: { pendingCount?: number; force?: boolean; roundToDollars?: boolean } = {}
 ): LiveFinalizationValidation {
   const pendingCount = options.pendingCount ?? 0;
   const force = options.force === true;
   const rawRows = deriveFinalLedgerRows(snapshot);
-  const { rows, proportionalAdjustments } = balanceFinalLedgerRows(rawRows);
   const adjustments = derivePriorPaymentAdjustments(snapshot);
   const summaries = deriveLivePlayerSummaries(snapshot);
+  const missingFinals = summaries.filter(
+    (summary) => summary.buyInCents > 0 && !summary.hasFinalCashout
+  );
+
+  // Proportional balancing only makes sense once the game is complete.
+  // Mid-game (players still holding chips with no final cashout) the raw
+  // ledger is legitimately lopsided — buy-ins without matching cashouts —
+  // and distributing that entire in-play pool onto whoever happens to have
+  // cashed out already grossly inflates their preview net. (Real regression:
+  // an early quitter with the only cashout absorbed every outstanding
+  // buy-in and showed up hundreds of dollars.)
+  const gameComplete = missingFinals.length === 0;
+  const balanced = gameComplete
+    ? balanceFinalLedgerRows(rawRows)
+    : { rows: rawRows.map((row) => ({ ...row })), proportionalAdjustments: [] };
+  const { proportionalAdjustments } = balanced;
+  const rows =
+    options.roundToDollars === true ? roundLedgerRowsToDollars(balanced.rows) : balanced.rows;
   const rowIds = new Set(rows.map((row) => row.playerId));
   const playerIds = new Set(snapshot.players.map((p) => p.playerId));
   const bank = deriveLiveBankSummary(snapshot);
@@ -300,9 +318,10 @@ export function validateLiveFinalization(
     label: string,
     ok: boolean,
     blocking: boolean,
-    detail: string | null = null
+    detail: string | null = null,
+    warn = false
   ) => {
-    checks.push({ key, label, ok, blocking, detail });
+    checks.push({ key, label, ok, blocking, detail, warn: ok && warn });
   };
 
   addCheck(
@@ -327,9 +346,6 @@ export function validateLiveFinalization(
     hasFinancialActivity ? null : 'Add a buy-in, cashout, or prior payment first.'
   );
 
-  const missingFinals = summaries.filter(
-    (summary) => summary.buyInCents > 0 && !summary.hasFinalCashout
-  );
   addCheck(
     'final_cashouts',
     'every buy-in has a final cashout',
@@ -352,7 +368,8 @@ export function validateLiveFinalization(
       ? `Ledger is off by ${formatNet(rawLedgerCheck.sumCents)}.`
       : hasProportionalAdjustments
         ? `Raw ledger was off by ${formatNet(rawLedgerCheck.sumCents)}.`
-        : null
+        : null,
+    hasProportionalAdjustments
   );
 
   if (hasProportionalAdjustments) {
@@ -369,7 +386,8 @@ export function validateLiveFinalization(
               signed: true,
             })}`
         )
-        .join(', ')
+        .join(', '),
+      true
     );
   }
 
@@ -381,7 +399,8 @@ export function validateLiveFinalization(
     'latest chip count is balanced',
     bankIsBalanced || force,
     !force,
-    bankIsBalanced ? null : chipBankDetail(bank.latestTableDeltaCents, bank.latestBankDeltaCents)
+    bankIsBalanced ? null : chipBankDetail(bank.latestTableDeltaCents, bank.latestBankDeltaCents),
+    !bankIsBalanced
   );
 
   const missingAdjustmentTargets = adjustments.filter(

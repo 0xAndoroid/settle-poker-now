@@ -55,6 +55,8 @@ export interface CreateFinalizedGameInput {
   isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
   aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
   paymentPreferences: ReadonlyArray<PaymentPreference>;
+  /** Round the persisted ledger + payments to whole dollars (defaults on). */
+  roundToDollars?: boolean;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -87,6 +89,7 @@ export async function createFinalizedGame(
       isolations: input.isolations,
       aliases: input.aliases,
       paymentPreferences: input.paymentPreferences,
+      roundToDollars: input.roundToDollars !== false,
       note: input.note ?? null,
     }),
   });
