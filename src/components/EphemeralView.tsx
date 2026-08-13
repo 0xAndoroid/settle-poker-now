@@ -353,11 +353,11 @@ export function EphemeralView({
             mark payments complete after finalization.
           </p>
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-[10px] border border-line bg-fill-1 p-3">
+            <div className="rounded-[6px] border border-line bg-fill-1 p-3">
               <p className="ticker-label mb-1">payments</p>
               <p className="num text-fg font-bold text-[15px]">{plan.txns.length}</p>
             </div>
-            <div className="rounded-[10px] border border-line bg-fill-1 p-3">
+            <div className="rounded-[6px] border border-line bg-fill-1 p-3">
               <p className="ticker-label mb-1">total moved</p>
               <p className="text-fg font-bold text-[15px]">
                 <Amount cents={finalizeTotal} />

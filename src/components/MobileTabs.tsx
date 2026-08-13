@@ -126,17 +126,17 @@ export function MobileTabs(props: MobileTabsProps) {
   );
 
   return (
-    <div className="lg:hidden sticky top-[90px] z-20 bg-bg/60 backdrop-blur-xl backdrop-saturate-150 border-b border-line">
+    <div className="lg:hidden sticky top-[90px] z-20 bg-bg border-b border-line">
       <div className="mx-auto max-w-6xl px-3 sm:px-6 py-2">
         <div
           role="tablist"
           aria-label="Switch sections"
-          className="relative flex rounded-full border border-line bg-fill-1 p-1"
+          className="relative flex rounded-[8px] border border-line bg-surface-soft p-1"
         >
-          {/* Sliding thumb — one glass capsule morphing between tabs. */}
+          {/* Sliding thumb — one solid fill morphing between tabs. */}
           <span
             aria-hidden="true"
-            className="absolute inset-y-1 rounded-full border border-line-strong bg-[rgb(var(--hairline)/0.14)] shadow-[inset_0_1px_0_rgb(var(--hairline)/0.1)] transition-transform duration-[420ms] [transition-timing-function:var(--spring)] will-change-transform"
+            className="absolute inset-y-1 rounded-[6px] bg-[rgb(var(--hairline)/0.13)] transition-transform duration-[420ms] [transition-timing-function:var(--spring)] will-change-transform"
             style={{
               width: `calc((100% - 8px) / ${tabs.length})`,
               transform: `translateX(${activeIndex * 100}%)`,
@@ -150,7 +150,7 @@ export function MobileTabs(props: MobileTabsProps) {
               aria-selected={props.active === t.key}
               onClick={() => onChange(t.key)}
               className={cn(
-                'relative z-10 flex-1 min-h-[38px] px-1 font-sans text-[11px] font-bold uppercase tracking-ticker rounded-full transition-colors duration-200',
+                'relative z-10 flex-1 min-h-[40px] px-1 font-sans text-[11px] font-bold uppercase tracking-ticker rounded-[6px] transition-colors duration-200',
                 props.active === t.key ? 'text-fg' : 'text-fg-mute hover:text-fg-dim'
               )}
             >

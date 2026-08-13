@@ -176,7 +176,7 @@ function UnitSwitch({
       <div
         role="radiogroup"
         aria-label="Ledger value unit"
-        className="flex rounded-full border border-line bg-fill-1 p-0.5"
+        className="flex rounded-[7px] border border-line bg-surface-soft p-0.5"
       >
         <UnitButton
           label="dollars"
@@ -218,11 +218,9 @@ function UnitButton({ label, active, onClick }: UnitButtonProps) {
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        'min-h-[26px] px-3 font-sans text-[10px] uppercase tracking-ticker font-bold rounded-full',
+        'min-h-[26px] px-3 font-sans text-[10px] uppercase tracking-ticker font-bold rounded-[5px]',
         'transition-colors duration-200',
-        active
-          ? 'bg-[rgb(var(--hairline)/0.14)] text-fg shadow-[inset_0_1px_0_rgb(var(--hairline)/0.1)]'
-          : 'text-fg-dim hover:text-fg'
+        active ? 'bg-[rgb(var(--hairline)/0.13)] text-fg' : 'text-fg-dim hover:text-fg'
       )}
     >
       {label}

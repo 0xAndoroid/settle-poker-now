@@ -5,14 +5,14 @@
 @layer base {
   :root {
     /*
-     * Deep indigo-black canvas + slate-glass surfaces — same family as the
-     * me.andrew.ee report system and crypto.andrew.ee.
+     * Flat night-indigo canvas + solid surface steps — DESIGN.md v2.
      * RGB triples (no `rgb(...)` wrapper) so Tailwind can compose with alpha.
      */
     --bg: 13 15 22; /* #0d0f16 canvas */
-    --bg-deep: 9 11 18; /* #090b12 canvas floor */
-    --glass: 44 48 66; /* #2c3042 slate glass tint, used at 0.4–0.6 alpha */
-    --hairline: 234 238 250; /* cool white — hairline edges + vibrancy fills */
+    --surface: 20 22 31; /* #14161f default panel */
+    --surface-2: 23 26 37; /* #171a25 hero / floating */
+    --surface-soft: 18 20 29; /* #12141d controls / chips */
+    --hairline: 255 255 255; /* hairline edges + thumb fills, always at low alpha */
     --fg: 236 238 246; /* #eceef6 */
     --fg-dim: 160 164 184; /* #a0a4b8 */
     --fg-mute: 115 120 141; /* #73788d */
@@ -27,23 +27,16 @@
     --red: 252 93 124; /* #fc5d7c */
     --orange: 243 150 96; /* #f39660 */
 
-    /* Type — editorial serif display over a system sans body; mono is
-       reserved for money, URLs and IDs. Matches the report skeletons. */
-    --serif:
-      'Iowan Old Style', 'Palatino Linotype', Palatino, 'Hoefler Text', ui-serif, Georgia, serif;
+    /* Type — one sans stack everywhere; mono is reserved for money, URLs
+       and IDs, never prose. */
     --sans:
       -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, ui-sans-serif, system-ui,
       'Segoe UI', sans-serif;
     --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-    /* Elevation — layered cool shadows + the light-catching top lip. */
-    --shadow-card:
-      inset 0 1px 0 rgb(255 255 255 / 0.085), inset 0 -1px 0 rgb(0 0 0 / 0.16),
-      0 1px 2px rgb(3 5 11 / 0.34), 0 14px 34px -20px rgb(3 5 12 / 0.74),
-      0 34px 72px -52px rgb(3 5 12 / 0.9);
-    --shadow-float:
-      inset 0 1px 0 rgb(255 255 255 / 0.1), 0 2px 8px rgb(3 5 11 / 0.34),
-      0 22px 52px -18px rgb(3 5 12 / 0.72);
+    /* Elevation — depth comes from surface steps + hairlines. The single
+       sanctioned shadow, for floating overlays only (toasts, dialogs). */
+    --shadow-float: 0 12px 32px -12px rgb(3 5 12 / 0.6);
 
     /* Motion vocabulary. The spring is a sampled damped physical spring
        (~4% overshoot, quick settle) — keep the provenance when retuning.
@@ -105,35 +98,6 @@
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
     background-color: rgb(var(--bg));
-  }
-
-  /* Canvas light — a single-hue indigo luminance ramp plus two very soft
-     accent blooms (alpha ≤ .055 — any stronger reads decorative) so the
-     glass above has something to refract. Fixed pseudo-element (not
-     background-attachment, which iOS Safari ignores) so it never repaints
-     on scroll. */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -2;
-    pointer-events: none;
-    background:
-      radial-gradient(70% 44% at 80% -8%, rgb(118 204 224 / 0.055), transparent 72%),
-      radial-gradient(58% 40% at 8% 3%, rgb(179 157 243 / 0.035), transparent 76%),
-      linear-gradient(180deg, #11131c 0%, rgb(var(--bg)) 52%, rgb(var(--bg-deep)) 100%);
-  }
-
-  /* Film-grain veil — kills flat-gradient banding and gives the glass a
-     physical tooth. Pure SVG turbulence, no network fetch. */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0.18;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
   }
 
   *::selection {
@@ -214,35 +178,23 @@
 }
 
 @layer components {
-  /* ---------------------------------------------------------------- glass
-     Card primitive — the report-system glass: a diagonal slate luminance
-     ramp under a backdrop blur, hairline edge, top light-lip and layered
-     cool shadows. Depth from light, never opaque gray steps. */
+  /* ---------------------------------------------------------------- card
+     Card primitive — the flat panel recipe: solid surface step above the
+     canvas, hairline edge, sharp radius. Depth from the step + hairline,
+     nothing else. */
   .card {
     position: relative;
-    background: linear-gradient(145deg, rgb(53 58 78 / 0.5), rgb(35 39 55 / 0.43));
-    -webkit-backdrop-filter: blur(18px) saturate(155%);
-    backdrop-filter: blur(18px) saturate(155%);
-    border: 1px solid rgb(var(--hairline) / 0.075);
-    border-radius: 18px;
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--hairline) / 0.07);
+    border-radius: 8px;
     overflow: clip;
-    box-shadow: var(--shadow-card);
   }
 
-  /* Glancing-light sheen across the glass face. */
-  .card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(
-      120deg,
-      rgb(255 255 255 / 0.035),
-      transparent 22%,
-      transparent 78%,
-      rgb(255 255 255 / 0.012)
-    );
+  /* Floating overlays (dialogs, toasts) get the one sanctioned shadow. */
+  .card-float {
+    background: rgb(var(--surface-2));
+    border-radius: 10px;
+    box-shadow: var(--shadow-float);
   }
 
   .card-header {
@@ -270,34 +222,27 @@
     height: 1px;
     flex-shrink: 0;
     background: var(--kc, rgb(var(--hairline) / 0.28));
-    box-shadow: 0 0 10px var(--kc-glow, transparent);
   }
 
   /* Panel meaning hues for the kicker dash. Applied on the card so the
      header ::before inherits. Restrained: only semantically-hued panels. */
   .kc-yellow {
     --kc: rgb(var(--yellow));
-    --kc-glow: rgb(var(--yellow) / 0.35);
   }
   .kc-green {
     --kc: rgb(var(--green));
-    --kc-glow: rgb(var(--green) / 0.35);
   }
   .kc-blue {
     --kc: rgb(var(--blue));
-    --kc-glow: rgb(var(--blue) / 0.35);
   }
   .kc-purple {
     --kc: rgb(var(--purple));
-    --kc-glow: rgb(var(--purple) / 0.35);
   }
   .kc-orange {
     --kc: rgb(var(--orange));
-    --kc-glow: rgb(var(--orange) / 0.35);
   }
   .kc-red {
     --kc: rgb(var(--red));
-    --kc-glow: rgb(var(--red) / 0.35);
   }
 
   .ticker-label {
@@ -318,19 +263,18 @@
     color: rgb(var(--fg-dim));
   }
 
-  /* Editorial prose — panel paragraphs read in the report's serif voice. */
+  /* Panel prose — body voice, one sans stack. */
   .prose-panel {
-    font-family: var(--serif);
+    font-family: var(--sans);
     font-size: 14px;
-    line-height: 1.65;
-    font-variant-numeric: oldstyle-nums proportional-nums;
+    line-height: 1.55;
     text-wrap: pretty;
   }
 
   /* ---------------------------------------------------------------- btn
-     Buttons — frosted fills, hairline edges, springy press. The single
-     primary action per view gets the top-lit yellow gradient; everything
-     else stays glass. */
+     Buttons — flat fills, hairline edges, springy release. The single
+     primary action per view gets the solid yellow fill; everything else
+     stays quiet. */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -342,18 +286,16 @@
     background: rgb(var(--hairline) / 0.05);
     color: rgb(var(--fg));
     border: 1px solid rgb(var(--hairline) / 0.1);
-    border-radius: 13px;
+    border-radius: 6px;
     font-family: var(--sans);
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0;
     cursor: pointer;
-    box-shadow: inset 0 1px 0 rgb(var(--hairline) / 0.06);
     transition:
       background 180ms var(--ease-out),
       border-color 180ms var(--ease-out),
       color 180ms var(--ease-out),
-      box-shadow 180ms var(--ease-out),
       filter 180ms var(--ease-out),
       transform 300ms var(--spring);
   }
@@ -361,8 +303,11 @@
     background: rgb(var(--hairline) / 0.09);
     border-color: rgb(var(--hairline) / 0.18);
   }
+  /* Press must read instantly — fast transform on the way down; the
+     slower spring above handles the release. */
   .btn:active:not(:disabled) {
     transform: scale(0.96);
+    transition-duration: 180ms, 180ms, 180ms, 180ms, 80ms;
   }
   .btn:disabled {
     opacity: 0.4;
@@ -370,34 +315,28 @@
   }
 
   .btn-fill {
-    background: linear-gradient(180deg, #f0d68c, rgb(var(--yellow)));
+    background: rgb(var(--yellow));
     color: #181302;
     font-weight: 680;
-    border-color: rgb(231 198 100 / 0.5);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.32),
-      0 1px 2px rgb(3 5 11 / 0.3),
-      0 10px 24px -10px rgb(231 198 100 / 0.45);
+    border-color: transparent;
   }
   .btn-fill:hover:not(:disabled) {
-    background: linear-gradient(180deg, #f4dd9d, rgb(var(--yellow)));
-    border-color: rgb(231 198 100 / 0.6);
-    filter: brightness(1.03);
+    background: rgb(var(--yellow));
+    border-color: transparent;
+    filter: brightness(1.06);
   }
-  /* A dimmed gradient reads as muddy brass — disabled primary falls back
-     to quiet glass instead. */
+  /* A dimmed yellow reads as muddy brass — disabled primary falls back
+     to a quiet neutral fill instead. */
   .btn-fill:disabled {
     opacity: 1;
     background: rgb(var(--hairline) / 0.06);
     color: rgb(var(--fg-mute));
     border-color: rgb(var(--hairline) / 0.08);
-    box-shadow: inset 0 1px 0 rgb(var(--hairline) / 0.05);
   }
 
   .btn-ghost {
     background: transparent;
     border-color: transparent;
-    box-shadow: none;
     color: rgb(var(--fg-dim));
     height: 36px;
     padding: 0 10px;
@@ -415,7 +354,7 @@
   .btn-sm {
     height: 32px;
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: 6px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -423,23 +362,21 @@
   }
 
   /* ---------------------------------------------------------------- field
-     Inputs — recessed glass wells; focus answers with the interactive
-     accent and a soft ring. */
+     Inputs — solid inset wells; focus answers with the interactive
+     accent border. */
   .field {
     display: block;
     width: 100%;
-    background: rgb(13 15 23 / 0.4);
+    background: rgb(var(--surface-soft));
     border: 1px solid rgb(var(--hairline) / 0.1);
-    border-radius: 13px;
+    border-radius: 6px;
     color: rgb(var(--fg));
     padding: 10px 12px;
     font-size: 14px;
     min-height: 44px;
-    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.18);
     transition:
       border-color 160ms var(--ease-out),
-      background 160ms var(--ease-out),
-      box-shadow 160ms var(--ease-out);
+      background 160ms var(--ease-out);
   }
   .field::placeholder {
     color: rgb(var(--fg-mute));
@@ -447,10 +384,6 @@
   .field:focus {
     outline: none;
     border-color: rgb(var(--blue) / 0.55);
-    background: rgb(13 15 23 / 0.55);
-    box-shadow:
-      inset 0 1px 2px rgb(0 0 0 / 0.18),
-      0 0 0 3px rgb(var(--blue) / 0.14);
   }
 
   /* iOS Safari zooms the page when a focused text control renders below
@@ -473,15 +406,15 @@
   }
 
   /* ---------------------------------------------------------------- pill
-     Status badge — the report system's squared badge, not a stadium pill.
-     Tinted variants only ever carry meaning. */
+     Status badge — squared, accent-tinted: text = accent, fill = accent
+     @ .10, border = accent @ .32. Variants only ever carry meaning. */
   .pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 3px 8px;
     border: 1px solid rgb(var(--hairline) / 0.12);
-    background: rgb(var(--hairline) / 0.05);
+    background: rgb(var(--surface-soft));
     color: rgb(var(--fg-dim));
     font-family: var(--sans);
     font-size: 9.5px;
@@ -489,37 +422,37 @@
     text-transform: uppercase;
     letter-spacing: 0.075em;
     white-space: nowrap;
-    border-radius: 7px;
+    border-radius: 6px;
   }
 
   .pill-gain {
-    background: rgb(var(--green) / 0.09);
-    border-color: rgb(var(--green) / 0.28);
+    background: rgb(var(--green) / 0.1);
+    border-color: rgb(var(--green) / 0.32);
     color: rgb(var(--green));
   }
   .pill-loss {
-    background: rgb(var(--red) / 0.09);
-    border-color: rgb(var(--red) / 0.28);
+    background: rgb(var(--red) / 0.1);
+    border-color: rgb(var(--red) / 0.32);
     color: rgb(var(--red));
   }
   .pill-accent {
-    background: rgb(var(--blue) / 0.09);
-    border-color: rgb(var(--blue) / 0.28);
+    background: rgb(var(--blue) / 0.1);
+    border-color: rgb(var(--blue) / 0.32);
     color: rgb(var(--blue));
   }
   .pill-live {
-    background: rgb(var(--purple) / 0.09);
-    border-color: rgb(var(--purple) / 0.28);
+    background: rgb(var(--purple) / 0.1);
+    border-color: rgb(var(--purple) / 0.32);
     color: rgb(var(--purple));
   }
   .pill-warn {
-    background: rgb(var(--yellow) / 0.09);
-    border-color: rgb(var(--yellow) / 0.28);
+    background: rgb(var(--yellow) / 0.1);
+    border-color: rgb(var(--yellow) / 0.32);
     color: rgb(var(--yellow));
   }
   .pill-forced {
-    background: rgb(var(--orange) / 0.09);
-    border-color: rgb(var(--orange) / 0.28);
+    background: rgb(var(--orange) / 0.1);
+    border-color: rgb(var(--orange) / 0.32);
     color: rgb(var(--orange));
   }
 
@@ -575,9 +508,9 @@
   }
 
   /* ---------------------------------------------------------------- switch
-     Sliding toggle — glass track, brass knob when on. Same material
-     language as checkbox-poker but for persistent on/off settings
-     (e.g. round-to-dollars on the settlement panel). */
+     Sliding toggle — inset track, off-white knob. Same material language
+     as checkbox-poker but for persistent on/off settings (e.g.
+     round-to-dollars on the settlement panel). */
   .switch-poker {
     appearance: none;
     -webkit-appearance: none;
@@ -602,7 +535,6 @@
     height: 16px;
     border-radius: 999px;
     background: rgb(var(--fg-dim));
-    box-shadow: 0 1px 2px rgb(3 5 11 / 0.45);
     transition:
       transform 300ms var(--spring),
       background 200ms var(--ease-out);
@@ -611,15 +543,12 @@
     border-color: rgb(var(--hairline) / 0.3);
   }
   .switch-poker:checked {
-    background: rgb(var(--yellow) / 0.16);
-    border-color: rgb(var(--yellow) / 0.5);
+    background: rgb(var(--blue) / 0.16);
+    border-color: rgb(var(--blue) / 0.5);
   }
   .switch-poker:checked::after {
     transform: translateX(15px);
-    background: rgb(var(--yellow));
-    box-shadow:
-      0 1px 2px rgb(3 5 11 / 0.45),
-      0 0 10px rgb(var(--yellow) / 0.35);
+    background: rgb(var(--blue));
   }
   .switch-poker:disabled {
     opacity: 0.4;
@@ -651,7 +580,7 @@
     height: 28px;
     border: 1px solid rgb(var(--hairline) / 0.1);
     background: rgb(var(--hairline) / 0.04);
-    border-radius: 9px;
+    border-radius: 6px;
     color: rgb(var(--fg-dim));
     cursor: pointer;
     transition:
@@ -667,6 +596,7 @@
   }
   .payment-icon:active {
     transform: scale(0.96);
+    transition-duration: 160ms, 160ms, 160ms, 80ms;
   }
 
   /* On touch devices the deep-link icon IS the pay action — give it a
@@ -683,15 +613,14 @@
     }
   }
 
-  /* Live blip — purple is the one realtime signal in the palette.
-     Static for users who request reduced motion. */
+  /* Live blip — purple is the one realtime signal in the palette. Solid
+     dot, no glow. Static for users who request reduced motion. */
   .live-dot {
     display: inline-block;
     width: 6px;
     height: 6px;
     border-radius: 999px;
     background: rgb(var(--purple));
-    box-shadow: 0 0 8px rgb(var(--purple) / 0.55);
     animation: live 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
   @media (prefers-reduced-motion: reduce) {

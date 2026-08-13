@@ -15,7 +15,7 @@ export interface TickerItem {
 export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
   return (
     <header
-      className="sticky top-0 z-30 border-b border-line bg-bg/60 backdrop-blur-xl backdrop-saturate-150"
+      className="sticky top-0 z-30 border-b border-line bg-bg"
       style={{ viewTransitionName: 'masthead' }}
     >
       {/* Row 1: brand + actions */}
@@ -28,9 +28,9 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
             aria-label="settle.andrew.ee — start over"
           >
             <Brandmark />
-            <span className="font-serif font-[620] text-[16px] tracking-[-0.012em]">
+            <span className="font-sans font-[700] text-[15px] tracking-[-0.02em]">
               settle
-              <span className="text-fg-mute font-[450]">.andrew.ee</span>
+              <span className="text-fg-mute font-[500]">.andrew.ee</span>
             </span>
           </button>
 
@@ -103,7 +103,7 @@ function Brandmark() {
         width="29"
         height="29"
         rx="9"
-        fill="rgb(var(--glass) / 0.6)"
+        fill="rgb(var(--surface-2))"
         stroke="rgb(var(--hairline) / 0.16)"
         strokeWidth="1"
       />

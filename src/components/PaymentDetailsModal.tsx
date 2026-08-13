@@ -96,14 +96,14 @@ export function PaymentDetailsModal({
       <button
         type="button"
         aria-label="Cancel"
-        className="veil-in fixed inset-0 cursor-default bg-bg/60 backdrop-blur-md"
+        className="veil-in fixed inset-0 cursor-default bg-bg/70"
         onClick={onCancel}
       />
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="payment-details-title"
-        className="card pop-in relative z-[61] w-full max-w-md"
+        className="card card-float pop-in relative z-[61] w-full max-w-md"
       >
         <div className="card-header bg-accent/[0.08]">
           <span id="payment-details-title" className="ticker-label-strong text-accent">
@@ -124,7 +124,7 @@ export function PaymentDetailsModal({
                     type="button"
                     onClick={() => setPendingId(p.playerId)}
                     className={cn(
-                      'min-h-[44px] px-4 font-sans text-[14px] font-semibold border rounded-full',
+                      'min-h-[44px] px-4 font-sans text-[14px] font-semibold border rounded-[8px]',
                       'transition-[background-color,border-color,color,scale] duration-200 active:scale-[0.96]',
                       active
                         ? 'border-transparent bg-accent text-[#0c1018]'

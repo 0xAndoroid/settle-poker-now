@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // System stacks only — no webfonts. Matches the report design system:
-        // sans body, editorial serif display, mono for money / URLs / IDs.
+        // System stacks only — no webfonts. One sans stack everywhere;
+        // mono for money / URLs / IDs.
         sans: [
           '-apple-system',
           'BlinkMacSystemFont',
@@ -16,26 +16,19 @@ export default {
           '"Segoe UI"',
           'sans-serif',
         ],
-        serif: [
-          '"Iowan Old Style"',
-          '"Palatino Linotype"',
-          'Palatino',
-          '"Hoefler Text"',
-          'ui-serif',
-          'Georgia',
-          'serif',
-        ],
         mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
       },
       colors: {
-        // Deep indigo-black canvas + slate glass; see globals.css for the
-        // source triples. Fixed-alpha entries are vibrancy fills/hairlines
+        // Flat night-indigo canvas + solid surface steps; see globals.css
+        // for the source triples. Fixed-alpha entries are hairline fills
         // and intentionally do not compose with slash-opacity modifiers.
         bg: 'rgb(var(--bg) / <alpha-value>)',
-        glass: 'rgb(var(--glass) / <alpha-value>)',
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        'surface-2': 'rgb(var(--surface-2) / <alpha-value>)',
+        'surface-soft': 'rgb(var(--surface-soft) / <alpha-value>)',
         'fill-1': 'rgb(var(--hairline) / 0.04)',
         'fill-2': 'rgb(var(--hairline) / 0.08)',
-        line: 'rgb(var(--hairline) / 0.08)',
+        line: 'rgb(var(--hairline) / 0.07)',
         'line-strong': 'rgb(var(--hairline) / 0.16)',
         fg: 'rgb(var(--fg) / <alpha-value>)',
         'fg-dim': 'rgb(var(--fg-dim) / <alpha-value>)',

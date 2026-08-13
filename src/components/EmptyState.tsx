@@ -50,18 +50,14 @@ export function EmptyState({
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20 stagger">
-      {/* Hero — editorial serif display, same voice as the report system. */}
+      {/* Hero — solid sans display, no gradient clip, no glow. */}
       <div className="mb-10 sm:mb-12">
         <p className="ticker-label mb-4 flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="inline-block h-px w-7 bg-warn shadow-[0_0_12px_rgb(var(--yellow)/0.28)]"
-          />
+          <span aria-hidden="true" className="inline-block h-px w-7 bg-warn" />
           poker night settlement · {VERSION_LABEL}
         </p>
-        <h2 className="font-serif font-[580] text-[44px] sm:text-[64px] leading-[0.98] tracking-[-0.026em] text-balance max-w-[17ch]">
-          Settle the night in the{' '}
-          <em className="font-[450] text-fg-dim">fewest possible</em> payments.
+        <h2 className="font-sans font-[800] text-[38px] sm:text-[58px] leading-[0.98] tracking-[-0.03em] text-balance max-w-[17ch]">
+          Settle the night in the <span className="text-fg-dim">fewest possible</span> payments.
         </h2>
         <p className="mt-5 prose-panel text-fg-dim text-[16px] sm:text-[17px] max-w-[46ch]">
           Paste the PokerNow URL, fold duplicate players, record cash that changed hands, set
@@ -160,7 +156,7 @@ export function EmptyState({
               <span aria-hidden="true" className="inline-block h-px w-4 bg-line-strong" />
               {r.tag}
             </p>
-            <h3 className="font-serif font-[600] text-[17px] mb-1.5 leading-snug tracking-[-0.01em]">
+            <h3 className="font-sans font-[700] text-[15px] mb-1.5 leading-snug tracking-[-0.01em]">
               {r.title}
             </h3>
             <p className="text-[12.5px] text-fg-dim leading-relaxed">{r.body}</p>

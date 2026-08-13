@@ -294,7 +294,7 @@ export function SettlementPanel({
 
       {plan.txns.length === 0 ? (
         <div className="px-6 py-10 text-center">
-          <p className="font-serif italic text-[21px] font-[480] text-fg tracking-[-0.01em]">
+          <p className="font-sans text-[19px] font-[700] text-fg tracking-[-0.02em]">
             {hasCycle ? '— pending —' : 'Already settled.'}
           </p>
           {!hasCycle && (

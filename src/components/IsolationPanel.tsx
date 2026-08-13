@@ -84,7 +84,7 @@ export function IsolationPanel({
                     setRule(b.playerId, e.target.value || null)
                   }
                   className={cn(
-                    'font-sans text-[12px] font-semibold bg-fill-1 border border-line-strong text-fg rounded-[9px]',
+                    'font-sans text-[12px] font-semibold bg-fill-1 border border-line-strong text-fg rounded-[6px]',
                     'pl-2.5 pr-8 py-1.5 min-h-[32px]',
                     'transition-colors hover:border-accent/60 focus:border-accent/60 outline-none',
                     'select-field',
