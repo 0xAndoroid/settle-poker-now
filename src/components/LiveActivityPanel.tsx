@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EmptyPanelMessage } from './FormControls';
 import { formatDollars } from '@/lib/money';
 import type { LiveOutboxItem } from '@/lib/liveStorage';
@@ -19,6 +20,7 @@ export function LiveActivityPanel({
   outboxItems,
   onVoidEntry,
 }: LiveActivityPanelProps) {
+  const [open, setOpen] = useState(false);
   const playerName = (id: string | null) =>
     id ? snapshot.players.find((player) => player.playerId === id)?.name ?? id : '';
   const queueItems = outboxItems.filter((item) => item.status !== 'synced').slice(-5);
@@ -45,48 +47,64 @@ export function LiveActivityPanel({
 
   return (
     <section className="card kc-purple" aria-labelledby="live-activity-heading">
-      <div className="card-header">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="live-activity-body"
+        className={`card-header w-full text-left cursor-pointer transition-colors duration-300 ${open ? '' : 'border-b-transparent'}`}
+      >
         <span id="live-activity-heading" className="ticker-label-strong">
           activity
           <span className="text-fg-mute font-normal ml-2">
             · {events.length}
           </span>
         </span>
-      </div>
+        <span
+          aria-hidden="true"
+          className={`ticker-label transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+        >
+          ▾
+        </span>
+      </button>
 
-      {queueItems.length > 0 && (
-        <div className="border-b border-line bg-fill-1 px-4 py-3 space-y-2">
-          {queueItems.map((item) => (
-            <div key={item.clientEventId} className="flex items-center justify-between gap-3">
-              <span className="ticker-label">{pendingLabel(item, playerName)}</span>
-              <span className={item.status === 'error' ? 'pill pill-loss' : 'pill'}>
-                {item.status}
-              </span>
+      <div id="live-activity-body" className="disclosure" data-open={open}>
+        <div>
+          {queueItems.length > 0 && (
+            <div className="border-b border-line bg-fill-1 px-4 py-3 space-y-2">
+              {queueItems.map((item) => (
+                <div key={item.clientEventId} className="flex items-center justify-between gap-3">
+                  <span className="ticker-label">{pendingLabel(item, playerName)}</span>
+                  <span className={item.status === 'error' ? 'pill pill-loss' : 'pill'}>
+                    {item.status}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {events.length === 0 ? (
-        <EmptyPanelMessage>Entries and chip counts will appear here.</EmptyPanelMessage>
-      ) : (
-        <ol>
-          {events.map((event) =>
-            event.kind === 'entry' ? (
-              <EntryRow
-                key={event.id}
-                entry={event.entry}
-                playerName={playerName}
-                onVoidEntry={onVoidEntry}
-              />
-            ) : event.kind === 'audit' ? (
-              <AuditRow key={event.id} audit={event.audit} playerName={playerName} />
-            ) : (
-              <CheckpointRow key={event.id} checkpoint={event.checkpoint} />
-            )
           )}
-        </ol>
-      )}
+
+          {events.length === 0 ? (
+            <EmptyPanelMessage>Entries and chip counts will appear here.</EmptyPanelMessage>
+          ) : (
+            <ol>
+              {events.map((event) =>
+                event.kind === 'entry' ? (
+                  <EntryRow
+                    key={event.id}
+                    entry={event.entry}
+                    playerName={playerName}
+                    onVoidEntry={onVoidEntry}
+                  />
+                ) : event.kind === 'audit' ? (
+                  <AuditRow key={event.id} audit={event.audit} playerName={playerName} />
+                ) : (
+                  <CheckpointRow key={event.id} checkpoint={event.checkpoint} />
+                )
+              )}
+            </ol>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
