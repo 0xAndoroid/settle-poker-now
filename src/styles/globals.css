@@ -245,6 +245,21 @@
     --kc: rgb(var(--red));
   }
 
+  /* Collapsible card body — 0fr → 1fr grid row so height animates without
+     a hardcoded max-height. The single child owns the overflow clip. */
+  .disclosure {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 300ms var(--ease-out);
+  }
+  .disclosure > div {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .disclosure[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+
   .ticker-label {
     font-family: var(--sans);
     font-size: 10px;
