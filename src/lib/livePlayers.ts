@@ -3,7 +3,6 @@ import type { LiveGameSnapshot, LivePlayer, LivePlayerSummary } from './types';
 export function activeLivePlayers(snapshot: LiveGameSnapshot): LivePlayer[] {
   return snapshot.players
     .filter((player) => player.status !== 'removed')
-    .slice()
     .sort(
       (a, b) =>
         a.sortOrder - b.sortOrder ||

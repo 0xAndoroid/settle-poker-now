@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centsFromDollarsString, dollarsFromCents, formatDollars, formatNet } from './money';
+import { centsFromDollarsString, formatDollars, formatNet } from './money';
 
 describe('money', () => {
   it('rounds dollars-string to integer cents (no float drift)', () => {
@@ -16,12 +16,10 @@ describe('money', () => {
   it('formats positive and negative cents', () => {
     expect(formatDollars(12345)).toBe('$123.45');
     expect(formatDollars(-12345)).toBe('-$123.45');
+    expect(formatDollars(123456, { symbol: false })).toBe('1,234.56');
+    expect(formatDollars(120000, { fixedDecimals: false })).toBe('$1,200');
     expect(formatNet(0)).toBe('+$0.00');
     expect(formatNet(50)).toBe('+$0.50');
     expect(formatNet(-50)).toBe('-$0.50');
-  });
-
-  it('round-trips dollarsFromCents', () => {
-    expect(dollarsFromCents(12345)).toBeCloseTo(123.45);
   });
 });

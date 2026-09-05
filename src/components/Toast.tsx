@@ -20,14 +20,11 @@ interface ToastProps {
 export function Toast({ toast, onDismiss }: ToastProps) {
   const [leaving, setLeaving] = useState(false);
 
-  // Dwell, then begin the exit. Manual dismiss takes the same path so the
-  // toast always animates out rather than vanishing.
   useEffect(() => {
     const timer = window.setTimeout(() => setLeaving(true), 3000);
     return () => window.clearTimeout(timer);
   }, []);
 
-  // Once leaving, let the exit play before the parent unmounts the node.
   useEffect(() => {
     if (!leaving) return;
     const timer = window.setTimeout(() => onDismiss(toast.id), EXIT_MS);
@@ -54,7 +51,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       )}
     >
       <span className="text-[14px] font-bold w-4 flex-shrink-0">{prefix}</span>
-      <span className="text-[12.5px] font-semibold flex-1 leading-tight">
+      <span className="min-w-0 break-words text-[12.5px] font-semibold flex-1 leading-tight">
         {toast.message}
       </span>
       <button
@@ -78,7 +75,7 @@ export function ToastViewport({ toasts, onDismiss }: ToastViewportProps) {
   return (
     <div
       aria-live="polite"
-      className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none safe-bottom"
+      className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 max-w-[calc(100%-2rem)] z-50 flex flex-col gap-2 pointer-events-none safe-bottom"
     >
       {toasts.map((t) => (
         <Toast key={t.id} toast={t} onDismiss={onDismiss} />

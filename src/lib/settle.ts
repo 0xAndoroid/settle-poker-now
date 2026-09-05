@@ -110,7 +110,10 @@ function roundToHundred(cents: number): number {
  * symmetric: `from` paid `to`, so `from`'s net rises by X (less owed) and
  * `to`'s net drops by X (less owed back). Sum is preserved.
  */
-export function applyAdjustments(rows: LedgerRow[], adjustments: Adjustment[]): EffectiveBalance[] {
+export function applyAdjustments(
+  rows: ReadonlyArray<LedgerRow>,
+  adjustments: ReadonlyArray<Adjustment>
+): EffectiveBalance[] {
   const byId = new Map<string, EffectiveBalance>();
   for (const row of rows) {
     byId.set(row.playerId, {

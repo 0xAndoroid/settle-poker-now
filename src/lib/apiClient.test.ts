@@ -1,15 +1,3 @@
-/**
- * apiClient contract tests — focused on the race-condition fix:
- *
- * The PATCH endpoint MUST return the full updated game snapshot so the
- * client can replace local state authoritatively without a follow-up
- * GET (which can race with the next polling tick). The same contract
- * applies to the other mutation endpoints (adjustments, isolation).
- *
- * We mock `fetch` and verify each mutation returns a `PersistedGameSnapshot`
- * extracted from `{game: ...}`.
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ApiError,
@@ -64,26 +52,21 @@ const okJson = (body: unknown): Response =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-// `vi.spyOn(globalThis, 'fetch')` produces a mock with a strict signature
-// that fights the test helpers below. Using vi.fn() typed as the fetch
-// signature is cleaner here.
 const fetchMock = vi.fn<typeof fetch>();
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
   fetchMock.mockReset();
-  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  globalThis.fetch = fetchMock;
 });
 
 afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-const fetchSpy = fetchMock;
-
-describe('apiClient — race-fix contract', () => {
-  it('setPaymentCompleted returns the full updated snapshot (not just the payment)', async () => {
-    fetchSpy.mockResolvedValueOnce(okJson({ game: SAMPLE_SNAPSHOT }));
+describe('apiClient', () => {
+  it('setPaymentCompleted sends the actor and completion state and returns the full snapshot', async () => {
+    fetchMock.mockResolvedValueOnce(okJson({ game: SAMPLE_SNAPSHOT }));
 
     const result = await setPaymentCompleted({
       gameId: 'abc12345',
@@ -93,22 +76,7 @@ describe('apiClient — race-fix contract', () => {
     });
 
     expect(result).toEqual(SAMPLE_SNAPSHOT);
-    // Critical: the result must include the full payments + audit so the
-    // client can render strikethrough + "settled by Andrew" without a
-    // follow-up GET.
-    expect(result.payments[0]!.completedAt).toBe(1234);
-    expect(result.payments[0]!.completedBy).toBe('Andrew');
-  });
-
-  it('setPaymentCompleted sends X-Actor-Label and {completed} body', async () => {
-    fetchSpy.mockResolvedValueOnce(okJson({ game: SAMPLE_SNAPSHOT }));
-    await setPaymentCompleted({
-      gameId: 'abc12345',
-      paymentId: 'p1',
-      completed: true,
-      actorLabel: 'Andrew',
-    });
-    const call = fetchSpy.mock.calls[0]!;
+    const call = fetchMock.mock.calls[0]!;
     const url = String(call[0]);
     const init = call[1] as RequestInit;
     expect(url).toBe('/api/games/abc12345/payments/p1');
@@ -119,7 +87,7 @@ describe('apiClient — race-fix contract', () => {
   });
 
   it('setPaymentCompleted throws ApiError with server message on non-2xx', async () => {
-    fetchSpy.mockResolvedValueOnce(
+    fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'No payment with id "ghost".' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -180,13 +148,13 @@ describe('apiClient — race-fix contract', () => {
         }),
     ],
   ])('%s also returns the full snapshot', async (_name, runner) => {
-    fetchSpy.mockResolvedValueOnce(okJson({ game: SAMPLE_SNAPSHOT }));
+    fetchMock.mockResolvedValueOnce(okJson({ game: SAMPLE_SNAPSHOT }));
     const result = await runner();
     expect(result).toEqual(SAMPLE_SNAPSHOT);
   });
 
   it('ApiError surfaces non-JSON error bodies as text', async () => {
-    fetchSpy.mockResolvedValueOnce(
+    fetchMock.mockResolvedValueOnce(
       new Response('upstream went away', {
         status: 502,
         headers: { 'Content-Type': 'text/plain' },
@@ -199,6 +167,6 @@ describe('apiClient — race-fix contract', () => {
         completed: true,
         actorLabel: null,
       })
-    ).rejects.toBeInstanceOf(ApiError);
+    ).rejects.toMatchObject(new ApiError(502, 'upstream went away'));
   });
 });

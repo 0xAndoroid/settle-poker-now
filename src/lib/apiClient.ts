@@ -21,17 +21,12 @@ export class ApiError extends Error {
 }
 
 export async function readErrorBody(res: Response): Promise<string> {
+  const body = await res.text().catch(() => res.statusText);
   try {
-    const json = (await res.json()) as { error?: string };
+    const json = JSON.parse(body) as { error?: string };
     if (typeof json.error === 'string') return json.error;
-  } catch {
-    // not JSON — fall through
-  }
-  try {
-    return await res.text();
-  } catch {
-    return res.statusText;
-  }
+  } catch {}
+  return body || res.statusText;
 }
 
 function actorHeaders(actorLabel: string | null): Record<string, string> {

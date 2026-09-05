@@ -12,13 +12,6 @@ export interface PaymentDetailsResult {
 
 interface PaymentDetailsModalProps {
   players: ReadonlyArray<PersistedPlayer>;
-  /**
-   * Existing payment methods on file (pre-fills the form when a player is
-   * picked). The Map identity changes on every poll tick of the parent —
-   * we ref-pin it so the pre-fill effect only fires when the picked player
-   * changes (otherwise an 8s poll resets the Venmo / Zelle inputs
-   * mid-typing).
-   */
   paymentMethodsByPlayerId: ReadonlyMap<string, PersistedPaymentMethod>;
   /** Current identity, if any — pre-selects the roster chip. */
   initialPlayerId: string | null;
@@ -26,17 +19,6 @@ interface PaymentDetailsModalProps {
   onSave: (result: PaymentDetailsResult) => void;
 }
 
-/**
- * "Get paid" modal — the user picks who they are at the table and
- * registers Venmo / Zelle handles so settlement rows targeting them can
- * surface tap-to-pay deep links. Picking a name doubles as identifying
- * yourself for the audit log and "your payments" highlighting; there is
- * no separate identity step.
- *
- * Form-state policy mirrors the old identity prompt: inputs are plain
- * `useState`, values flow upward only on save, so parent re-renders from
- * the game poll can't clobber in-flight typing.
- */
 export function PaymentDetailsModal({
   players,
   paymentMethodsByPlayerId,
@@ -54,15 +36,8 @@ export function PaymentDetailsModal({
 
   const sorted = players.slice().sort((a, b) => a.nickname.localeCompare(b.nickname));
 
-  // Pre-fill Venmo / Zelle from any existing record for the chosen player.
-  // Reads through the ref so a parent poll tick doesn't reset typing.
+  // Read through the ref so polling cannot reset in-flight typing.
   useEffect(() => {
-    if (pendingId === '') {
-      setVenmo('');
-      setZelle('');
-      setError(null);
-      return;
-    }
     const existing = paymentMethodsRef.current.get(pendingId);
     setVenmo(existing?.venmoUsername ?? '');
     setZelle(existing?.zelleHandle ?? '');

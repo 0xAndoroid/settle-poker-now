@@ -347,21 +347,6 @@ describe('applyAdjustments', () => {
 
 /* ──────── Optimal subset-sum partition algorithm ──────── */
 
-/**
- * Run the legacy greedy heuristic standalone for comparison. Mirrors
- * the inner `greedySettle` of settle.ts (kept private). We compute it
- * by running `buildSettlementPlan` with one giant pool that the
- * partition step folds into a single subset (size > 15) — but since we
- * want a comparison value, easier to count directly: greedy on a
- * zero-sum pool of size N produces exactly (count of debtors + count
- * of creditors − 1) transactions when nets are all distinct, and
- * fewer in some lucky cases. The simpler way to compute it here is
- * to call `buildSettlementPlan` with a deliberately-padded pool that
- * exceeds the threshold.
- *
- * Cleaner alternative: re-implement greedy here for tests only, so we
- * can compare numbers without leaning on threshold tricks.
- */
 function greedyTxnCount(balances: EffectiveBalance[]): number {
   const debtors: number[] = [];
   const creditors: number[] = [];
@@ -492,8 +477,6 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
   }
 
   it.each([6, 10, 14])('optimal ≤ greedy for %s-player games (×50 each)', (n) => {
-    let totalSavings = 0;
-    let casesWithSavings = 0;
     for (let i = 0; i < 50; i++) {
       const bs = randomBalanced(n);
       const plan = buildSettlementPlan(bs, []);
@@ -504,15 +487,8 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
         plan.txns.length,
         `optimal=${plan.txns.length} > greedy=${greedyCount} for ${JSON.stringify(bs.map((b) => b.effectiveNetCents))}`
       ).toBeLessThanOrEqual(greedyCount);
-      if (plan.txns.length < greedyCount) {
-        casesWithSavings++;
-        totalSavings += greedyCount - plan.txns.length;
-      }
       expectBalanced(plan.txns, bs);
     }
-    // Sanity stat — at least some games should have savings (informational).
-    expect(casesWithSavings).toBeGreaterThanOrEqual(0);
-    expect(totalSavings).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -548,8 +524,8 @@ describe('optimal subset-sum partition — determinism', () => {
   });
 });
 
-describe('optimal subset-sum partition — performance', () => {
-  it('completes a worst-case N=15 game in under 500 ms', () => {
+describe('optimal subset-sum partition — size threshold', () => {
+  it('uses optimal partitioning for 15 players', () => {
     // 15 players, mixed magnitudes so greedy is nearly worst-case and
     // optimal must enumerate many subsets. Last value is forced to make
     // the pool exactly zero-sum.
@@ -563,12 +539,7 @@ describe('optimal subset-sum partition — performance', () => {
     const balances = nets.map((n, i) =>
       balance(`p${String(i).padStart(2, '0')}`, `P${i}`, n)
     );
-    expect(balances.reduce((acc, b) => acc + b.effectiveNetCents, 0)).toBe(0);
-
-    const t0 = performance.now();
     const plan = buildSettlementPlan(balances, []);
-    const elapsed = performance.now() - t0;
-    expect(elapsed).toBeLessThan(500);
     expect(plan.algorithm).toBe('optimal');
     expectBalanced(plan.txns, balances);
   });

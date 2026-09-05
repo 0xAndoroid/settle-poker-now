@@ -463,7 +463,6 @@ export function EphemeralView({
         mode="ephemeral"
         active={activeTab}
         onChange={setActiveTab}
-        txnCount={plan.txns.length}
         playerCount={balances.length}
       />
 

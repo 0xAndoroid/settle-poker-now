@@ -1,12 +1,7 @@
-/**
- * Money utilities. PokerNow ships `net` as a signed integer count of cents.
- * All arithmetic is done in cents (integers); we only convert to dollars at
- * the rendering boundary.
- */
-
-export function dollarsFromCents(cents: number): number {
-  return cents / 100;
-}
+const dollarFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 export function centsFromDollarsString(input: string): number {
   const trimmed = input.trim().replace(/[$,\s]/g, '');
@@ -33,7 +28,7 @@ export function formatDollars(cents: number, opts: FormatOptions = {}): string {
   const sign = cents < 0 ? '-' : signed ? '+' : '';
   const abs = Math.abs(cents) / 100;
   const formatted = fixedDecimals
-    ? abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ? dollarFormatter.format(abs)
     : abs.toLocaleString('en-US');
   return `${sign}${symbol ? '$' : ''}${formatted}`;
 }

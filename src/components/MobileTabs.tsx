@@ -1,23 +1,10 @@
 import { cn } from '@/lib/cn';
 
-/**
- * Tab key namespaces. Each mode has its own tab set:
- *   - `ephemeral` (pre-finalize edit view): LEDGER · CONFIG.
- *     The settlement plan rides under `ledger` so the user can see their
- *     work without losing the editing affordances on the same screen.
- *   - `persistent` (post-finalize read-only view): LEDGER · MODS · PAYMENTS · HISTORY.
- *   - `live` (active table view): TABLE · BANK · PAYMENTS · LOG.
- *     `table` is the during-play screen (buy-ins/cashouts) ending in
- *     finalize; `bank` the chip counts; `payments` the settlement
- *     adjustments (prior payments, isolation rules); `log` the activity
- *     feed plus link sharing and recovery.
- */
 export type EphemeralTabKey = 'ledger' | 'config';
 export type PersistentTabKey = 'ledger' | 'mods' | 'payments' | 'history';
 export type LiveTabKey = 'table' | 'bank' | 'payments' | 'log';
 
 interface BaseTabsProps {
-  txnCount: number;
   playerCount: number;
 }
 
@@ -31,6 +18,7 @@ interface PersistentTabsProps extends BaseTabsProps {
   mode: 'persistent';
   active: PersistentTabKey;
   onChange: (k: PersistentTabKey) => void;
+  txnCount: number;
   modsCount: number;
   historyCount: number;
 }
@@ -133,7 +121,6 @@ export function MobileTabs(props: MobileTabsProps) {
           aria-label="Switch sections"
           className="relative flex rounded-[8px] border border-line bg-surface-soft p-1"
         >
-          {/* Sliding thumb — one solid fill morphing between tabs. */}
           <span
             aria-hidden="true"
             className="absolute inset-y-1 rounded-[6px] bg-[rgb(var(--hairline)/0.13)] transition-transform duration-[420ms] [transition-timing-function:var(--spring)] will-change-transform"

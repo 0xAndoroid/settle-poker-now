@@ -16,7 +16,6 @@ interface PlayerSelectFieldProps {
   options: ReadonlyArray<SelectOption>;
   placeholder: string;
   disabled?: boolean;
-  wrapperClassName?: string;
   selectClassName?: string;
 }
 
@@ -28,11 +27,10 @@ export function PlayerSelectField({
   options,
   placeholder,
   disabled = false,
-  wrapperClassName = 'block space-y-1.5',
   selectClassName = 'field font-sans font-semibold text-[13px] pr-8 disabled:opacity-50',
 }: PlayerSelectFieldProps) {
   return (
-    <label htmlFor={id} className={wrapperClassName}>
+    <label htmlFor={id} className="block space-y-1.5">
       <span className="ticker-label">{label}</span>
       <select
         id={id}
