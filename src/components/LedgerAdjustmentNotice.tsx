@@ -23,10 +23,16 @@ export function LedgerAdjustmentNotice({ adjustments, players, balancing }: Ledg
         <span className="ticker-label-strong">ledger adjustment</span>
       </div>
       <div className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed border-b border-line">
-        The raw ledger had <span className="num text-fg">{rawDeltaLabel}</span>.{' '}
-        {balancing
-          ? `The discrepancy was ${balancing.method === 'player' ? '' : 'split '}${ledgerBalancingLabel(balancing, rawDeltaCents, players)} before settlement rounding. Net changes are shown below.`
-          : 'The balancing method was not recorded.'}
+        {rawDeltaCents === 0 ? (
+          'Nets were rounded to whole dollars for settlement. Per-player changes are shown below.'
+        ) : (
+          <>
+            The raw ledger had <span className="num text-fg">{rawDeltaLabel}</span>.{' '}
+            {balancing
+              ? `The discrepancy was ${ledgerBalancingLabel(balancing, rawDeltaCents, players)} before settlement rounding. Net changes are shown below.`
+              : 'The balancing method was not recorded.'}
+          </>
+        )}
       </div>
       <div className="divide-y divide-line">
         {adjustments.map((adjustment) => (

@@ -67,10 +67,11 @@ export function balanceFinalLedgerRows(
   const remainderCount = totalAbs - assignedAbs;
   const byRemainder = shares
     .slice()
-    .sort(
-      (a, b) =>
-        b.remainder - a.remainder || out[a.index]!.playerId.localeCompare(out[b.index]!.playerId)
-    );
+    .sort((a, b) => {
+      const aId = out[a.index]!.playerId;
+      const bId = out[b.index]!.playerId;
+      return b.remainder - a.remainder || (aId < bId ? -1 : aId > bId ? 1 : 0);
+    });
   for (let i = 0; i < remainderCount; i++) byRemainder[i % byRemainder.length]!.amountAbs += 1;
 
   const proportionalAdjustments: LiveProportionalAdjustment[] = [];
@@ -89,13 +90,13 @@ export function ledgerBalancingLabel(
   rawDeltaCents: number,
   players: ReadonlyArray<{ playerId: string; nickname: string }>
 ): string {
-  if (balancing.method === 'cashout') return 'in proportion to cash-outs';
+  if (balancing.method === 'cashout') return 'split in proportion to cash-outs';
   if (balancing.method === 'player') {
     return `assigned entirely to ${players.find((p) => p.playerId === balancing.playerId)?.nickname ?? balancing.playerId}`;
   }
   return rawDeltaCents > 0
-    ? 'among winners in proportion to their winnings'
-    : 'among losers in proportion to their losses';
+    ? 'split among winners in proportion to their winnings'
+    : 'split among losers in proportion to their losses';
 }
 
 export function formatImbalanceConfirmation(
@@ -106,5 +107,5 @@ export function formatImbalanceConfirmation(
   if (rawDeltaCents === 0) return null;
   const amount = formatDollars(Math.abs(rawDeltaCents));
   const difference = rawDeltaCents > 0 ? 'missing' : 'surplus';
-  return `There's ${amount} ${difference}. The correction will be ${balancing.method === 'player' ? '' : 'split '}${ledgerBalancingLabel(balancing, rawDeltaCents, players)}.`;
+  return `There's ${amount} ${difference}. The correction will be ${ledgerBalancingLabel(balancing, rawDeltaCents, players)}.`;
 }

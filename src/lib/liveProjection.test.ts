@@ -121,13 +121,13 @@ describe('liveProjection', () => {
     expect(result.rows.map((row) => row.netCents)).toEqual([-27_000, -9_000, 36_000]);
   });
 
-  it('breaks equal fractional-cent remainders by player id rather than row order', () => {
+  it('breaks equal fractional-cent remainders by code-unit player id order', () => {
     const result = balanceFinalLedgerRows([
-      { playerId: 'b', nickname: 'B', buyInCents: 100, buyOutCents: 200, netCents: 100 },
       { playerId: 'a', nickname: 'A', buyInCents: 100, buyOutCents: 200, netCents: 100 },
+      { playerId: 'Z', nickname: 'Z', buyInCents: 100, buyOutCents: 200, netCents: 100 },
       { playerId: 'c', nickname: 'C', buyInCents: 199, buyOutCents: 0, netCents: -199 },
     ]);
-    expect(result.proportionalAdjustments).toEqual([{ playerId: 'a', amountCents: -1 }]);
+    expect(result.proportionalAdjustments).toEqual([{ playerId: 'Z', amountCents: -1 }]);
     expect(result.rows.map((row) => row.netCents)).toEqual([100, 99, -199]);
   });
 

@@ -145,6 +145,13 @@ export function decodeHash(hash: string): HashState {
     const unitOverride: LedgerUnit | null =
       parsed.u === 'cents' || parsed.u === 'dollars' ? parsed.u : null;
 
+    let ledgerBalancing: LedgerBalancing;
+    try {
+      ledgerBalancing = parseLedgerBalancing(parsed.lb);
+    } catch {
+      ledgerBalancing = DEFAULT_LEDGER_BALANCING;
+    }
+
     return {
       gameId: typeof parsed.g === 'string' ? parsed.g : null,
       adjustments,
@@ -152,7 +159,7 @@ export function decodeHash(hash: string): HashState {
       aliases,
       paymentPreferences,
       unitOverride,
-      ledgerBalancing: parseLedgerBalancing(parsed.lb),
+      ledgerBalancing,
     };
   } catch {
     return { ...EMPTY };

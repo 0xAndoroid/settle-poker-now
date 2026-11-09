@@ -470,6 +470,11 @@ export async function createGameFinalized(
   }
 ): Promise<DbGameSnapshot> {
   const ledgerBalancing = input.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING;
+  if (ledgerBalancing.method === 'player' && !input.rows.some(
+    (row) => row.playerId === ledgerBalancing.playerId
+  )) {
+    throw new CreateFinalizedValidationError('Select a player in the ledger to absorb the discrepancy.');
+  }
   const balanced = balanceFinalLedgerRows(input.rows, ledgerBalancing);
   if (balanced.rows.reduce((sum, row) => sum + row.netCents, 0) !== 0) {
     throw new CreateFinalizedValidationError('The selected balancing method cannot absorb the discrepancy.');

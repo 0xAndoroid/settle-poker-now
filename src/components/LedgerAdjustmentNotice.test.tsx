@@ -4,6 +4,29 @@ import { LedgerAdjustmentNotice } from './LedgerAdjustmentNotice';
 import type { LedgerBalancing } from '@/lib/types';
 
 describe('LedgerAdjustmentNotice', () => {
+  it.each([undefined, { method: 'winnings' } as const])(
+    'describes rounding-only changes without a discrepancy or balancing method (%#)',
+    (balancing) => {
+      const html = renderToStaticMarkup(
+        <LedgerAdjustmentNotice
+          adjustments={[
+            { playerId: 'a', amountCents: 30 },
+            { playerId: 'b', amountCents: -30 },
+          ]}
+          players={[
+            { playerId: 'a', nickname: 'Alice', netCents: 2400 },
+            { playerId: 'b', nickname: 'Bob', netCents: -400 },
+          ]}
+          balancing={balancing}
+        />
+      );
+      expect(html).toContain('Nets were rounded to whole dollars for settlement');
+      expect(html).toContain('+$0.30');
+      expect(html).toContain('-$0.30');
+      expect(html).not.toMatch(/surplus|missing|discrepancy|method|in proportion/);
+    }
+  );
+
   it.each<{ balancing: LedgerBalancing; description: string }>([
     {
       balancing: { method: 'winnings' },

@@ -314,7 +314,7 @@ export function validateLiveFinalization(
     const nameById = new Map(rows.map((row) => [row.playerId, row.nickname]));
     addCheck(
       'proportional_adjustments',
-      `ledger difference ${snapshot.game.ledgerBalancing?.method === 'player' ? '' : 'split '}${ledgerBalancingLabel(snapshot.game.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING, rawLedgerCheck.sumCents, rows)}`,
+      `ledger difference ${ledgerBalancingLabel(snapshot.game.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING, rawLedgerCheck.sumCents, rows)}`,
       true,
       false,
       proportionalAdjustments

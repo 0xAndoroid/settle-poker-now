@@ -882,8 +882,10 @@ export async function setLiveLedgerBalancing(
   db: D1Database,
   args: LiveMutationBase & { ledgerBalancing: unknown }
 ): Promise<LiveGameSnapshot> {
+  if (await auditEventExists(db, args.gameId, args.clientEventId)) {
+    return loadRequiredSnapshot(db, args.gameId);
+  }
   const snapshot = await loadActiveSnapshot(db, args.gameId);
-  if (await auditEventExists(db, args.gameId, args.clientEventId)) return snapshot;
   const ledgerBalancing = parseLedgerBalancing(args.ledgerBalancing);
   if (ledgerBalancing.method === 'player' && !snapshot.players.some(
     (player) => player.playerId === ledgerBalancing.playerId && player.status !== 'removed'

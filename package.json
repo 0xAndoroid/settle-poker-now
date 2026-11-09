@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p functions/tsconfig.json && vite build",
     "preview": "vite preview",
     "lint": "oxlint --disable-nested-config .",
     "format": "prettier --write .",
