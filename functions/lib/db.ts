@@ -20,6 +20,7 @@ import {
   roundAdjustmentAmountsToDollars,
   roundLedgerRowsToDollars,
 } from '../../src/lib/settle';
+import { balanceFinalLedgerRows, DEFAULT_LEDGER_BALANCING, parseLedgerBalancing } from '../../src/lib/ledgerBalancing';
 import {
   buildCanonicalMap,
   canonicalize,
@@ -33,6 +34,7 @@ import type {
   IsolationRule,
   LedgerRow,
   LedgerUnit,
+  LedgerBalancing,
   PaymentPreference,
   PersistedAdjustment,
   PersistedAlias,
@@ -114,6 +116,9 @@ function rowToGame(row: Record<string, unknown>): DbGame {
     finalizedAt: (row.finalized_at as number | null) ?? null,
     finalizedBy: (row.finalized_by as string | null) ?? null,
     note: (row.note as string | null) ?? null,
+    ledgerBalancing: typeof row.ledger_balancing === 'string'
+      ? parseLedgerBalancing(JSON.parse(row.ledger_balancing))
+      : null,
   };
 }
 
@@ -437,6 +442,7 @@ export interface InsertFinalizedGameSnapshotInput {
   paymentPreferences?: ReadonlyArray<PaymentPreference>;
   actorLabel: string | null;
   note?: string | null;
+  ledgerBalancing?: LedgerBalancing;
 }
 
 export async function createGameFinalized(
@@ -458,10 +464,21 @@ export async function createGameFinalized(
     paymentPreferences?: ReadonlyArray<PaymentPreference>;
     /** Round persisted nets (and therefore all payments) to whole dollars. */
     roundToDollars?: boolean;
+    ledgerBalancing?: LedgerBalancing;
     actorLabel: string | null;
     note?: string | null;
   }
 ): Promise<DbGameSnapshot> {
+  const ledgerBalancing = input.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING;
+  if (ledgerBalancing.method === 'player' && !input.rows.some(
+    (row) => row.playerId === ledgerBalancing.playerId
+  )) {
+    throw new CreateFinalizedValidationError('Select a player in the ledger to absorb the discrepancy.');
+  }
+  const balanced = balanceFinalLedgerRows(input.rows, ledgerBalancing);
+  if (balanced.rows.reduce((sum, row) => sum + row.netCents, 0) !== 0) {
+    throw new CreateFinalizedValidationError('The selected balancing method cannot absorb the discrepancy.');
+  }
   return insertFinalizedGameSnapshot(db, {
     sourceKind: 'pokernow',
     sourceRef: input.pokernowGameId,
@@ -469,7 +486,8 @@ export async function createGameFinalized(
     unitProvenance: input.unitProvenance,
     startedAt: input.startedAt,
     endedAt: input.endedAt,
-    rows: input.roundToDollars === true ? roundLedgerRowsToDollars(input.rows) : input.rows,
+    rows: input.roundToDollars === true ? roundLedgerRowsToDollars(balanced.rows) : balanced.rows,
+    ledgerBalancing,
     adjustments:
       input.roundToDollars === true
         ? roundAdjustmentAmountsToDollars(input.adjustments)
@@ -614,8 +632,8 @@ export async function insertFinalizedGameSnapshot(
       db
         .prepare(
           `INSERT INTO games
-            (id, pokernow_game_id, source_kind, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by, note)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, pokernow_game_id, source_kind, source_unit, unit_provenance, started_at, ended_at, created_at, updated_at, finalized_at, finalized_by, note, ledger_balancing)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           id,
@@ -629,7 +647,8 @@ export async function insertFinalizedGameSnapshot(
           now,
           now,
           input.actorLabel,
-          normalizeNote(input.note ?? null)
+          normalizeNote(input.note ?? null),
+          input.ledgerBalancing ? JSON.stringify(input.ledgerBalancing) : null
         )
     );
 

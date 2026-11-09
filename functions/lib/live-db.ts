@@ -4,6 +4,7 @@ import {
   validateLiveFinalization,
 } from '../../src/lib/liveProjection';
 import { applyAdjustments, buildSettlementPlan } from '../../src/lib/settle';
+import { parseLedgerBalancing } from '../../src/lib/ledgerBalancing';
 import type {
   Adjustment,
   IsolationRule,
@@ -130,6 +131,9 @@ function rowToLiveGame(row: Record<string, unknown>): LiveGame {
     title: (row.title as string | null) ?? null,
     note: (row.note as string | null) ?? null,
     totalChipBankCents: (row.total_chip_bank_cents as number | null | undefined) ?? null,
+    ledgerBalancing: parseLedgerBalancing(
+      typeof row.ledger_balancing === 'string' ? JSON.parse(row.ledger_balancing) : undefined
+    ),
     version: row.version as number,
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
@@ -874,6 +878,38 @@ export async function addChipCheckpoint(
   return loadRequiredSnapshot(db, args.gameId);
 }
 
+export async function setLiveLedgerBalancing(
+  db: D1Database,
+  args: LiveMutationBase & { ledgerBalancing: unknown }
+): Promise<LiveGameSnapshot> {
+  if (await auditEventExists(db, args.gameId, args.clientEventId)) {
+    return loadRequiredSnapshot(db, args.gameId);
+  }
+  const snapshot = await loadActiveSnapshot(db, args.gameId);
+  const ledgerBalancing = parseLedgerBalancing(args.ledgerBalancing);
+  if (ledgerBalancing.method === 'player' && !snapshot.players.some(
+    (player) => player.playerId === ledgerBalancing.playerId && player.status !== 'removed'
+  )) {
+    throw new LiveValidationError('Select a player in the live game to absorb the discrepancy.');
+  }
+  const now = Date.now();
+  await batchIdempotent(db, [
+    liveAuditStmt(db, {
+      gameId: args.gameId,
+      action: 'set_ledger_balancing',
+      actorLabel: args.actorLabel,
+      payload: ledgerBalancing,
+      clientEventId: args.clientEventId,
+      createdAt: now,
+    }),
+    db.prepare(
+      `UPDATE live_games SET ledger_balancing = ?, version = version + 1, updated_at = ?
+       WHERE id = ? AND status = 'active'`
+    ).bind(JSON.stringify(ledgerBalancing), now, args.gameId),
+  ], args.gameId);
+  return loadRequiredSnapshot(db, args.gameId);
+}
+
 export async function finalizeLiveGame(
   db: D1Database,
   args: {
@@ -960,6 +996,7 @@ export async function finalizeLiveGame(
       paymentPreferences: [],
       actorLabel: args.actorLabel,
       note: existing.game.note,
+      ledgerBalancing: existing.game.ledgerBalancing,
     });
     await db.batch([
       db

@@ -1,6 +1,7 @@
 import { ApiError, readErrorBody } from './apiClient';
 import type {
   IsolationRule,
+  LedgerBalancing,
   LiveChipCheckpointType,
   LiveEntryType,
   LiveGameSnapshot,
@@ -88,6 +89,10 @@ export async function deleteLiveGameRemote(
 
 export type LiveOutboxRequest =
   | {
+      kind: 'set_ledger_balancing';
+      body: { ledgerBalancing: LedgerBalancing };
+    }
+  | {
       kind: 'add_player';
       body: { name: string; isHost?: boolean };
     }
@@ -148,7 +153,14 @@ export async function sendLiveOutboxRequest(
   };
 
   let res: Response;
-  if (args.request.kind === 'add_player') {
+  if (args.request.kind === 'set_ledger_balancing') {
+    res = await fetch(base, {
+      method: 'PATCH',
+      signal,
+      headers: headers(common),
+      body: JSON.stringify({ ...args.request.body, clientEventId: args.clientEventId }),
+    });
+  } else if (args.request.kind === 'add_player') {
     res = await fetch(`${base}/players`, {
       method: 'POST',
       signal,

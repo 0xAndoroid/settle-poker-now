@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { LedgerPanel } from './LedgerPanel';
 import { SettlementPanel } from './SettlementPanel';
+import { LedgerBalancingSelector } from './LedgerBalancingSelector';
 import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { validateLiveFinalization } from '@/lib/liveProjection';
+import { DEFAULT_LEDGER_BALANCING, formatImbalanceConfirmation } from '@/lib/ledgerBalancing';
 import { formatDollars } from '@/lib/money';
 import { computePlan } from '@/lib/settle';
 import { cn } from '@/lib/cn';
-import type { IsolationRule, LiveFinalizationCheck, LiveGameSnapshot } from '@/lib/types';
+import type { IsolationRule, LedgerBalancing, LiveFinalizationCheck, LiveGameSnapshot } from '@/lib/types';
 
 interface LiveFinalizePanelProps {
   snapshot: LiveGameSnapshot;
@@ -14,6 +16,7 @@ interface LiveFinalizePanelProps {
   finalizing: boolean;
   isolations: IsolationRule[];
   confirm: ConfirmFn;
+  onLedgerBalancingChange: (value: LedgerBalancing) => Promise<void>;
   onFinalize: (
     force: boolean,
     isolations: IsolationRule[],
@@ -27,6 +30,7 @@ export function LiveFinalizePanel({
   finalizing,
   isolations,
   confirm,
+  onLedgerBalancingChange,
   onFinalize,
 }: LiveFinalizePanelProps) {
   const [force, setForce] = useState(false);
@@ -61,7 +65,9 @@ export function LiveFinalizePanel({
   const blockedCount = validation.checks.filter((check) => check.blocking && !check.ok).length;
   const canFinalize = !finalizing && validation.ok && !hasIsolationCycle;
   const imbalanceMessage = formatImbalanceConfirmation(
-    validation.rawRows.reduce((acc, row) => acc + row.netCents, 0)
+    validation.rawRows.reduce((acc, row) => acc + row.netCents, 0),
+    snapshot.game.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING,
+    validation.rawRows
   );
 
   const handleFinalize = async () => {
@@ -72,7 +78,12 @@ export function LiveFinalizePanel({
         body: (
           <div className="space-y-3">
             <p>{imbalanceMessage}</p>
-            <p>The final ledger will include the proportional adjustment shown in the preview.</p>
+            {validation.proportionalAdjustments.map((adjustment) => (
+              <p key={adjustment.playerId}>
+                {validation.rawRows.find((row) => row.playerId === adjustment.playerId)?.nickname}: {formatDollars(adjustment.amountCents, { signed: true })}
+              </p>
+            ))}
+            <p>The final ledger will include the per-player corrections shown in the preview.</p>
           </div>
         ),
       });
@@ -83,6 +94,14 @@ export function LiveFinalizePanel({
 
   return (
     <section className="space-y-5" aria-label="Finalize live game">
+      {validation.checks.find((check) => check.key === 'final_cashouts')?.ok && (
+        <LedgerBalancingSelector
+          rows={validation.rawRows}
+          value={snapshot.game.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING}
+          onChange={onLedgerBalancingChange}
+          disabled={finalizing}
+        />
+      )}
       <div className="card kc-yellow">
         <div className="card-header">
           <span className="ticker-label-strong">finalize</span>
@@ -162,13 +181,4 @@ function checkPillClass(check: LiveFinalizationCheck): string {
 function checkPillLabel(check: LiveFinalizationCheck): string {
   if (!check.ok) return 'fix';
   return check.warn ? 'warn' : 'ok';
-}
-
-function formatImbalanceConfirmation(rawDeltaCents: number): string | null {
-  if (Math.abs(rawDeltaCents) <= 1) return null;
-  const amount = formatDollars(Math.abs(rawDeltaCents));
-  if (rawDeltaCents < 0) {
-    return `There's ${amount} missing. It will be split proportionally among winners, reducing their winnings.`;
-  }
-  return `There's ${amount} surplus. It will be distributed proportionally among losers, reducing their losses.`;
 }

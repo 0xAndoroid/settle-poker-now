@@ -60,6 +60,15 @@ const baseInput = (): {
 });
 
 describe('createGameFinalized — validation', () => {
+  it('rejects an unknown balancing player even when the ledger already balances', async () => {
+    await expect(
+      createGameFinalized(stubDb, {
+        ...baseInput(),
+        ledgerBalancing: { method: 'player', playerId: 'ghost' },
+      })
+    ).rejects.toThrowError(/select a player in the ledger/i);
+  });
+
   it('rejects an adjustment that references an unknown player', async () => {
     await expect(
       createGameFinalized(stubDb, {

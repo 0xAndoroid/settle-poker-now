@@ -3,13 +3,16 @@
  * DELETE /api/live-games/:id — permanently delete an unfinalized live game.
  */
 
-import { deleteLiveGame, loadLiveGame, LiveNotFoundError } from '../../lib/live-db';
+import { deleteLiveGame, loadLiveGame, LiveNotFoundError, setLiveLedgerBalancing } from '../../lib/live-db';
 import {
   CORS_HEADERS,
   OPTIONS_NO_CONTENT,
   errorResponse,
   jsonResponse,
   mapMutationError,
+  readActorLabel,
+  readClientEventId,
+  readJsonBody,
 } from '../../lib/responses';
 
 interface Env {
@@ -46,6 +49,32 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
       status: 204,
       headers: { ...CORS_HEADERS, 'Cache-Control': 'no-store' },
     });
+  } catch (err) {
+    if (err instanceof LiveNotFoundError) return errorResponse(404, err.message);
+    const mapped = mapMutationError(err);
+    if (mapped) return mapped;
+    throw err;
+  }
+};
+
+export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
+  const gameId = (ctx.params.id as string | undefined)?.trim() ?? '';
+  if (!ID_PATTERN.test(gameId)) return errorResponse(400, 'Invalid live game id.');
+  const parsed = await readJsonBody<{ clientEventId?: string; ledgerBalancing?: unknown }>(ctx.request);
+  if (!parsed.ok) return parsed.response;
+  if (parsed.body.ledgerBalancing === undefined) {
+    return errorResponse(400, 'ledgerBalancing is required.');
+  }
+  const clientEventId = readClientEventId(ctx.request, parsed.body);
+  if (!clientEventId) return errorResponse(400, 'clientEventId is required.');
+  try {
+    const game = await setLiveLedgerBalancing(ctx.env.DB, {
+      gameId,
+      clientEventId,
+      actorLabel: readActorLabel(ctx.request),
+      ledgerBalancing: parsed.body.ledgerBalancing,
+    });
+    return jsonResponse({ game });
   } catch (err) {
     if (err instanceof LiveNotFoundError) return errorResponse(404, err.message);
     const mapped = mapMutationError(err);

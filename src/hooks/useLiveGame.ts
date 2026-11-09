@@ -14,6 +14,7 @@ import {
 } from '@/lib/liveStorage';
 import type {
   IsolationRule,
+  LedgerBalancing,
   LiveChipCheckpoint,
   LiveEntry,
   LiveGameSnapshot,
@@ -52,6 +53,7 @@ export function useLiveGame(
   pendingCount: number;
   syncState: LiveSyncState;
   refresh: () => Promise<void>;
+  setLedgerBalancing: (ledgerBalancing: LedgerBalancing) => Promise<void>;
   addPlayer: (name: string, isHost?: boolean) => Promise<void>;
   updatePlayer: (
     playerId: string,
@@ -308,6 +310,8 @@ export function useLiveGame(
       pendingCount,
       syncState,
       refresh,
+      setLedgerBalancing: (ledgerBalancing: LedgerBalancing) =>
+        enqueue({ kind: 'set_ledger_balancing', body: { ledgerBalancing } }),
       addPlayer: (name: string, isHost?: boolean) =>
         enqueue({ kind: 'add_player', body: { name, isHost } }),
       updatePlayer: (
@@ -355,6 +359,9 @@ export function projectPending(
   const appliedEventIds = new Set<string>();
   for (const entry of snapshot.entries) appliedEventIds.add(entry.clientEventId);
   for (const checkpoint of snapshot.chipCheckpoints) appliedEventIds.add(checkpoint.clientEventId);
+  for (const event of snapshot.audit) {
+    if (event.clientEventId) appliedEventIds.add(event.clientEventId);
+  }
   // busted_paid_host persists as TWO entries with suffixed event ids
   // (functions/lib/live-db.ts), so match those alongside the bare id.
   const serverApplied = (clientEventId: string) =>
@@ -375,7 +382,9 @@ export function projectPending(
   for (const item of pending) {
     const createdAt = item.createdAt;
     const request = item.request;
-    if (request.kind === 'add_player') {
+    if (request.kind === 'set_ledger_balancing') {
+      game.ledgerBalancing = request.body.ledgerBalancing;
+    } else if (request.kind === 'add_player') {
       const playerId = `pending_${item.clientEventId}`;
       players.push({
         gameId: snapshot.game.id,

@@ -19,6 +19,11 @@ export interface LedgerRow {
   buyOutCents: number;
 }
 
+export type LedgerBalancing =
+  | { method: 'winnings' }
+  | { method: 'cashout' }
+  | { method: 'player'; playerId: string };
+
 /**
  * Unit a PokerNow ledger reports values in. Cents-mode is the default for
  * games with sub-dollar play; dollars-mode is used by hosts who disable
@@ -152,6 +157,7 @@ export interface PersistedGame {
    * unset; the UI falls back to "dinner".
    */
   note: string | null;
+  ledgerBalancing?: LedgerBalancing | null;
 }
 
 export interface PersistedPlayer {
@@ -264,6 +270,7 @@ export interface LiveGame {
   title: string | null;
   note: string | null;
   totalChipBankCents: number | null;
+  ledgerBalancing?: LedgerBalancing;
   version: number;
   createdAt: number;
   updatedAt: number;
@@ -318,6 +325,7 @@ export type LiveAuditAction =
   | 'add_player'
   | 'update_player'
   | 'set_host'
+  | 'set_ledger_balancing'
   | 'void_entry'
   | 'busted_paid_host'
   | 'force_finalize'
@@ -380,7 +388,7 @@ export interface LiveFinalizationCheck {
   detail: string | null;
   /**
    * Passing but with a caveat the host should see (e.g. cashouts ≠ buyins
-   * absorbed by proportional adjustments). Renders as an amber WARN pill
+   * absorbed by discrepancy corrections). Renders as an amber WARN pill
    * instead of a green OK.
    */
   warn: boolean;
@@ -400,5 +408,4 @@ export interface LiveFinalizationValidation {
 export interface LiveProportionalAdjustment {
   playerId: string;
   amountCents: number;
-  basisCents: number;
 }

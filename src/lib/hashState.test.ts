@@ -2,6 +2,41 @@ import { describe, expect, it } from 'vitest';
 import { decodeHash, encodeHash, type HashState } from './hashState';
 
 describe('hashState', () => {
+  it('defaults a malformed balancing field without losing the rest of the hash', () => {
+    const hash = btoa(JSON.stringify({
+      g: 'kept-game',
+      a: [{ i: 'paid', f: 'a', t: 'b', c: 100 }],
+      al: [{ p: 'duplicate', t: 'a' }],
+      iso: [{ p: 'a', c: 'b' }],
+      pp: [{ p: 'a', r: 'venmo' }],
+      u: 'cents',
+      lb: { method: 'player' },
+    }));
+    expect(decodeHash(hash)).toEqual({
+      gameId: 'kept-game',
+      adjustments: [{ id: 'paid', fromId: 'a', toId: 'b', amountCents: 100 }],
+      aliases: [{ playerId: 'duplicate', aliasToPlayerId: 'a' }],
+      isolations: [{ playerId: 'a', counterpartId: 'b' }],
+      paymentPreferences: [{ playerId: 'a', rail: 'venmo' }],
+      unitOverride: 'cents',
+      ledgerBalancing: { method: 'winnings' },
+    });
+  });
+
+  it('defaults legacy hashes without a balancing field to winnings', () => {
+    const decoded = decodeHash(btoa(JSON.stringify({ g: 'legacy-game' })));
+    expect(decoded.ledgerBalancing).toEqual({ method: 'winnings' });
+    expect(decoded.gameId).toBe('legacy-game');
+  });
+
+  it('round-trips a cash-out choice without a game id', () => {
+    const state: HashState = {
+      gameId: null, adjustments: [], isolations: [], aliases: [], paymentPreferences: [],
+      unitOverride: null, ledgerBalancing: { method: 'cashout' },
+    };
+    expect(encodeHash(state)).not.toBe('');
+    expect(decodeHash(encodeHash(state))).toEqual(state);
+  });
   it('round-trips a populated state', () => {
     const state: HashState = {
       gameId: 'abc123',
@@ -20,6 +55,7 @@ describe('hashState', () => {
         { playerId: 'kevin', rail: 'zelle' },
       ],
       unitOverride: 'dollars',
+      ledgerBalancing: { method: 'player', playerId: 'kevin' },
     };
     const encoded = encodeHash(state);
     expect(encoded).not.toContain('+');
@@ -125,7 +161,7 @@ describe('hashState', () => {
       paymentPreferences: [],
       unitOverride: null,
     };
-    expect(decodeHash(encodeHash(state))).toEqual(state);
+    expect(decodeHash(encodeHash(state))).toEqual({ ...state, ledgerBalancing: { method: 'winnings' } });
   });
 
   it('rejects invalid unit override values', () => {

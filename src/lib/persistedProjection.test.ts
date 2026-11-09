@@ -233,7 +233,8 @@ describe('projectPersistedSnapshot', () => {
     expect(projection.proportionalAdjustments).toContainEqual({
       playerId: 'a',
       amountCents: 200,
-      basisCents: 7000,
     });
+    expect(projection.originalRows.map((row) => row.netCents)).toEqual([-2800, -2000, 5000]);
+    expect(projection.originalBalances[0]?.effectiveNetCents).toBe(-2800);
   });
 });
