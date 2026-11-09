@@ -1,29 +1,32 @@
 import { formatDollars } from '@/lib/money';
 import type { PersistedLedgerAdjustment } from '@/lib/persistedProjection';
 import type { PersistedGameSnapshot } from '@/lib/types';
+import { ledgerBalancingLabel } from '@/lib/ledgerBalancing';
 
 interface LedgerAdjustmentNoticeProps {
   adjustments: PersistedLedgerAdjustment[];
   players: PersistedGameSnapshot['players'];
+  balancing?: PersistedGameSnapshot['game']['ledgerBalancing'];
 }
 
-export function LedgerAdjustmentNotice({ adjustments, players }: LedgerAdjustmentNoticeProps) {
+export function LedgerAdjustmentNotice({ adjustments, players, balancing }: LedgerAdjustmentNoticeProps) {
   const nameById = new Map(players.map((player) => [player.playerId, player.nickname]));
   const rawDeltaCents = -adjustments.reduce((acc, adjustment) => acc + adjustment.amountCents, 0);
   const rawDeltaLabel =
-    rawDeltaCents < 0
+    rawDeltaCents > 0
       ? `${formatDollars(Math.abs(rawDeltaCents))} missing`
-      : `${formatDollars(rawDeltaCents)} surplus`;
+      : `${formatDollars(Math.abs(rawDeltaCents))} surplus`;
 
   return (
     <section className="card" aria-label="Ledger adjustment">
       <div className="card-header">
         <span className="ticker-label-strong">ledger adjustment</span>
-        <span className="pill pill-live">live</span>
       </div>
       <div className="px-4 py-3 text-[12.5px] text-fg-dim leading-relaxed border-b border-line">
-        Raw cashouts had <span className="num text-fg">{rawDeltaLabel}</span>. Final
-        settlement nets were balanced proportionally before payments were generated.
+        The raw ledger had <span className="num text-fg">{rawDeltaLabel}</span>.{' '}
+        {balancing
+          ? `The discrepancy was ${balancing.method === 'player' ? '' : 'split '}${ledgerBalancingLabel(balancing, rawDeltaCents, players)} before settlement rounding. Net changes are shown below.`
+          : 'The balancing method was not recorded.'}
       </div>
       <div className="divide-y divide-line">
         {adjustments.map((adjustment) => (

@@ -25,7 +25,8 @@
 
 import { parseLedgerCsv } from '../../src/lib/csv';
 import { extractGameId } from '../../src/lib/pokernow';
-import { CreateFinalizedValidationError, createGame, createGameFinalized } from '../lib/db';
+import { parseLedgerBalancing } from '../../src/lib/ledgerBalancing';
+import { createGame, createGameFinalized } from '../lib/db';
 import { detectCentsMode, fetchLedgerCsv } from '../lib/ledger-fetch';
 import {
   CORS_HEADERS,
@@ -72,6 +73,7 @@ interface CreateBody {
   paymentPreferences?: PaymentPreferenceBody[];
   /** Round persisted nets + payments to whole dollars (defaults on). */
   roundToDollars?: boolean;
+  ledgerBalancing?: unknown;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -171,6 +173,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         aliases,
         paymentPreferences,
         roundToDollars: body.roundToDollars !== false,
+        ledgerBalancing: parseLedgerBalancing(body.ledgerBalancing),
         actorLabel: body.actorLabel ?? null,
         note,
       });
@@ -179,7 +182,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         { status: 201, headers: { ...CORS_HEADERS, 'X-Game-Id': snapshot.game.id } }
       );
     } catch (err) {
-      if (err instanceof CreateFinalizedValidationError) {
+      if (err instanceof Error && err.name.endsWith('ValidationError')) {
         return errorResponse(400, err.message);
       }
       throw err;

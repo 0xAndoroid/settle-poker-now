@@ -40,6 +40,14 @@ alias [settle-poker-now.pages.dev](https://settle-poker-now.pages.dev)).
 7. Finalizing creates a shareable game link that the group can use to view
    payments and mark transfers complete.
 
+If the ledger does not balance, choose how to absorb the discrepancy before
+settlement: winnings/losses (the default, before prior payments), cash-outs,
+or one selected player. Missing money reduces winners' nets in proportion to
+their winnings; surplus money reduces losers' losses in proportion to their
+losses. Local choices are shared in the URL hash; live choices sync to every
+viewer. Finalization stores the selected method and corrected nets. Older
+finalized games retain their stored nets without inferring a balancing method.
+
 ## Stack
 
 - **Vite** + **React 19** + **TypeScript** (strict mode)

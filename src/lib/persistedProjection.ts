@@ -22,7 +22,6 @@ import type {
 export interface PersistedLedgerAdjustment {
   playerId: string;
   amountCents: number;
-  basisCents: number;
 }
 
 export interface PersistedSnapshotProjection {
@@ -130,7 +129,6 @@ export function projectPersistedSnapshot(snap: PersistedGameSnapshot): Persisted
     .map((p) => ({
       playerId: p.playerId,
       amountCents: p.netCents - originalNetCents(p),
-      basisCents: p.buyOutCents ?? 0,
     }))
     .filter((adj) => adj.amountCents !== 0);
 

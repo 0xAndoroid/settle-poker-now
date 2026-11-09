@@ -1,6 +1,6 @@
+import { balanceFinalLedgerRows } from './ledgerBalancing';
 import { describe, expect, it } from 'vitest';
 import {
-  balanceFinalLedgerRows,
   deriveFinalLedgerRows,
   deriveLiveBankSummary,
   deriveLivePlayerSummaries,
@@ -92,6 +92,45 @@ function entry(
 }
 
 describe('liveProjection', () => {
+  it('absorbs missing money in proportion to winnings', () => {
+    const rows = [
+      { playerId: 'a', nickname: 'A', buyInCents: 10_000, buyOutCents: 40_000, netCents: 30_000 },
+      { playerId: 'b', nickname: 'B', buyInCents: 30_000, buyOutCents: 40_000, netCents: 10_000 },
+      { playerId: 'c', nickname: 'C', buyInCents: 36_000, buyOutCents: 0, netCents: -36_000 },
+    ];
+
+    const result = balanceFinalLedgerRows(rows);
+    expect(result.proportionalAdjustments).toEqual([
+      { playerId: 'a', amountCents: -3_000 },
+      { playerId: 'b', amountCents: -1_000 },
+    ]);
+    expect(result.rows.map((row) => row.netCents)).toEqual([27_000, 9_000, -36_000]);
+    expect(rows.map((row) => row.netCents)).toEqual([30_000, 10_000, -36_000]);
+  });
+
+  it('distributes surplus money in proportion to losses, including busted players', () => {
+    const result = balanceFinalLedgerRows([
+      { playerId: 'a', nickname: 'A', buyInCents: 30_000, buyOutCents: 0, netCents: -30_000 },
+      { playerId: 'b', nickname: 'B', buyInCents: 20_000, buyOutCents: 10_000, netCents: -10_000 },
+      { playerId: 'c', nickname: 'C', buyInCents: 10_000, buyOutCents: 46_000, netCents: 36_000 },
+    ]);
+    expect(result.proportionalAdjustments).toEqual([
+      { playerId: 'a', amountCents: 3_000 },
+      { playerId: 'b', amountCents: 1_000 },
+    ]);
+    expect(result.rows.map((row) => row.netCents)).toEqual([-27_000, -9_000, 36_000]);
+  });
+
+  it('breaks equal fractional-cent remainders by player id rather than row order', () => {
+    const result = balanceFinalLedgerRows([
+      { playerId: 'b', nickname: 'B', buyInCents: 100, buyOutCents: 200, netCents: 100 },
+      { playerId: 'a', nickname: 'A', buyInCents: 100, buyOutCents: 200, netCents: 100 },
+      { playerId: 'c', nickname: 'C', buyInCents: 199, buyOutCents: 0, netCents: -199 },
+    ]);
+    expect(result.proportionalAdjustments).toEqual([{ playerId: 'a', amountCents: -1 }]);
+    expect(result.rows.map((row) => row.netCents)).toEqual([100, 99, -199]);
+  });
+
   it('sums multiple buy-ins for a player', () => {
     const snap = snapshot([
       entry('e1', 'kevin', 'buy_in', 4_000),
@@ -103,6 +142,16 @@ describe('liveProjection', () => {
     expect(kevin?.buyInCents).toBe(10_000);
     expect(kevin?.cashOutCents).toBe(10_000);
     expect(kevin?.netCents).toBe(0);
+  });
+
+  it('assigns the entire discrepancy to the selected player even when their sign flips', () => {
+    const result = balanceFinalLedgerRows([
+      { playerId: 'a', nickname: 'A', buyInCents: 100, buyOutCents: 200, netCents: 100 },
+      { playerId: 'b', nickname: 'B', buyInCents: 100, buyOutCents: 120, netCents: 20 },
+      { playerId: 'c', nickname: 'C', buyInCents: 40, buyOutCents: 0, netCents: -40 },
+    ], { method: 'player', playerId: 'b' });
+    expect(result.rows.map((row) => row.netCents)).toEqual([100, -60, -40]);
+    expect(result.proportionalAdjustments).toEqual([{ playerId: 'b', amountCents: -80 }]);
   });
 
   it('derives a zero-cashout bust as a final row', () => {
@@ -192,22 +241,24 @@ describe('liveProjection', () => {
     });
   });
 
-  it('allows finalization with proportional balance adjustments', () => {
+  it('balances raw nets before applying prior payments', () => {
     const snap = snapshot([
       entry('e1', 'kevin', 'buy_in', 10_000),
       entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
       entry('e3', 'host', 'buy_in', 10_000),
       entry('e4', 'host', 'cash_out', 15_000, { isFinal: true }),
+      entry('e5', 'kevin', 'prior_payment', 10_000, { toPlayerId: 'host' }),
     ]);
 
     const result = validateLiveFinalization(snap);
     expect(result.ok).toBe(true);
     expect(result.errors).toEqual([]);
     expect(result.proportionalAdjustments).toEqual([
-      { playerId: 'host', amountCents: 5_000, basisCents: 15_000 },
+      { playerId: 'kevin', amountCents: 5_000 },
     ]);
     expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
     expect(result.rawRows.reduce((acc, row) => acc + row.netCents, 0)).toBe(-5_000);
+    expect(result.adjustments).toEqual([{ id: 'e5', fromId: 'kevin', toId: 'host', amountCents: 10_000 }]);
   });
 
   it('balances final rows without overwriting raw cashout totals', () => {
@@ -231,11 +282,12 @@ describe('liveProjection', () => {
     const result = balanceFinalLedgerRows(rawRows);
     expect(result.rows.find((row) => row.playerId === 'host')).toMatchObject({
       buyOutCents: 15_000,
-      netCents: 10_000,
+      netCents: 5_000,
     });
+    expect(result.rows.find((row) => row.playerId === 'kevin')?.netCents).toBe(-5_000);
   });
 
-  it('balances surplus cashouts before settlement', () => {
+  it('reduces winnings when cash-outs exceed recorded buy-ins', () => {
     const snap = snapshot([
       entry('e1', 'kevin', 'buy_in', 10_000),
       entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
@@ -249,7 +301,7 @@ describe('liveProjection', () => {
     expect(result.rawRows.reduce((acc, row) => acc + row.netCents, 0)).toBe(10_000);
     expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
     expect(result.proportionalAdjustments).toEqual([
-      { playerId: 'host', amountCents: -10_000, basisCents: 30_000 },
+      { playerId: 'host', amountCents: -10_000 },
     ]);
   });
 
@@ -261,6 +313,7 @@ describe('liveProjection', () => {
       entry('e4', 'host', 'cash_out', 15_000, { isFinal: true }),
     ]);
 
+    snap.game.ledgerBalancing = { method: 'cashout' };
     const result = validateLiveFinalization(snap);
     const rawTotal = result.rawRows.reduce((acc, row) => acc + row.netCents, 0);
     const adjustedTotal = result.rows.reduce((acc, row) => acc + row.netCents, 0);
@@ -269,8 +322,8 @@ describe('liveProjection', () => {
     expect(rawTotal).toBe(-1_000);
     expect(adjustedTotal).toBe(0);
     expect(result.proportionalAdjustments).toEqual([
-      { playerId: 'host', amountCents: 750, basisCents: 15_000 },
-      { playerId: 'kevin', amountCents: 250, basisCents: 5_000 },
+      { playerId: 'host', amountCents: 750 },
+      { playerId: 'kevin', amountCents: 250 },
     ]);
     expect(result.rows.find((row) => row.playerId === 'kevin')).toMatchObject({
       buyOutCents: 5_000,
@@ -288,6 +341,18 @@ describe('liveProjection', () => {
     const result = validateLiveFinalization(snap);
     expect(result.ok).toBe(false);
     expect(result.errors.some((error) => /activity/i.test(error))).toBe(true);
+  });
+
+  it('does not let dollar rounding hide a discrepancy with no eligible cash-outs', () => {
+    const snap = snapshot([
+      entry('e1', 'kevin', 'buy_in', 1),
+      entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
+    ]);
+    snap.game.ledgerBalancing = { method: 'cashout' };
+    const result = validateLiveFinalization(snap, { roundToDollars: true });
+    expect(result.ok).toBe(false);
+    expect(result.checks.find((check) => check.key === 'balanced')?.ok).toBe(false);
+    expect(result.proportionalAdjustments).toEqual([]);
   });
 
   it('flags the balanced check as a warning when proportional adjustments cover a gap', () => {
@@ -325,7 +390,7 @@ describe('liveProjection', () => {
       entry('e1', 'kevin', 'buy_in', 10_500),
       entry('e2', 'kevin', 'cash_out', 5_000, { isFinal: true }),
       entry('e3', 'host', 'buy_in', 10_500),
-      entry('e4', 'host', 'cash_out', 15_000, { isFinal: true }),
+      entry('e4', 'host', 'cash_out', 15_033, { isFinal: true }),
     ]);
 
     const result = validateLiveFinalization(snap, { roundToDollars: true });
@@ -334,8 +399,6 @@ describe('liveProjection', () => {
       expect(Math.abs(row.netCents % 100)).toBe(0);
     }
     expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
-    // Proportionally-balanced nets were ±5_250; rounding lands on ±5_300 / ±5_200
-    // is not required — only whole dollars and zero sum are.
   });
 
   it('rounds cent-valued prior payments in whole-dollar mode', () => {
@@ -359,13 +422,7 @@ describe('liveProjection', () => {
   });
 });
 
-/**
- * Regression: a real game showed an early quitter up hundreds of dollars in
- * the running finalize preview. Mid-game the raw ledger is lopsided (buy-ins
- * without final cashouts), and `balanceFinalLedgerRows` distributed the entire
- * outstanding pool onto the only player with a cashout basis. Proportional
- * balancing must not run until every buy-in has a final cashout.
- */
+// Balancing outstanding chips inflated an early quitter; final cash-outs must gate balancing.
 describe('mid-game finalize preview', () => {
   const players: LiveGameSnapshot['players'] = [
     { playerId: 'host', name: 'Andrew', isHost: true },
@@ -440,7 +497,6 @@ describe('mid-game finalize preview', () => {
 
     const result = validateLiveFinalization(snap);
     expect(result.ok).toBe(true);
-    // Raw ledger short by $15 → distributed across cashout bases.
     expect(result.rawRows.reduce((acc, row) => acc + row.netCents, 0)).toBe(-1_500);
     expect(result.rows.reduce((acc, row) => acc + row.netCents, 0)).toBe(0);
     expect(result.proportionalAdjustments.length).toBeGreaterThan(0);

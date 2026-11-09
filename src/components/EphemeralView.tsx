@@ -5,6 +5,7 @@ import { LoadingView } from './LoadingView';
 import { ErrorView } from './ErrorView';
 import { MobileTabs, type EphemeralTabKey } from './MobileTabs';
 import { EphemeralDesktopPanels, EphemeralMobilePanels } from './EphemeralGamePanels';
+import { LedgerBalancingSelector } from './LedgerBalancingSelector';
 import type { TickerItem } from './Masthead';
 import type { ConfirmFn } from '@/hooks/useConfirmDialog';
 import { useLedger } from '@/hooks/useLedger';
@@ -16,12 +17,13 @@ import {
 import { LedgerParseError, parseLedgerCsv } from '@/lib/csv';
 import { readHashFromLocation, writeHashToLocation } from '@/lib/hashState';
 import { formatDollars } from '@/lib/money';
+import { balanceFinalLedgerRows, DEFAULT_LEDGER_BALANCING, formatImbalanceConfirmation } from '@/lib/ledgerBalancing';
 import { DEFAULT_PAYMENT_NOTE } from '@/lib/paymentLinks';
 import { createFinalizedGame } from '@/lib/apiClient';
 import { errorMessage as getErrorMessage } from '@/lib/errors';
 import { createLiveGameRemote } from '@/lib/liveApiClient';
 import { gamePath, liveGamePath, navigate } from '@/lib/routing';
-import { type AliasRule, canonicalize } from '@/lib/aliases';
+import { type AliasRule, buildCanonicalMap, canonicalize, collapseRows } from '@/lib/aliases';
 import {
   buildLedgerRecentGameEntry,
   getRecentGamesStorage,
@@ -32,6 +34,7 @@ import type {
   Adjustment,
   IsolationRule,
   LedgerUnit,
+  LedgerBalancing,
   PaymentPreference,
   ParsedLedger,
   PersistedAlias,
@@ -69,6 +72,7 @@ export function EphemeralView({
   const [note, setNote] = useState('');
   const [startingLive, setStartingLive] = useState(false);
   const [roundToDollars, setRoundToDollars] = useState(true);
+  const [ledgerBalancing, setLedgerBalancing] = useState<LedgerBalancing>(DEFAULT_LEDGER_BALANCING);
 
   // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
@@ -76,6 +80,7 @@ export function EphemeralView({
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     const initial = readHashFromLocation();
+    setLedgerBalancing(initial.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING);
     if (initial.adjustments.length > 0) setAdjustments(initial.adjustments);
     if (initial.isolations.length > 0) setIsolations(initial.isolations);
     if (initial.aliases.length > 0) setAliases(initial.aliases);
@@ -95,8 +100,9 @@ export function EphemeralView({
       aliases,
       paymentPreferences,
       unitOverride,
+      ledgerBalancing,
     });
-  }, [ledgerState.gameId, adjustments, isolations, aliases, paymentPreferences, unitOverride]);
+  }, [ledgerState.gameId, adjustments, isolations, aliases, paymentPreferences, unitOverride, ledgerBalancing]);
 
   const parsedLedger: ParsedLedger | null = useMemo(() => {
     if (!ledgerState.csv) return null;
@@ -167,6 +173,11 @@ export function EphemeralView({
     );
   }, [ledgerState.gameId, ledgerState.status, parsedLedger]);
 
+  const balancedLedger = useMemo(
+    () => balanceFinalLedgerRows(parsedLedger?.rows ?? [], ledgerBalancing),
+    [parsedLedger, ledgerBalancing]
+  );
+
   const { balances, plan } = useMemo(() => {
     if (!parsedLedger) {
       return {
@@ -188,14 +199,24 @@ export function EphemeralView({
         },
       };
     }
-    return computePlan(
-      roundToDollars ? roundLedgerRowsToDollars(parsedLedger.rows) : parsedLedger.rows,
+    const computed = computePlan(
+      roundToDollars ? roundLedgerRowsToDollars(balancedLedger.rows) : balancedLedger.rows,
       roundToDollars ? roundAdjustmentAmountsToDollars(adjustments) : adjustments,
       isolations,
       aliases,
       paymentPreferences
     );
-  }, [parsedLedger, adjustments, isolations, aliases, paymentPreferences, roundToDollars]);
+    const rawNetById = new Map(
+      collapseRows(parsedLedger.rows, buildCanonicalMap(aliases)).map((row) => [row.playerId, row.netCents])
+    );
+    return {
+      ...computed,
+      balances: computed.balances.map((balance) => ({
+        ...balance,
+        originalNetCents: rawNetById.get(balance.playerId) ?? balance.originalNetCents,
+      })),
+    };
+  }, [parsedLedger, balancedLedger, adjustments, isolations, aliases, paymentPreferences, roundToDollars]);
 
   // Push ticker upward on every settlement change.
   useEffect(() => {
@@ -244,6 +265,7 @@ export function EphemeralView({
       setAliases([]);
       setPaymentPreferences([]);
       setUnitOverride(null);
+      setLedgerBalancing(DEFAULT_LEDGER_BALANCING);
       setParseError(null);
       fetchGame(id);
     },
@@ -340,6 +362,10 @@ export function EphemeralView({
       pushToast('break the isolation cycle first', 'error');
       return;
     }
+    if (balancedLedger.rows.reduce((sum, row) => sum + row.netCents, 0) !== 0) {
+      pushToast('Choose a balancing method with eligible players first.', 'error');
+      return;
+    }
     const trimmedNote = note.trim();
     const finalizeNote = trimmedNote.length > 0 ? trimmedNote : DEFAULT_PAYMENT_NOTE;
     const finalizeTotal = plan.txns.reduce((acc, txn) => acc + txn.amountCents, 0);
@@ -348,6 +374,16 @@ export function EphemeralView({
       confirmLabel: 'finalize',
       body: (
         <div className="space-y-3">
+          {balancedLedger.proportionalAdjustments.length > 0 && (
+            <div>
+              <p>{formatImbalanceConfirmation(parsedLedger.rows.reduce((sum, row) => sum + row.netCents, 0), ledgerBalancing, parsedLedger.rows)}</p>
+              {balancedLedger.proportionalAdjustments.map((adjustment) => (
+                <p key={adjustment.playerId}>
+                  {parsedLedger.rows.find((row) => row.playerId === adjustment.playerId)?.nickname}: {formatDollars(adjustment.amountCents, { signed: true })}
+                </p>
+              ))}
+            </div>
+          )}
           <p>
             The settlement plan will lock and a shareable link will be minted. The group can still
             mark payments complete after finalization.
@@ -395,6 +431,7 @@ export function EphemeralView({
         })),
         paymentPreferences,
         roundToDollars,
+        ledgerBalancing,
         note: trimmedNote.length > 0 ? trimmedNote : null,
       });
       navigate(gamePath(game.game.id));
@@ -402,7 +439,7 @@ export function EphemeralView({
       pushToast(getErrorMessage(err, 'Could not finalize game.'), 'error');
       setFinalizing(false);
     }
-  }, [adjustments, aliases, confirm, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, plan.txns, pushToast, roundToDollars]);
+  }, [adjustments, aliases, balancedLedger, confirm, isolations, ledgerState.gameId, note, parsedLedger, paymentPreferences, plan.cyclePlayerIds.length, plan.txns, pushToast, roundToDollars, ledgerBalancing]);
 
   const reset = useCallback(() => {
     resetLedger();
@@ -411,6 +448,7 @@ export function EphemeralView({
     setAliases([]);
     setPaymentPreferences([]);
     setUnitOverride(null);
+    setLedgerBalancing(DEFAULT_LEDGER_BALANCING);
     setParseError(null);
     setNote('');
     setStartingLive(false);
@@ -467,8 +505,18 @@ export function EphemeralView({
       />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 pb-24">
+        {parsedLedger.rows.reduce((sum, row) => sum + row.netCents, 0) !== 0 && (
+          <div className="mb-5">
+            <LedgerBalancingSelector
+              rows={parsedLedger.rows}
+              value={ledgerBalancing}
+              onChange={setLedgerBalancing}
+              disabled={finalizing}
+            />
+          </div>
+        )}
         <EphemeralDesktopPanels
-          parsedLedger={parsedLedger}
+          parsedLedger={{ ...parsedLedger, rows: balancedLedger.rows }}
           balances={balances}
           plan={plan}
           unitOverride={unitOverride}
@@ -495,7 +543,7 @@ export function EphemeralView({
 
         <EphemeralMobilePanels
           activeTab={activeTab}
-          parsedLedger={parsedLedger}
+          parsedLedger={{ ...parsedLedger, rows: balancedLedger.rows }}
           balances={balances}
           plan={plan}
           unitOverride={unitOverride}

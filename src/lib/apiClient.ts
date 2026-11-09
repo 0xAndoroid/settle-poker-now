@@ -6,7 +6,7 @@
  * server records audit trail entries.
  */
 
-import type { PaymentPreference, PersistedGameSnapshot } from './types';
+import type { LedgerBalancing, PaymentPreference, PersistedGameSnapshot } from './types';
 
 const ACTOR_HEADER = 'X-Actor-Label';
 
@@ -52,6 +52,7 @@ export interface CreateFinalizedGameInput {
   paymentPreferences: ReadonlyArray<PaymentPreference>;
   /** Round the persisted ledger + payments to whole dollars (defaults on). */
   roundToDollars?: boolean;
+  ledgerBalancing?: LedgerBalancing;
   /**
    * Free-text per-game note (Venmo deep-link `note=` param). Optional —
    * the UI falls back to "dinner" when null/empty.
@@ -85,6 +86,7 @@ export async function createFinalizedGame(
       aliases: input.aliases,
       paymentPreferences: input.paymentPreferences,
       roundToDollars: input.roundToDollars !== false,
+      ledgerBalancing: input.ledgerBalancing,
       note: input.note ?? null,
     }),
   });

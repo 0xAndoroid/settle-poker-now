@@ -219,6 +219,7 @@ function pendingLabel(
   playerName: (id: string | null) => string
 ): string {
   const request = item.request;
+  if (request.kind === 'set_ledger_balancing') return 'Updating ledger balancing';
   if (request.kind === 'add_player') return `Adding ${request.body.name}`;
   if (request.kind === 'patch_player') {
     if (request.body.name) return `Renaming ${playerName(request.playerId)}`;
@@ -272,6 +273,9 @@ function auditLabel(
   if (audit.action === 'create_live_game') return 'Live game created';
   if (audit.action === 'add_player') return `${name ?? playerName(playerId)} joined`;
   if (audit.action === 'set_host') return `${playerName(playerId)} set as host`;
+  if (audit.action === 'set_ledger_balancing') {
+    return `Ledger balancing: ${payload.method === 'player' ? playerName(playerId) : payload.method === 'cashout' ? 'cash-outs' : 'winnings / losses'}`;
+  }
   if (audit.action === 'update_player') {
     if (name) return `${playerName(playerId)} renamed to ${name}`;
     const status = stringValue(payload.status);

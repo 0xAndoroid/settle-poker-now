@@ -7,6 +7,7 @@
  *   - aliases (fold one player_id into another — "andrew2 → andrew")
  *   - paymentPreferences (players who only want Venmo or only want Zelle)
  *   - unitOverride (cents/dollars override)
+ *   - ledgerBalancing (how to absorb a discrepancy)
  *
  * The encoded payload is a base64url-encoded JSON blob (no compression — the
  * payload is small for typical 2–10-player games).
@@ -16,9 +17,11 @@ import type {
   Adjustment,
   IsolationRule,
   LedgerUnit,
+  LedgerBalancing,
   PaymentPreference,
 } from './types';
 import type { AliasRule } from './aliases';
+import { DEFAULT_LEDGER_BALANCING, parseLedgerBalancing } from './ledgerBalancing';
 
 export interface HashState {
   gameId: string | null;
@@ -28,6 +31,7 @@ export interface HashState {
   paymentPreferences: PaymentPreference[];
   /** User-specified unit override. `null` = no override (use worker hint / heuristic). */
   unitOverride: LedgerUnit | null;
+  ledgerBalancing?: LedgerBalancing;
 }
 
 const EMPTY: HashState = {
@@ -37,6 +41,7 @@ const EMPTY: HashState = {
   aliases: [],
   paymentPreferences: [],
   unitOverride: null,
+  ledgerBalancing: DEFAULT_LEDGER_BALANCING,
 };
 
 function toBase64Url(input: string): string {
@@ -63,7 +68,8 @@ export function encodeHash(state: HashState): string {
     state.isolations.length === 0 &&
     state.aliases.length === 0 &&
     state.paymentPreferences.length === 0 &&
-    state.unitOverride === null
+    state.unitOverride === null &&
+    (state.ledgerBalancing?.method ?? 'winnings') === 'winnings'
   ) {
     return '';
   }
@@ -79,6 +85,7 @@ export function encodeHash(state: HashState): string {
     al: state.aliases.map((r) => ({ p: r.playerId, t: r.aliasToPlayerId })),
     pp: state.paymentPreferences.map((p) => ({ p: p.playerId, r: p.rail })),
     u: state.unitOverride ?? null,
+    lb: state.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING,
   };
   return toBase64Url(JSON.stringify(payload));
 }
@@ -96,6 +103,7 @@ export function decodeHash(hash: string): HashState {
       al?: { p: string; t: string }[];
       pp?: { p: string; r: string }[];
       u?: LedgerUnit | null;
+      lb?: unknown;
     };
 
     const adjustments: Adjustment[] = (parsed.a ?? [])
@@ -144,6 +152,7 @@ export function decodeHash(hash: string): HashState {
       aliases,
       paymentPreferences,
       unitOverride,
+      ledgerBalancing: parseLedgerBalancing(parsed.lb),
     };
   } catch {
     return { ...EMPTY };

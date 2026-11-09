@@ -1,3 +1,4 @@
+import { balanceFinalLedgerRows, DEFAULT_LEDGER_BALANCING, ledgerBalancingLabel } from './ledgerBalancing';
 import { ledgerBalances } from './csv';
 import { formatDollars, formatNet } from './money';
 import { roundAdjustmentAmountsToDollars, roundLedgerRowsToDollars } from './settle';
@@ -13,10 +14,7 @@ import type {
   LiveGameSnapshot,
   LivePlayer,
   LivePlayerSummary,
-  LiveProportionalAdjustment,
 } from './types';
-
-const BALANCE_TOLERANCE_CENTS = 1;
 
 function activeEntries(entries: ReadonlyArray<LiveEntry>): LiveEntry[] {
   return entries.filter((entry) => entry.voidedAt === null);
@@ -209,66 +207,6 @@ export function deriveFinalLedgerRows(snapshot: LiveGameSnapshot): LedgerRow[] {
     });
 }
 
-export function balanceFinalLedgerRows(rows: ReadonlyArray<LedgerRow>): {
-  rows: LedgerRow[];
-  proportionalAdjustments: LiveProportionalAdjustment[];
-} {
-  const out = rows.map((row) => ({ ...row }));
-  const sumCents = out.reduce((acc, row) => acc + row.netCents, 0);
-  if (sumCents === 0 || out.length === 0) {
-    return { rows: out, proportionalAdjustments: [] };
-  }
-
-  const targetAdjustmentCents = -sumCents;
-  const candidates = adjustmentCandidates(out);
-  if (candidates.length === 0) {
-    return { rows: out, proportionalAdjustments: [] };
-  }
-
-  const totalBasis = candidates.reduce((acc, candidate) => acc + candidate.basisCents, 0);
-  if (totalBasis <= 0) {
-    return { rows: out, proportionalAdjustments: [] };
-  }
-
-  const sign = targetAdjustmentCents < 0 ? -1 : 1;
-  const totalAbs = Math.abs(targetAdjustmentCents);
-  const shares = candidates.map((candidate) => {
-    const raw = totalAbs * candidate.basisCents;
-    return {
-      ...candidate,
-      amountAbs: Math.floor(raw / totalBasis),
-      remainder: raw % totalBasis,
-    };
-  });
-
-  const assignedAbs = shares.reduce((acc, share) => acc + share.amountAbs, 0);
-  const remainderCount = totalAbs - assignedAbs;
-  const byRemainder = shares
-    .slice()
-    .sort(
-      (a, b) =>
-        b.remainder - a.remainder || out[a.index]!.playerId.localeCompare(out[b.index]!.playerId)
-    );
-  for (let i = 0; i < remainderCount; i++) {
-    byRemainder[i % byRemainder.length]!.amountAbs += 1;
-  }
-
-  const proportionalAdjustments: LiveProportionalAdjustment[] = [];
-  for (const share of shares) {
-    if (share.amountAbs === 0) continue;
-    const amountCents = sign * share.amountAbs;
-    const row = out[share.index]!;
-    row.netCents += amountCents;
-    proportionalAdjustments.push({
-      playerId: row.playerId,
-      amountCents,
-      basisCents: share.basisCents,
-    });
-  }
-
-  return { rows: out, proportionalAdjustments };
-}
-
 export function derivePriorPaymentAdjustments(snapshot: LiveGameSnapshot): Adjustment[] {
   return activeEntries(snapshot.entries)
     .filter((entry) => entry.entryType === 'prior_payment' && entry.toPlayerId)
@@ -300,16 +238,10 @@ export function validateLiveFinalization(
     (summary) => summary.buyInCents > 0 && !summary.hasFinalCashout
   );
 
-  // Proportional balancing only makes sense once the game is complete.
-  // Mid-game (players still holding chips with no final cashout) the raw
-  // ledger is legitimately lopsided — buy-ins without matching cashouts —
-  // and distributing that entire in-play pool onto whoever happens to have
-  // cashed out already grossly inflates their preview net. (Real regression:
-  // an early quitter with the only cashout absorbed every outstanding
-  // buy-in and showed up hundreds of dollars.)
+  // Outstanding chips are not a discrepancy; missingFinals gates balancing until all cash-outs are final.
   const gameComplete = missingFinals.length === 0;
   const balanced = gameComplete
-    ? balanceFinalLedgerRows(rawRows)
+    ? balanceFinalLedgerRows(rawRows, snapshot.game.ledgerBalancing)
     : { rows: rawRows.map((row) => ({ ...row })), proportionalAdjustments: [] };
   const { proportionalAdjustments } = balanced;
   const rows = roundToDollars ? roundLedgerRowsToDollars(balanced.rows) : balanced.rows;
@@ -361,16 +293,16 @@ export function validateLiveFinalization(
   );
 
   const rawLedgerCheck = ledgerBalances(rawRows);
-  const ledgerCheck = ledgerBalances(rows);
+  const ledgerCheck = ledgerBalances(balanced.rows);
   const hasProportionalAdjustments = proportionalAdjustments.length > 0;
   addCheck(
     'balanced',
     hasProportionalAdjustments
-      ? 'cashouts balanced with proportional adjustments'
+      ? 'ledger balanced with discrepancy corrections'
       : 'buy-ins equal cashouts',
-    Math.abs(ledgerCheck.sumCents) <= BALANCE_TOLERANCE_CENTS,
+    ledgerCheck.sumCents === 0,
     true,
-    Math.abs(ledgerCheck.sumCents) > BALANCE_TOLERANCE_CENTS
+    ledgerCheck.sumCents !== 0
       ? `Ledger is off by ${formatNet(rawLedgerCheck.sumCents)}.`
       : hasProportionalAdjustments
         ? `Raw ledger was off by ${formatNet(rawLedgerCheck.sumCents)}.`
@@ -382,7 +314,7 @@ export function validateLiveFinalization(
     const nameById = new Map(rows.map((row) => [row.playerId, row.nickname]));
     addCheck(
       'proportional_adjustments',
-      'cashout difference is allocated proportionally',
+      `ledger difference ${snapshot.game.ledgerBalancing?.method === 'player' ? '' : 'split '}${ledgerBalancingLabel(snapshot.game.ledgerBalancing ?? DEFAULT_LEDGER_BALANCING, rawLedgerCheck.sumCents, rows)}`,
       true,
       false,
       proportionalAdjustments
@@ -458,14 +390,6 @@ export function validateLiveFinalization(
     adjustments,
     proportionalAdjustments,
   };
-}
-
-function adjustmentCandidates(
-  rows: ReadonlyArray<LedgerRow>
-): Array<{ index: number; basisCents: number }> {
-  return rows
-    .map((row, index) => ({ index, basisCents: row.buyOutCents }))
-    .filter((candidate) => candidate.basisCents > 0);
 }
 
 function chipBankDetail(tableDelta: number | null, bankDelta: number | null): string | null {

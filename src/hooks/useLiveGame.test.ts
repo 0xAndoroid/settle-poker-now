@@ -79,6 +79,19 @@ function outboxItem(clientEventId: string, amountCents: number): LiveOutboxItem 
 }
 
 describe('projectPending', () => {
+  it('projects a queued method and does not replay an acknowledged older choice', () => {
+    const snap = snapshot([]);
+    const item: LiveOutboxItem = {
+      ...outboxItem('method1', 0),
+      request: { kind: 'set_ledger_balancing', body: { ledgerBalancing: { method: 'cashout' } } },
+    };
+    expect(projectPending(snap, [item]).game.ledgerBalancing).toEqual({ method: 'cashout' });
+    snap.game.ledgerBalancing = { method: 'player', playerId: 'kevin' };
+    snap.audit = [{ id: 'audit1', action: 'set_ledger_balancing', actorLabel: null,
+      clientEventId: 'method1', payload: { method: 'cashout' }, createdAt: now }];
+    expect(projectPending(snap, [item]).game.ledgerBalancing).toEqual({ method: 'player', playerId: 'kevin' });
+  });
+
   it('replays pending entries the server has not seen', () => {
     const projected = projectPending(snapshot([]), [outboxItem('evt1', 5_000)]);
     const kevin = projected.playerSummaries.find((s) => s.playerId === 'kevin');

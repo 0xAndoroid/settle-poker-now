@@ -245,6 +245,7 @@ export function LiveGameView({ gameId, onTickerChange, pushToast, confirm }: Liv
         isolations={isolations}
         confirm={confirm}
         onFinalize={handleFinalize}
+        onLedgerBalancingChange={live.setLedgerBalancing}
       />
     ),
     recovery: (

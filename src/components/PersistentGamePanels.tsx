@@ -84,6 +84,7 @@ function PersistentLedgerStack({
         <LedgerAdjustmentNotice
           adjustments={projection.proportionalAdjustments}
           players={snapshot.players}
+          balancing={snapshot.game.ledgerBalancing}
         />
       )}
     </>
