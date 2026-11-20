@@ -121,6 +121,12 @@ npx wrangler d1 execute settle-poker-now-db --remote --command \
 The row is written after the response, with three retries over 20 seconds.
 If D1 is unreachable for that whole time, the row is lost.
 
+Because the exception is caught, Cloudflare no longer reports it as one: the
+Functions metrics count the request as a success, and a live
+`wrangler pages deployment tail` shows it with outcome `ok`, status 500 and a
+`function error <id>` console line. To count failures, count HTTP 500
+responses or rows in `function_errors`.
+
 ## Project layout
 
 ```
