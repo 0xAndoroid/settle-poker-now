@@ -94,14 +94,38 @@ npm run worker:dev   # wrangler pages dev — exercises /api/ledger locally
 ## Deployment
 
 Deploys are **manual** — no GitHub-Actions or git-connected auto-deploy.
+Apply pending D1 migrations first: the deployed Functions expect the newest
+schema.
 
 ```sh
+npx wrangler d1 migrations apply settle-poker-now-db --remote
 npm run deploy
 # alias for: npm run build && wrangler pages deploy dist --project-name=settle-poker-now
 ```
 
 The Pages Function in `functions/api/ledger.ts` ships automatically with
 the static assets; no separate worker config is required.
+
+## Function errors
+
+Cloudflare Pages keeps no Function logs. An uncaught exception in any
+Function returns a JSON 500 whose `error` text carries an error id, and is
+recorded under that id in the `function_errors` table (time, method, path,
+error name, message, stack, `cf-ray`). Read the newest rows with:
+
+```sh
+npx wrangler d1 execute settle-poker-now-db --remote --command \
+  "SELECT id, datetime(occurred_at / 1000, 'unixepoch') AS utc, method, pathname, error_name, message, stack, cf_ray FROM function_errors ORDER BY occurred_at DESC LIMIT 20"
+```
+
+The row is written after the response, with three retries over 20 seconds.
+If D1 is unreachable for that whole time, the row is lost.
+
+Because the exception is caught, Cloudflare no longer reports it as one: the
+Functions metrics count the request as a success, and a live
+`wrangler pages deployment tail` shows it with outcome `ok`, status 500 and a
+`function error <id>` console line. To count failures, count HTTP 500
+responses or rows in `function_errors`.
 
 ## Project layout
 

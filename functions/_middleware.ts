@@ -2,15 +2,18 @@
  * Pages Functions middleware.
  *
  * Runs on every request before static asset serving and route-specific
- * functions. We use it for one job: when the path matches `/g/:id`, we
- * rewrite the SPA's `index.html` response to inject per-game OG meta tags
- * so chat unfurls (Twitter/X, iMessage, Telegram, Slack, Discord) show a
- * preview specific to that game's settlement.
+ * functions, as a chain of two handlers:
  *
- * Anything else → fall through to default routing.
+ * 1. `recordUncaughtErrors` turns an exception thrown by anything after it
+ *    (the handler below and every route) into a JSON 500 with an error id.
+ * 2. When the path matches `/g/:id`, we rewrite the SPA's `index.html`
+ *    response to inject per-game OG meta tags so chat unfurls (Twitter/X,
+ *    iMessage, Telegram, Slack, Discord) show a preview specific to that
+ *    game's settlement. Anything else → fall through to default routing.
  */
 
 import { loadGame, type DbGameSnapshot } from './lib/db';
+import { recordUncaughtErrors } from './lib/error-log';
 
 interface Env {
   DB: D1Database;
@@ -19,7 +22,7 @@ interface Env {
 
 const GAME_PATH = /^\/g\/([0-9a-z]{6,16})\/?$/i;
 
-export const onRequest: PagesFunction<Env> = async (ctx) => {
+const injectGameMeta: PagesFunction<Env> = async (ctx) => {
   const url = new URL(ctx.request.url);
   const match = url.pathname.match(GAME_PATH);
   if (!match) {
@@ -51,6 +54,8 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     .on('meta[name="description"]', new RemoveExistingOg())
     .transform(response);
 };
+
+export const onRequest: PagesFunction<Env>[] = [recordUncaughtErrors, injectGameMeta];
 
 /* ──────── Meta builder ──────── */
 
