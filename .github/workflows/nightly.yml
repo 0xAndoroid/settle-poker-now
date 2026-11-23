@@ -9,8 +9,31 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Check nightly revision
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run-suite: ${{ steps.revision.outputs.run-suite }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - id: revision
+        run: node .github/scripts/nightly-revision.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   test:
     name: Full test suite
+    needs: preflight
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      (needs.preflight.result == 'success' && needs.preflight.outputs.run-suite == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
