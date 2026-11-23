@@ -1,7 +1,3 @@
-/**
- * PokerNow URL handling. Accepts both `pokernow.club` and `pokernow.com` hosts,
- * with or without `www.` prefix, with or without trailing slashes/query params.
- */
 
 const VALID_HOSTS = new Set(['pokernow.club', 'pokernow.com']);
 
@@ -19,7 +15,6 @@ export function extractGameId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  // Bare gameId fast path: alphanumeric + - and _, no slashes, no dots.
   if (/^[A-Za-z0-9_-]+$/.test(trimmed)) {
     return trimmed;
   }
@@ -45,9 +40,7 @@ export function extractGameId(input: string): string | null {
   return match[1] ?? null;
 }
 
-/** Build the canonical /api/ledger URL for the worker proxy. */
 export function ledgerProxyUrl(gameId: string): string {
-  // The proxy worker lives at /api/ledger and accepts ?gameId=...
   const params = new URLSearchParams({ gameId });
   return `/api/ledger?${params.toString()}`;
 }

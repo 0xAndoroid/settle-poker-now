@@ -124,7 +124,6 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   return response;
 };
 
-/* ──────── SVG template ──────── */
 
 function escapeXml(s: string): string {
   return s
@@ -150,17 +149,11 @@ function truncate(s: string, max: number): string {
 }
 
 interface ColumnLayout {
-  /** Left edge x in user units. */
   x: number;
-  /** Width of the column. */
   width: number;
-  /** First row's baseline y. */
   y0: number;
-  /** Vertical step between rows. */
   dy: number;
-  /** Font size for nicknames + arrow + amount. */
   fontSize: number;
-  /** Max nickname char count (used for column anchoring). */
   nameChars: number;
 }
 
@@ -173,15 +166,6 @@ interface PaymentRowParams {
   completed: boolean;
 }
 
-/**
- * Render one ledger row inside the given column. Layout:
- *   [from-name]    →   [to-name]              [amount]
- *   ⇡ left-anchored                ⇡ right-anchored
- * `from-name` is in red (#fc5d7c), `to-name` in green (#9ed072),
- * arrow muted, amount in off-white. Completed rows render
- * everything in low-opacity grey with a strikethrough effect via a
- * thin line crossing the row.
- */
 function renderRow({ layout, index, fromName, toName, amount, completed }: PaymentRowParams): string {
   const y = layout.y0 + index * layout.dy;
   const fromColor = completed ? '#6e738a' : '#fc5d7c';
@@ -209,7 +193,6 @@ function renderRow({ layout, index, fromName, toName, amount, completed }: Payme
   ];
 
   if (completed) {
-    // Strikethrough rule a few px above baseline.
     const strikeY = y - layout.fontSize * 0.32;
     lines.push(
       `<line x1="${fromX}" y1="${strikeY}" x2="${amountX}" y2="${strikeY}" stroke="#6e738a" stroke-width="1.5" stroke-opacity="0.6" />`
@@ -253,11 +236,6 @@ function renderSvg(snap: DbGameSnapshot): string {
 </svg>`;
 }
 
-/**
- * Distribute the visible payments into either a single centered column
- * (≤ 8 rows) or two columns (9-15 rows). Computes per-column geometry
- * and emits the row SVG fragments.
- */
 function renderPaymentRows(
   payments: ReadonlyArray<DbPayment>,
   nameById: ReadonlyMap<string, string>
@@ -280,7 +258,6 @@ function renderPaymentRows(
     });
 
   if (N <= SINGLE_COLUMN_LIMIT) {
-    // Single centered column. Larger font, generous dy.
     const fontSize = N <= 5 ? 44 : 36;
     const dy = N <= 5 ? 76 : 64;
     const nameChars = 11;
@@ -294,18 +271,12 @@ function renderPaymentRows(
     return payments.map((p, i) => oneRow(layout, i, p)).join('');
   }
 
-  // Two-column. Distribute roughly evenly: left=ceil(N/2), right=N-left.
-  // Column geometry: nameChars=8 + 7-char amount + ~5 chars of gap/arrow
-  // = 28 chars per row. At 28px charW=16.8 → 470 px row → 510 col with
-  // 40 px right padding for tasteful breathing.
   const leftCount = Math.ceil(N / 2);
   const fontSize = 28;
   const dy = 50;
   const nameChars = 8;
   const colWidth = 510;
   const gutter = 50;
-  // leftCount = ceil(N/2) ≥ rightCount, so the left column dictates the
-  // vertical span we need to fit.
   const totalRowsPerCol = leftCount;
   const totalH = totalRowsPerCol * dy;
   const y0 = (H - totalH) / 2 + fontSize;
@@ -371,7 +342,6 @@ function withSyntheticPayments(snap: DbGameSnapshot, n: number): DbGameSnapshot 
       amountCents: 1500 + i * 250,
       forced: false,
       position: i,
-      // Mark every fourth as completed so we exercise the strikethrough.
       completedAt: i % 4 === 3 ? Date.now() : null,
       completedBy: i % 4 === 3 ? 'tester' : null,
     });

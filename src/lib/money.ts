@@ -10,7 +10,6 @@ export function centsFromDollarsString(input: string): number {
   if (!Number.isFinite(num)) {
     throw new Error(`Cannot parse "${input}" as a dollar amount`);
   }
-  // Round to nearest cent to avoid 1.005 → 100.49999... drift.
   return Math.round(num * 100);
 }
 
@@ -33,7 +32,6 @@ export function formatDollars(cents: number, opts: FormatOptions = {}): string {
   return `${sign}${symbol ? '$' : ''}${formatted}`;
 }
 
-/** Quick "+$12.50" / "-$8" formatter for ledger cells. */
 export function formatNet(cents: number): string {
   return formatDollars(cents, { signed: true });
 }

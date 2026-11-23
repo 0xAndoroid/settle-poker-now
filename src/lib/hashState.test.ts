@@ -131,9 +131,6 @@ describe('hashState', () => {
   });
 
   it('strips invalid alias rows (self-alias) on decode', () => {
-    // Forge a hash with an alias whose source = target. Encode normally
-    // through the public API, then assert decode rejects it. We
-    // reproduce the legacy payload shape directly to verify the filter.
     const fakeState: HashState = {
       gameId: 'g',
       adjustments: [],
@@ -146,7 +143,6 @@ describe('hashState', () => {
       unitOverride: null,
     };
     const decoded = decodeHash(encodeHash(fakeState));
-    // The self-alias is dropped; the legitimate one survives.
     expect(decoded.aliases).toEqual([
       { playerId: 'kev', aliasToPlayerId: 'kevin' },
     ]);
@@ -165,14 +161,12 @@ describe('hashState', () => {
   });
 
   it('rejects invalid unit override values', () => {
-    // Construct a hash with a bogus unit string and verify it normalizes to null.
     const bogus: HashState = {
       gameId: 'x',
       adjustments: [],
       isolations: [],
       aliases: [],
       paymentPreferences: [],
-      // Cast through unknown to inject an invalid value.
       unitOverride: 'pesos' as unknown as HashState['unitOverride'],
     };
     expect(decodeHash(encodeHash(bogus)).unitOverride).toBeNull();

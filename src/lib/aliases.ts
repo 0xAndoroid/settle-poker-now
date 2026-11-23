@@ -16,7 +16,6 @@ import type {
   PersistedAlias,
 } from './types';
 
-/** Bare structural shape of an alias rule. */
 export interface AliasRule {
   playerId: string;
   aliasToPlayerId: string;
@@ -35,11 +34,11 @@ export function canonicalize(
   const visited = new Set<string>();
   let current = start;
   while (true) {
-    if (visited.has(current)) return null; // cycle
+    if (visited.has(current)) return null;
     visited.add(current);
     const next = aliases.get(current);
     if (next === undefined) return current;
-    if (next === current) return null; // self-loop, defensive
+    if (next === current) return null;
     current = next;
   }
 }
@@ -71,7 +70,6 @@ export function buildCanonicalMap(
   return compressed;
 }
 
-/** Resolve a player id through the canonical map; identity if absent. */
 export function canonicalOf(
   playerId: string,
   canonical: ReadonlyMap<string, string>
@@ -79,21 +77,12 @@ export function canonicalOf(
   return canonical.get(playerId) ?? playerId;
 }
 
-/* ──────── Collapse helpers ──────── */
 
-/**
- * Fold aliased ledger rows into their canonical target. Net is summed;
- * the most-recent nickname (by latest-net non-zero or first-seen)
- * survives. Source players are dropped from the output.
- */
 export function collapseRows(
   rows: ReadonlyArray<LedgerRow>,
   canonical: ReadonlyMap<string, string>
 ): LedgerRow[] {
   const byCanonical = new Map<string, LedgerRow>();
-  // First pass: copy non-aliased players into the map keyed by their own id.
-  // Second pass: fold aliased players into their target.
-  // We do this in one pass by always writing under canonicalOf().
   for (const row of rows) {
     const canonId = canonicalOf(row.playerId, canonical);
     const existing = byCanonical.get(canonId);
@@ -110,8 +99,6 @@ export function collapseRows(
       existing.buyOutCents += row.buyOutCents;
     }
   }
-  // Pass: replace each canonical's nickname with the canonical's own
-  // nickname (the row whose playerId equals canonId in the input).
   for (const row of rows) {
     if (row.playerId === canonicalOf(row.playerId, canonical)) {
       const canonical = byCanonical.get(row.playerId);
@@ -183,10 +170,6 @@ export function collapseIsolations(
       });
       continue;
     }
-    // Collision: prefer the canonical-authored rule. If existing is
-    // canonical's own rule, drop the new one. Else if the new one is
-    // canonical's own, overwrite and drop the existing (recording its
-    // original playerId in `dropped`). Else first-write-wins.
     if (existing.isOwn) {
       dropped.push(r.playerId);
     } else if (isOwn) {

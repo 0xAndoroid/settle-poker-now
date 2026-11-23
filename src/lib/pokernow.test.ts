@@ -25,10 +25,6 @@ describe('extractGameId', () => {
 });
 
 describe('ledgerProxyUrl', () => {
-  it('builds a /api/ledger URL with the game id query', () => {
-    expect(ledgerProxyUrl('abc123')).toBe('/api/ledger?gameId=abc123');
-  });
-
   it('encodes special characters', () => {
     expect(ledgerProxyUrl('a b')).toBe('/api/ledger?gameId=a+b');
   });

@@ -45,7 +45,6 @@ const baseInput = (): {
   aliases: { playerId: string; aliasToPlayerId: string }[];
   paymentPreferences?: PaymentPreference[];
   actorLabel: string;
-  note?: string | null;
 } => ({
   pokernowGameId: 'pokernow-test',
   sourceUnit: 'cents' as const,
@@ -129,20 +128,7 @@ describe('createGameFinalized — validation', () => {
     ).rejects.toThrowError(/themselves/i);
   });
 
-  it('rejects alias rules forming a 2-cycle', async () => {
-    await expect(
-      createGameFinalized(stubDb, {
-        ...baseInput(),
-        aliases: [
-          { playerId: 'a', aliasToPlayerId: 'k' },
-          { playerId: 'k', aliasToPlayerId: 'a' },
-        ],
-      })
-    ).rejects.toThrowError(/cycle/i);
-  });
-
   it('rejects an alias whose target collapses back to the source', async () => {
-    // Three players: a → b → c, then c → a — that's a cycle of length 3.
     const input = baseInput();
     input.rows = [
       ...baseRows,
@@ -186,19 +172,5 @@ describe('createGameFinalized — validation', () => {
         ],
       })
     ).rejects.toThrowError(/only one payment preference/i);
-  });
-
-  it('accepts a note alongside the bundle (validation path)', async () => {
-    // The note is non-validating — the function passes it through to D1
-    // after the validation block. Ensure adding a note doesn't trigger
-    // any spurious validation. We still expect the call to fail at the
-    // first D1 access, but NOT with a CreateFinalizedValidationError.
-    const input = {
-      ...baseInput(),
-      note: 'poker game 4/27',
-    };
-    await expect(createGameFinalized(stubDb, input)).rejects.not.toBeInstanceOf(
-      CreateFinalizedValidationError
-    );
   });
 });

@@ -65,7 +65,6 @@ interface PaymentPreferenceBody {
 interface CreateBody {
   pokernowUrl?: string;
   actorLabel?: string;
-  /** Set to `true` to finalize-on-create. */
   finalize?: boolean;
   adjustments?: AdjustmentBody[];
   isolations?: IsolationBody[];
@@ -206,7 +205,6 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   );
 };
 
-/* ──────── Helpers ──────── */
 
 interface FetchOk {
   ok: true;

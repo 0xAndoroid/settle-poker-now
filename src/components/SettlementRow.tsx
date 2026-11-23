@@ -25,9 +25,7 @@ interface SettlementRowProps {
   completedBy: string | null;
   onTogglePayment?: (paymentId: string, next: boolean) => void | Promise<void>;
   recipientMethod: PersistedPaymentMethod | null;
-  /** Threaded into the Venmo deep-link `note=` query param. */
   gameNote: string | null;
-  /** True when the selected local identity is the sender or recipient. */
   highlightsCurrentPlayer: boolean;
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHover?: (hovering: boolean) => void;

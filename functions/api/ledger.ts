@@ -33,7 +33,6 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     return textResponse(400, 'gameId contains invalid characters.');
   }
 
-  // Demo bootstrap.
   if (gameId === 'demo') {
     const demoUrl = new URL('/demo-ledger.csv', ctx.request.url);
     const demo = await ctx.env.ASSETS.fetch(demoUrl);

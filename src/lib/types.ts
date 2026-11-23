@@ -47,9 +47,7 @@ export interface ParsedLedger {
 /** A pre-existing transfer the user already settled outside the app. */
 export interface Adjustment {
   id: string;
-  /** Player who paid. */
   fromId: string;
-  /** Player who received. */
   toId: string;
   /** Amount in integer cents. Always positive. */
   amountCents: number;
@@ -75,13 +73,11 @@ export interface IsolationRule {
 
 export type PaymentRail = 'venmo' | 'zelle';
 
-/** Player-level payment rail preference used while deriving a plan. */
 export interface PaymentPreference {
   playerId: string;
   rail: PaymentRail;
 }
 
-/** A single settlement transaction proposed by the algorithm. */
 export interface SettlementTxn {
   fromId: string;
   toId: string;
@@ -100,7 +96,6 @@ export interface SettlementTxn {
  */
 export type SettlementAlgorithm = 'optimal' | 'greedy' | 'greedy-fallback';
 
-/** Output of the planner. */
 export interface SettlementPlan {
   txns: SettlementTxn[];
   /** True if the plan settles every player to zero net. */
@@ -111,7 +106,6 @@ export interface SettlementPlan {
   cyclePlayerIds: string[];
   /** Isolation rules that were applied (no cycles, both players exist). */
   appliedIsolations: IsolationRule[];
-  /** Which algorithm settled the residual non-isolated pool. */
   algorithm: SettlementAlgorithm;
   /** Number of zero-sum subsets the residual pool partitioned into (optimal only — `1` for greedy/greedy-fallback). */
   subsetCount: number;
@@ -124,13 +118,10 @@ export interface SettlementPlan {
   };
 }
 
-/** Effective per-player balances after applying adjustments. */
 export interface EffectiveBalance {
   playerId: string;
   nickname: string;
-  /** Original session net in cents. */
   originalNetCents: number;
-  /** Net after adjustments are applied. */
   effectiveNetCents: number;
 }
 

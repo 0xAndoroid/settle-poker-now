@@ -1,8 +1,3 @@
-/**
- * POST /api/live-games/:id/chip-checkpoints
- *
- * Body: { clientEventId, checkpointType, amountCents, note? }
- */
 
 import { LiveNotFoundError, addChipCheckpoint } from '../../../lib/live-db';
 import type { LiveChipCheckpointType } from '../../../../src/lib/types';

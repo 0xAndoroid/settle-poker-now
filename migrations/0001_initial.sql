@@ -2,7 +2,6 @@
 -- Money lives in INTEGER cents end-to-end. Foreign keys cascade on delete
 -- so dropping a `games` row cleans up everything dependent.
 
--- Games — one row per shareable settlement link.
 CREATE TABLE games (
   id                TEXT PRIMARY KEY,             -- short slug (8 chars base32)
   pokernow_game_id  TEXT NOT NULL,                -- the original PokerNow game id
@@ -15,7 +14,6 @@ CREATE TABLE games (
 );
 CREATE INDEX idx_games_pokernow_id ON games(pokernow_game_id);
 
--- Players in this game (snapshot of the ledger).
 CREATE TABLE players (
   game_id    TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   player_id  TEXT NOT NULL,                       -- PokerNow player_id
@@ -36,7 +34,6 @@ CREATE TABLE adjustments (
 );
 CREATE INDEX idx_adjustments_game ON adjustments(game_id);
 
--- Per-player isolation rules.
 CREATE TABLE isolation_rules (
   game_id         TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   player_id       TEXT NOT NULL,
@@ -59,9 +56,9 @@ CREATE TABLE payments (
   to_player_id     TEXT NOT NULL,
   amount_cents     INTEGER NOT NULL CHECK (amount_cents > 0),
   forced           INTEGER NOT NULL DEFAULT 0 CHECK (forced IN (0,1)),
-  position         INTEGER NOT NULL,              -- ordering within the plan
+  position         INTEGER NOT NULL,
   completed_at     INTEGER,                       -- ms; NULL = pending
-  completed_by     TEXT,                          -- actor label that flipped it
+  completed_by     TEXT,
   created_at       INTEGER NOT NULL
 );
 CREATE INDEX idx_payments_game ON payments(game_id);
@@ -71,7 +68,7 @@ CREATE INDEX idx_payments_game_position ON payments(game_id, position);
 CREATE TABLE audit_log (
   id          TEXT PRIMARY KEY,
   game_id     TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  action      TEXT NOT NULL,                       -- 'create_game','complete_payment','reopen_payment','add_adjustment','remove_adjustment','set_isolation','clear_isolation'
+  action      TEXT NOT NULL,
   actor_label TEXT,                                -- user-chosen identity
   payload     TEXT NOT NULL DEFAULT '{}',          -- JSON blob with action-specific details
   created_at  INTEGER NOT NULL

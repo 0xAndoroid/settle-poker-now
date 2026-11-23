@@ -51,7 +51,6 @@ import type {
   UnitProvenance,
 } from '../../src/lib/types';
 
-/* ──────── Types ──────── */
 
 export type DbGame = PersistedGame & { sourceKind: SourceKind };
 export type DbPlayer = PersistedPlayer;
@@ -63,7 +62,6 @@ export type DbPaymentMethod = PersistedPaymentMethod;
 export type DbAuditEntry = PersistedAuditEntry;
 export type DbGameSnapshot = Omit<PersistedGameSnapshot, 'game'> & { game: DbGame };
 
-/* ──────── Note normalisation ──────── */
 
 const NOTE_MAX_LENGTH = 80;
 
@@ -79,7 +77,6 @@ function normalizeNote(raw: string | null | undefined): string | null {
   return trimmed.slice(0, NOTE_MAX_LENGTH);
 }
 
-/* ──────── Slug generation ──────── */
 
 const ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'; // base32, no 1/i/l/o/u to avoid confusion
 
@@ -100,7 +97,6 @@ export function newId(prefix = ''): string {
   return `${prefix}${crypto.randomUUID()}`;
 }
 
-/* ──────── Read helpers ──────── */
 
 function rowToGame(row: Record<string, unknown>): DbGame {
   return {
@@ -199,7 +195,6 @@ function rowToAudit(row: Record<string, unknown>): DbAuditEntry {
   };
 }
 
-/* ──────── Game queries ──────── */
 
 export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapshot | null> {
   const game = await db
@@ -208,7 +203,6 @@ export async function loadGame(db: D1Database, id: string): Promise<DbGameSnapsh
     .first<Record<string, unknown>>();
   if (!game) return null;
 
-  // Fan out to all related queries in parallel.
   const [
     playersRes,
     paymentsRes,
@@ -267,7 +261,6 @@ export async function loadGameRow(db: D1Database, id: string): Promise<DbGame | 
   return row ? rowToGame(row) : null;
 }
 
-/* ──────── Game creation ──────── */
 
 interface CreateGameInput {
   pokernowGameId: string;
@@ -292,7 +285,6 @@ export async function createGame(
 ): Promise<DbGameSnapshot> {
   const now = Date.now();
 
-  // Build the EffectiveBalance list once for the initial plan.
   const balances = applyAdjustments(input.rows, []);
   const initialPlan = buildSettlementPlan(balances, []);
 
@@ -380,7 +372,6 @@ export async function createGame(
     try {
       await db.batch(stmts);
     } catch (err) {
-      // Slug collision is the only realistic failure here. Retry with a new slug.
       const message = (err as Error).message ?? '';
       if (/UNIQUE.*games\.id/i.test(message) || /UNIQUE.*PRIMARY/i.test(message)) {
         continue;
@@ -462,7 +453,6 @@ export async function createGameFinalized(
     isolations: ReadonlyArray<{ playerId: string; counterpartId: string }>;
     aliases: ReadonlyArray<{ playerId: string; aliasToPlayerId: string }>;
     paymentPreferences?: ReadonlyArray<PaymentPreference>;
-    /** Round persisted nets (and therefore all payments) to whole dollars. */
     roundToDollars?: boolean;
     ledgerBalancing?: LedgerBalancing;
     actorLabel: string | null;
@@ -555,7 +545,6 @@ export async function insertFinalizedGameSnapshot(
     }
     seenPaymentPreferencePlayers.add(preference.playerId);
   }
-  // Canonicalize aliases (compress chains, reject cycles).
   const proposed = new Map<string, string>();
   for (const a of input.aliases) {
     if (!playerIds.has(a.playerId) || !playerIds.has(a.aliasToPlayerId)) {
@@ -627,7 +616,6 @@ export async function insertFinalizedGameSnapshot(
     const id = attempt === 0 && input.id ? input.id : newGameSlug();
     const stmts: D1PreparedStatement[] = [];
 
-    // games row — finalized at creation time.
     stmts.push(
       db
         .prepare(
@@ -652,7 +640,6 @@ export async function insertFinalizedGameSnapshot(
         )
     );
 
-    // players
     for (const row of rows) {
       stmts.push(
         db
@@ -671,7 +658,6 @@ export async function insertFinalizedGameSnapshot(
       );
     }
 
-    // adjustments
     for (const a of input.adjustments) {
       stmts.push(
         db
@@ -691,7 +677,6 @@ export async function insertFinalizedGameSnapshot(
       );
     }
 
-    // isolation rules — one per player, last-write-wins
     const seenIso = new Set<string>();
     for (const r of input.isolations) {
       if (seenIso.has(r.playerId)) continue;
@@ -706,7 +691,6 @@ export async function insertFinalizedGameSnapshot(
       );
     }
 
-    // aliases (canonicalized)
     for (const a of canonAliases) {
       stmts.push(
         db
@@ -718,7 +702,6 @@ export async function insertFinalizedGameSnapshot(
       );
     }
 
-    // payments — the FINAL settlement plan
     let position = 0;
     for (const txn of plan.txns) {
       stmts.push(
@@ -741,7 +724,6 @@ export async function insertFinalizedGameSnapshot(
       );
     }
 
-    // audit
     stmts.push(
       auditStmt(db, {
         gameId: id,
@@ -792,7 +774,6 @@ export async function insertFinalizedGameSnapshot(
   throw new Error('Could not allocate a unique slug after 4 attempts');
 }
 
-/* ──────── Mutations ──────── */
 
 /**
  * Toggle a payment's completion state. Records an audit entry. Bumps
@@ -814,8 +795,6 @@ export async function setPaymentCompleted(
   }
 ): Promise<DbGameSnapshot | null> {
   const now = Date.now();
-  // First confirm the payment exists; if not, short-circuit with null so
-  // the route handler can return 404 without firing UPDATE/INSERT writes.
   const existing = await db
     .prepare('SELECT id FROM payments WHERE id = ? AND game_id = ?')
     .bind(args.paymentId, args.gameId)
@@ -978,7 +957,6 @@ export async function clearIsolation(
   return rederivePlan(db, args.gameId);
 }
 
-/* ──────── Alias mutations ──────── */
 
 export class AliasValidationError extends Error {
   constructor(message: string) {
@@ -1033,9 +1011,6 @@ export async function addAlias(
     );
   }
 
-  // Build the alias map AS IT WOULD LOOK after the proposed insert,
-  // then check for a cycle starting from playerId. If canonicalize()
-  // returns null, the new edge introduced a cycle.
   const proposed = new Map<string, string>();
   for (const a of snap.aliases) {
     if (a.playerId !== args.playerId) {
@@ -1115,7 +1090,6 @@ export async function removeAlias(
   return rederivePlan(db, args.gameId);
 }
 
-/* ──────── Finalize / unfinalize ──────── */
 
 export class LockedError extends Error {
   constructor(message: string) {
@@ -1226,7 +1200,6 @@ export async function unfinalizeGame(
   return snap;
 }
 
-/* ──────── Player payment methods ──────── */
 
 export class PaymentMethodValidationError extends Error {
   constructor(message: string) {
@@ -1257,7 +1230,6 @@ export async function setPaymentMethods(
     );
   }
 
-  // Player must exist in this game's roster.
   const playerRow = await db
     .prepare('SELECT 1 FROM players WHERE game_id = ? AND player_id = ?')
     .bind(args.gameId, args.playerId)
@@ -1316,7 +1288,6 @@ export async function setPaymentMethods(
   return snap;
 }
 
-/* ──────── Game note ──────── */
 
 /**
  * Update the per-game note (Venmo deep-link `note=` param). Survives
@@ -1356,7 +1327,6 @@ export async function setGameNote(
   return snap;
 }
 
-/* ──────── Plan re-derivation ──────── */
 
 /**
  * Recompute the settlement plan after a structural mutation (adjustment or
@@ -1374,10 +1344,6 @@ async function rederivePlan(db: D1Database, gameId: string): Promise<DbGameSnaps
     throw new Error(`Game ${gameId} disappeared mid-mutation`);
   }
 
-  // 1. Build the alias canonical map. Every read below routes player ids
-  //    through this map so the resulting plan operates on the COLLAPSED
-  //    roster. Removing an alias just produces an empty map and the rest
-  //    of the pipeline runs as before.
   const canonical = buildCanonicalMap(snap.aliases);
 
   const rawRows: LedgerRow[] = snap.players.map((p) => ({
@@ -1400,19 +1366,13 @@ async function rederivePlan(db: D1Database, gameId: string): Promise<DbGameSnaps
     counterpartId: i.counterpartId,
   }));
 
-  // 2. Collapse rows + adjustments + isolations through the canonical map.
   const ledgerRows = collapseRows(rawRows, canonical);
   const adjustments = collapseAdjustments(rawAdjustments, canonical);
   const { rules: isolations } = collapseIsolations(rawIsolations, canonical);
 
-  // 3. Adjustments → effective balances → settlement plan.
   const balances = applyAdjustments(ledgerRows, adjustments);
   const plan = buildSettlementPlan(balances, isolations);
 
-  // 4. Persist the new payment list. We canonicalize OLD payment keys
-  //    before matching so completion state survives alias additions
-  //    (the previous payment's from/to would otherwise be the
-  //    pre-collapse player ids and miss the new canonical-id txns).
   await replacePayments(db, gameId, plan, snap.payments, canonical);
   const refreshed = await loadGame(db, gameId);
   if (!refreshed) throw new Error('Game vanished after re-derivation');
@@ -1461,7 +1421,7 @@ async function replacePayments(
     const id = carryOver?.id ?? newId('p_');
     const completedAt = carryOver?.completedAt ?? null;
     const completedBy = carryOver?.completedBy ?? null;
-    const createdAt = carryOver ? now : now; // We're overwriting; keep it simple.
+    const createdAt = carryOver ? now : now;
 
     stmts.push(
       db
@@ -1494,7 +1454,6 @@ async function replacePayments(
   await db.batch(stmts);
 }
 
-/* ──────── Audit log ──────── */
 
 function auditStmt(
   db: D1Database,

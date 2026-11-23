@@ -35,7 +35,6 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return errorResponse(400, 'Body.completed must be a boolean.');
   }
 
-  // Confirm the game exists before mutating; gives a clean 404.
   const game = await loadGameRow(ctx.env.DB, gameId);
   if (!game) return errorResponse(404, `No game with id "${gameId}".`);
 

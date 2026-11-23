@@ -21,37 +21,25 @@ interface SettlementPanelProps {
    * completion checkboxes should appear.
    */
   paymentIds?: ReadonlyArray<string>;
-  /**
-   * Map paymentId → completion state. Drives the strikethrough +
-   * "settled by ___" caption.
-   */
   completionByPaymentId?: ReadonlyMap<string, PaymentCompletion>;
   onTogglePayment?: (paymentId: string, next: boolean) => void | Promise<void>;
-  /** Persistent flow: copy the canonical /g/<id> link to clipboard. */
   onCopyLink?: () => void | Promise<void>;
-  /** Persistent flow: trigger native Web Share API (mobile) or fall back to copy. */
   onShare?: () => void | Promise<void>;
-  /** Ephemeral flow: mint a finalized persistent game from the current state. */
   onFinalize?: () => void | Promise<void>;
-  /** Ephemeral flow: spinner state on the finalize button. */
   finalizing?: boolean;
-  /** Persistent flow: per-player Venmo / Zelle handles. Drives row icons. */
   paymentMethodsByPlayerId?: ReadonlyMap<string, PersistedPaymentMethod>;
   /**
    * Per-game note threaded into the Venmo `note=` query param. Empty /
    * null falls back to the default payment note.
    */
   gameNote?: string | null;
-  /** Persistent flow: selected local player's canonical id. */
   currentPlayerId?: string | null;
-  /** Persistent flow: selected local player's display name. */
   identityNickname?: string | null;
   /**
    * Persistent flow: opens the "get paid" modal (pick your name + register
    * Venmo / Zelle). Presence enables the identity strip under the header.
    */
   onEditPaymentDetails?: () => void;
-  /** Toast hook so row icon clicks can surface confirmations. */
   pushToast?: (message: string, variant?: 'success' | 'error' | 'info') => void;
   onHighlight?: (playerId: string | null) => void;
   /**
@@ -92,7 +80,6 @@ export function SettlementPanel({
   const preferenceSplitApplied = preferenceStatus.applied;
   const preferenceSplitFailed = preferenceStatus.reason === 'unbalanced';
 
-  // Derived completion stats — only meaningful in persistent mode.
   const persistent = !!paymentIds && !!completionByPaymentId;
   let settledCount = 0;
   let outstandingCount = plan.txns.length;

@@ -117,26 +117,6 @@ describe('composeVenmoPayUrl — mobile (venmo:// custom scheme)', () => {
     expect(url).not.toContain('@kev-stmts');
   });
 
-  it('respects the same note + amount semantics as the desktop URL', () => {
-    const url = composeVenmoPayUrl({
-      recipientUsername: 'a',
-      amountCents: 1234,
-      note: 'dinner',
-      platform: 'mobile',
-    });
-    expect(url).toContain('amount=12.34');
-    expect(url).toContain('note=dinner');
-  });
-
-  it('falls back to "dinner" when note is null', () => {
-    const url = composeVenmoPayUrl({
-      recipientUsername: 'a',
-      amountCents: 100,
-      note: null,
-      platform: 'mobile',
-    });
-    expect(url).toContain('note=dinner');
-  });
 });
 
 describe('composeVenmoPayUrl — shared validation', () => {

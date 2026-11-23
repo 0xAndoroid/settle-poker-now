@@ -13,14 +13,6 @@ interface ModificationsPanelProps {
   isolations: ReadonlyArray<PersistedIsolation>;
 }
 
-/**
- * Read-only summary of every modification baked into the snapshot at
- * finalize time. Three sub-sections — aliases, adjustments, isolations —
- * each rendering an empty hint when its list is empty so the post-finalize
- * view always has the same vertical rhythm. Pure presentation; the data
- * never mutates here (the finalize lock prevents structural edits, by
- * design).
- */
 export function ModificationsPanel({
   players,
   aliases,

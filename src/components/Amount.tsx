@@ -4,7 +4,6 @@ interface AmountProps {
   cents: number;
   /** Show explicit + sign for positive values. Default false. */
   signed?: boolean;
-  /** Size / weight / color come from the call site. */
   className?: string;
 }
 

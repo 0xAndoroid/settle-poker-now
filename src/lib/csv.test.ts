@@ -75,19 +75,15 @@ describe('parseLedgerCsv — dollars mode (cents disabled in PokerNow)', () => {
     expect(ledger.unit).toBe('dollars');
     expect(ledger.unitWasInferred).toBe(true);
 
-    // Pucci won $299 in dollars-mode → 29_900 cents internally.
     const pucci = ledger.rows.find((r) => r.playerId === 'nYq-4kxEIr');
     expect(pucci?.netCents).toBe(29900);
 
-    // aryan lost $400 (across two segments −200 + −200).
     const aryan = ledger.rows.find((r) => r.playerId === '7laCmNIu1Q');
     expect(aryan?.netCents).toBe(-40000);
 
-    // Shay lost $250.
     const shay = ledger.rows.find((r) => r.playerId === 'aY546rRUzm');
     expect(shay?.netCents).toBe(-25000);
 
-    // Sum-to-zero invariant holds at the cents level.
     expect(ledgerBalances(ledger.rows).sumCents).toBe(0);
   });
 
@@ -96,7 +92,6 @@ describe('parseLedgerCsv — dollars mode (cents disabled in PokerNow)', () => {
     expect(ledger.unit).toBe('cents');
     expect(ledger.unitWasInferred).toBe(false);
 
-    // Pucci's raw +299 becomes $2.99 in cents-mode, so netCents stays 299.
     const pucci = ledger.rows.find((r) => r.playerId === 'nYq-4kxEIr');
     expect(pucci?.netCents).toBe(299);
   });
@@ -106,7 +101,6 @@ describe('parseLedgerCsv — dollars mode (cents disabled in PokerNow)', () => {
     expect(ledger.unit).toBe('dollars');
     expect(ledger.unitWasInferred).toBe(false);
 
-    // Kevin's +40000 raw → +$40000 → 4_000_000 cents internally.
     const kevin = ledger.rows.find((r) => r.playerId === 'kevin_id');
     expect(kevin?.netCents).toBe(4_000_000);
   });
@@ -115,7 +109,6 @@ describe('parseLedgerCsv — dollars mode (cents disabled in PokerNow)', () => {
 describe('inferUnit', () => {
   it('returns cents when any value reaches the threshold', () => {
     expect(inferUnit([100, 200, 5000, -3000])).toBe('cents');
-    // Threshold is inclusive at 2000.
     expect(inferUnit([2000, 0, 0])).toBe('cents');
   });
 

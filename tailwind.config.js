@@ -4,8 +4,6 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // System stacks only — no webfonts. One sans stack everywhere;
-        // mono for money / URLs / IDs.
         sans: [
           '-apple-system',
           'BlinkMacSystemFont',
@@ -33,7 +31,6 @@ export default {
         fg: 'rgb(var(--fg) / <alpha-value>)',
         'fg-dim': 'rgb(var(--fg-dim) / <alpha-value>)',
         'fg-mute': 'rgb(var(--fg-mute) / <alpha-value>)',
-        // Sonokai Andromeda — one meaning per accent.
         accent: 'rgb(var(--blue) / <alpha-value>)',
         gain: 'rgb(var(--green) / <alpha-value>)',
         loss: 'rgb(var(--red) / <alpha-value>)',
