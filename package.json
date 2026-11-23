@@ -10,6 +10,7 @@
     "lint": "oxlint --disable-nested-config .",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:smoke": "playwright test e2e/demo-settlement.spec.ts",
     "test:watch": "vitest",
     "deploy": "npm run build && wrangler pages deploy dist --project-name=settle-poker-now",
     "worker:dev": "wrangler pages dev dist"
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260426.1",
+    "@playwright/test": "1.65.1",
     "@types/papaparse": "^5.3.15",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
