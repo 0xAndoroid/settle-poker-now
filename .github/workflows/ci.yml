@@ -39,7 +39,7 @@ jobs:
       - run: npm run build
       - name: Install headless Chromium
         if: steps.changes.outputs.smoke == 'true'
-        run: npx --no-install playwright install --with-deps --only-shell chromium
+        run: npx --no-install playwright install --only-shell chromium
       - name: Smoke-test demo settlement
         if: steps.changes.outputs.smoke == 'true'
         run: npm run test:smoke
