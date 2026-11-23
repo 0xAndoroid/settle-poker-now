@@ -9,8 +9,51 @@ permissions:
   contents: read
 
 jobs:
+  preflight:
+    name: Check nightly revision
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: read
+    outputs:
+      run-suite: ${{ steps.revision.outputs.run-suite }}
+    steps:
+      - id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_suite=true
+          actions="repos/$GITHUB_REPOSITORY/actions"
+          if cutoff=$(gh api "$actions/runs/$GITHUB_RUN_ID" --jq '.created_at // empty') &&
+             [[ -n "$cutoff" ]] &&
+             history=$(gh api -X GET "$actions/workflows/nightly.yml/runs" \
+               -f branch="$GITHUB_REF_NAME" -f event=schedule -f status=completed \
+               -f "created=<$cutoff" -F per_page=30) &&
+             previous=$(jq -r --arg cutoff "$cutoff" --argjson id "$GITHUB_RUN_ID" \
+               --argjson number "$GITHUB_RUN_NUMBER" '
+                 [.workflow_runs[] |
+                   if (.id | type) != "number" or (.run_number | type) != "number"
+                   then error("Invalid nightly run identity") else . end |
+                   select(.id != $id and .run_number < $number and
+                   (.conclusion == "success" or .conclusion == "failure"))]
+                 | max_by(.run_number)
+                 | select((.updated_at | fromdateiso8601?) < ($cutoff | fromdateiso8601))
+                 | .head_sha // empty' <<< "$history"); then
+            if [[ -n "$previous" && "$previous" == "$GITHUB_SHA" ]]; then
+              run_suite=false
+            fi
+          else
+            echo '::warning::Could not read nightly history; running the full suite.'
+          fi
+          echo "run-suite=$run_suite" >> "$GITHUB_OUTPUT"
+
   test:
     name: Full test suite
+    needs: preflight
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      needs.preflight.result != 'success' || needs.preflight.outputs.run-suite != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
