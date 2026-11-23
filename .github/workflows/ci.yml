@@ -20,6 +20,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 2
+      - name: Check for changes outside Markdown
+        id: changes
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-only --no-renames HEAD^1 HEAD -- . ':(exclude,glob)**/*.md')
+          if [[ -n "$changed" ]]; then
+            echo 'smoke=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
@@ -27,4 +37,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm run test
+      - name: Install headless Chromium
+        if: steps.changes.outputs.smoke == 'true'
+        run: npx --no-install playwright install --only-shell chromium
+      - name: Smoke-test demo settlement
+        if: steps.changes.outputs.smoke == 'true'
+        run: npm run test:smoke
