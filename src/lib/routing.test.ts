@@ -9,7 +9,7 @@ describe('parseRoute', () => {
   it('returns home for unknown paths', () => {
     expect(parseRoute('/about')).toEqual({ kind: 'home' });
     expect(parseRoute('/anything-else/at-all')).toEqual({ kind: 'home' });
-    expect(parseRoute('/g/')).toEqual({ kind: 'home' }); // missing id
+    expect(parseRoute('/g/')).toEqual({ kind: 'home' });
   });
 
   it('extracts a 6–16 char alphanumeric game id', () => {
@@ -31,7 +31,7 @@ describe('parseRoute', () => {
   it('rejects invalid characters in game id', () => {
     expect(parseRoute('/g/foo bar')).toEqual({ kind: 'home' });
     expect(parseRoute('/g/has-dashes')).toEqual({ kind: 'home' });
-    expect(parseRoute('/g/x')).toEqual({ kind: 'home' }); // too short
+    expect(parseRoute('/g/x')).toEqual({ kind: 'home' });
   });
 });
 

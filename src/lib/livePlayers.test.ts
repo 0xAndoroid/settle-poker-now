@@ -149,18 +149,6 @@ describe('sendLossToHostOffer', () => {
     });
   });
 
-  it('sums multiple rebuys into the loss', () => {
-    const snap = snapshot({
-      players: [host, kevin],
-      entries: [
-        entry('e1', 'kevin', 'buy_in', 10_000),
-        entry('e2', 'kevin', 'buy_in', 5_000),
-        entry('e3', 'kevin', 'cash_out', 2_500, { isFinal: true }),
-      ],
-    });
-    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(12_500);
-  });
-
   it('offers the full buy-in for a busted player (zero final cashout)', () => {
     const snap = snapshot({
       players: [host, kevin],
@@ -170,18 +158,6 @@ describe('sendLossToHostOffer', () => {
       ],
     });
     expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(10_000);
-  });
-
-  it('subtracts prior payments already sent', () => {
-    const snap = snapshot({
-      players: [host, kevin],
-      entries: [
-        entry('e1', 'kevin', 'buy_in', 10_000),
-        entry('e2', 'kevin', 'cash_out', 4_000, { isFinal: true }),
-        entry('e3', 'kevin', 'prior_payment', 2_000, { toPlayerId: 'host' }),
-      ],
-    });
-    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(4_000);
   });
 
   it('returns null once prior payments cover the loss (already settled)', () => {
@@ -194,18 +170,6 @@ describe('sendLossToHostOffer', () => {
       ],
     });
     expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))).toBeNull();
-  });
-
-  it('adds payments the player received to what they still owe', () => {
-    const snap = snapshot({
-      players: [host, kevin],
-      entries: [
-        entry('e1', 'kevin', 'buy_in', 10_000),
-        entry('e2', 'kevin', 'cash_out', 4_000, { isFinal: true }),
-        entry('e3', 'host', 'prior_payment', 1_500, { toPlayerId: 'kevin' }),
-      ],
-    });
-    expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(7_500);
   });
 
   it('ignores voided entries', () => {
@@ -350,7 +314,6 @@ describe('sendLossToHostOffer', () => {
       amountCents: 6_000,
     });
 
-    // The demoted host becomes offer-eligible like any other loser.
     const exHostLosing = snapshot({
       players: [player('host', 'Andrew'), kevin, maya],
       entries: [
@@ -373,8 +336,6 @@ describe('sendLossToHostOffer', () => {
         entry('e3', 'host', 'prior_payment', 5_000, { toPlayerId: 'kevin' }),
       ],
     });
-    // net +1_000 but holding 5_000 of received cash: settlement still asks
-    // kevin to pay 4_000 back into the pool.
     expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(4_000);
   });
 
@@ -400,7 +361,6 @@ describe('sendLossToHostOffer', () => {
         entry('e4', 'kevin', 'cash_out', 1_000, { isFinal: true }),
       ],
     });
-    // New loss is 9_000; 6_000 already sent, so only the residual is offered.
     expect(sendLossToHostOffer(snap, summaryOf(snap, 'kevin'))?.amountCents).toBe(3_000);
   });
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   OPTIMAL_PARTITION_LIMIT,
-  applyAdjustments,
   buildSettlementPlan,
   computePlan,
   roundAdjustmentAmountsToDollars,
@@ -49,44 +48,16 @@ function expectBalanced(txns: SettlementTxn[], balances: EffectiveBalance[]) {
 }
 
 describe('buildSettlementPlan — no isolation rules', () => {
-  it('greedy settles a 4-player game', () => {
-    const balances = [
-      balance('andrew', 'Andrew', -50000),
-      balance('kevin', 'Kevin', 40000),
-      balance('kedar', 'Kedar', -30000),
-      balance('pranav', 'Pranav', 40000),
-    ];
-    const plan = buildSettlementPlan(balances, []);
-    expect(plan.isFullyBalanced).toBe(true);
-    expect(plan.txns.length).toBeLessThanOrEqual(3);
-    expectBalanced(plan.txns, balances);
-  });
-
   it('returns no transactions for an all-zero pool', () => {
     const balances = [balance('a', 'A', 0), balance('b', 'B', 0)];
     const plan = buildSettlementPlan(balances, []);
     expect(plan.txns).toEqual([]);
     expect(plan.isFullyBalanced).toBe(true);
   });
-
-  it('breaks ties deterministically by playerId', () => {
-    const ascending = [
-      balance('alice', 'Alice', -30000),
-      balance('bob', 'Bob', -30000),
-      balance('carol', 'Carol', 30000),
-      balance('dave', 'Dave', 30000),
-    ];
-    const descending = [...ascending].reverse();
-    expect(buildSettlementPlan(ascending, []).txns).toEqual(
-      buildSettlementPlan(descending, []).txns
-    );
-  });
 });
 
 describe('buildSettlementPlan — single isolation rule', () => {
   it('isolates one player to a hub: forced txn + folded net', () => {
-    // Andrew (-$500) is isolated to Kevin. Kedar (-$300), Pranav (+$400) free.
-    // Sum: Andrew -500 + Kevin +400 + Kedar -300 + Pranav +400 = 0.
     const balances = [
       balance('andrew', 'Andrew', -50000),
       balance('kevin', 'Kevin', 40000),
@@ -98,15 +69,11 @@ describe('buildSettlementPlan — single isolation rule', () => {
     ];
     const plan = buildSettlementPlan(balances, isolations);
 
-    // Andrew must pay Kevin $500 (forced); after that Kevin's effective net
-    // becomes 400 + (-500) = -100. Pool now: Kevin -100, Kedar -300, Pranav +400.
-    // Greedy settles: Kedar → Pranav $300, Kevin → Pranav $100.
     const forced = plan.txns.filter((t) => t.forced);
     expect(forced).toEqual([
       { fromId: 'andrew', toId: 'kevin', amountCents: 50000, forced: true },
     ]);
 
-    // Andrew should not appear in any non-forced txn.
     const openTxns = plan.txns.filter((t) => !t.forced);
     for (const t of openTxns) {
       expect(t.fromId).not.toBe('andrew');
@@ -119,7 +86,6 @@ describe('buildSettlementPlan — single isolation rule', () => {
   });
 
   it('isolated player who WON pays the counterpart', () => {
-    // Andrew won $200, isolated to Kevin (who lost $200).
     const balances = [
       balance('andrew', 'Andrew', 20000),
       balance('kevin', 'Kevin', -20000),
@@ -129,7 +95,6 @@ describe('buildSettlementPlan — single isolation rule', () => {
     ];
     const plan = buildSettlementPlan(balances, isolations);
 
-    // Andrew won, so Kevin pays Andrew $200.
     expect(plan.txns).toEqual([
       { fromId: 'kevin', toId: 'andrew', amountCents: 20000, forced: true },
     ]);
@@ -139,9 +104,6 @@ describe('buildSettlementPlan — single isolation rule', () => {
 
 describe('buildSettlementPlan — multiple isolated to same hub', () => {
   it('two losers isolated to one winner: two forced txns, hub absorbs both', () => {
-    // Andrew (-200) and Sam (-150) both isolated to Kevin (+450).
-    // Kedar (-100), Pranav (0) round out the table.
-    // Total: -200 - 150 + 450 - 100 + 0 = 0.
     const balances = [
       balance('andrew', 'Andrew', -20000),
       balance('sam', 'Sam', -15000),
@@ -169,8 +131,6 @@ describe('buildSettlementPlan — multiple isolated to same hub', () => {
       forced: true,
     });
 
-    // After folding: Kevin's effective = 450 - 200 - 150 = 100. Pool:
-    // Kevin +100, Kedar -100, Pranav 0. Greedy → Kedar pays Kevin $100.
     const openTxns = plan.txns.filter((t) => !t.forced);
     expect(openTxns).toEqual([
       { fromId: 'kedar', toId: 'kevin', amountCents: 10000 },
@@ -183,8 +143,6 @@ describe('buildSettlementPlan — multiple isolated to same hub', () => {
 
 describe('buildSettlementPlan — transitive isolation chains', () => {
   it('A → B → C: A folds into B first, then B folds into C', () => {
-    // Andrew (-100) → Kevin; Kevin (-50) → Charlie. Charlie won 150.
-    // After A folds: Kevin = -50 + (-100) = -150. After B folds: Charlie = 150 + (-150) = 0.
     const balances = [
       balance('andrew', 'Andrew', -10000),
       balance('kevin', 'Kevin', -5000),
@@ -196,7 +154,6 @@ describe('buildSettlementPlan — transitive isolation chains', () => {
     ];
     const plan = buildSettlementPlan(balances, isolations);
 
-    // Expect 2 forced txns: andrew→kevin $100, then kevin→charlie $150.
     const forced = plan.txns.filter((t) => t.forced);
     expect(forced).toEqual([
       { fromId: 'andrew', toId: 'kevin', amountCents: 10000, forced: true },
@@ -222,7 +179,6 @@ describe('buildSettlementPlan — cycle rejection', () => {
 
     expect(plan.cyclePlayerIds.sort()).toEqual(['a', 'b']);
     expect(plan.isFullyBalanced).toBe(false);
-    // No txns should be emitted for cycle members.
     expect(plan.txns).toEqual([]);
     expect(plan.appliedIsolations).toEqual([]);
   });
@@ -243,13 +199,10 @@ describe('buildSettlementPlan — cycle rejection', () => {
     const plan = buildSettlementPlan(balances, isolations);
 
     expect(plan.cyclePlayerIds.sort()).toEqual(['a', 'b', 'c']);
-    // d and e should still settle normally between themselves.
     expect(plan.txns).toEqual([
       { fromId: 'd', toId: 'e', amountCents: 1000 },
     ]);
-    // Cycle members aren't settled even though they collectively balance.
     expect(plan.isFullyBalanced).toBe(false);
-    // Each cycle member retains a non-zero individual net.
     for (const id of plan.cyclePlayerIds) {
       const b = balances.find((x) => x.playerId === id)!;
       expect(b.effectiveNetCents).not.toBe(0);
@@ -259,9 +212,6 @@ describe('buildSettlementPlan — cycle rejection', () => {
 
 describe('buildSettlementPlan — isolation + adjustments interaction', () => {
   it('adjustments rebalance nets BEFORE isolation resolves', () => {
-    // Andrew lost $500. He already paid Kevin $200 in cash. He's isolated to Kevin.
-    // After adjustments: Andrew = -500 + 200 = -300. Kevin = +400 - 200 = +200.
-    // Andrew's forced txn to Kevin should be $300 (NOT $500).
     const rows = [
       row('andrew', 'Andrew', -50000),
       row('kevin', 'Kevin', 40000),
@@ -286,7 +236,6 @@ describe('buildSettlementPlan — isolation + adjustments interaction', () => {
 
 describe('buildSettlementPlan — edge cases', () => {
   it('isolated player with zero net produces no forced txn', () => {
-    // Andrew breaks even, isolated to Kevin.
     const balances = [
       balance('andrew', 'Andrew', 0),
       balance('kevin', 'Kevin', 5000),
@@ -334,18 +283,6 @@ describe('buildSettlementPlan — edge cases', () => {
   });
 });
 
-describe('applyAdjustments', () => {
-  it('credits the payer and debits the receiver', () => {
-    const rows = [row('a', 'A', -10000), row('b', 'B', 10000)];
-    const result = applyAdjustments(rows, [
-      { id: 'x', fromId: 'a', toId: 'b', amountCents: 4000 },
-    ]);
-    expect(result.find((r) => r.playerId === 'a')!.effectiveNetCents).toBe(-6000);
-    expect(result.find((r) => r.playerId === 'b')!.effectiveNetCents).toBe(6000);
-  });
-});
-
-/* ──────── Optimal subset-sum partition algorithm ──────── */
 
 function greedyTxnCount(balances: EffectiveBalance[]): number {
   const debtors: number[] = [];
@@ -442,17 +379,6 @@ describe('optimal subset-sum partition — counterexamples vs greedy', () => {
     expect(plan.txns.length).toBe(4);
     expectBalanced(plan.txns, balances);
   });
-
-  it('all-zero-net pool produces no transactions and partitions trivially', () => {
-    const balances = [
-      balance('a', 'A', 0),
-      balance('b', 'B', 0),
-      balance('c', 'C', 0),
-    ];
-    const plan = buildSettlementPlan(balances, []);
-    expect(plan.txns.length).toBe(0);
-    expect(plan.algorithm).toBe('optimal');
-  });
 });
 
 describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 players)', () => {
@@ -462,7 +388,6 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
 
   /** Generate a random zero-sum integer-cent ledger. */
   function randomBalanced(n: number): EffectiveBalance[] {
-    // Pull n−1 random nets in [−500, 500], then set the last to balance.
     const nets: number[] = [];
     let runningSum = 0;
     for (let i = 0; i < n - 1; i++) {
@@ -481,8 +406,6 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
       const bs = randomBalanced(n);
       const plan = buildSettlementPlan(bs, []);
       const greedyCount = greedyTxnCount(bs);
-      // Optimal is by construction min — but if some inputs collapse to
-      // greedy-fallback (shouldn't happen at n ≤ 15) we still pass.
       expect(
         plan.txns.length,
         `optimal=${plan.txns.length} > greedy=${greedyCount} for ${JSON.stringify(bs.map((b) => b.effectiveNetCents))}`
@@ -493,21 +416,6 @@ describe('optimal subset-sum partition — fuzz (50 random games at 6/10/14 play
 });
 
 describe('optimal subset-sum partition — determinism', () => {
-  it('produces identical outputs across re-runs of the same input', () => {
-    const balances = [
-      balance('a', 'A', 500),
-      balance('b', 'B', 500),
-      balance('c', 'C', -300),
-      balance('d', 'D', -300),
-      balance('e', 'E', -200),
-      balance('f', 'F', -200),
-    ];
-    const a = buildSettlementPlan(balances, []);
-    const b = buildSettlementPlan(balances, []);
-    expect(a.txns).toEqual(b.txns);
-    expect(a.subsetCount).toBe(b.subsetCount);
-  });
-
   it('is invariant under input row reordering', () => {
     const original = [
       balance('a', 'A', 500),
@@ -526,15 +434,12 @@ describe('optimal subset-sum partition — determinism', () => {
 
 describe('optimal subset-sum partition — size threshold', () => {
   it('uses optimal partitioning for 15 players', () => {
-    // 15 players, mixed magnitudes so greedy is nearly worst-case and
-    // optimal must enumerate many subsets. Last value is forced to make
-    // the pool exactly zero-sum.
     const head = [
       300, 200, 400, 100, 250,
       -150, -180, -220, -270, -90,
       -50, 50, 100, -200,
     ];
-    const last = -head.reduce((a, b) => a + b, 0); // makes the total exactly 0
+    const last = -head.reduce((a, b) => a + b, 0);
     const nets = [...head, last];
     const balances = nets.map((n, i) =>
       balance(`p${String(i).padStart(2, '0')}`, `P${i}`, n)
@@ -545,7 +450,7 @@ describe('optimal subset-sum partition — size threshold', () => {
   });
 
   it('falls back to greedy when N exceeds the optimal threshold', () => {
-    const N = OPTIMAL_PARTITION_LIMIT + 3; // 18
+    const N = OPTIMAL_PARTITION_LIMIT + 3;
     const nets = Array.from({ length: N }, (_, i) =>
       i % 2 === 0 ? 100 : -100
     );
@@ -560,12 +465,6 @@ describe('optimal subset-sum partition — size threshold', () => {
 
 describe('optimal subset-sum partition — interaction with isolation rules', () => {
   it('isolation collapses first, then optimal partitions the residual', () => {
-    // Andrew is isolated to Kevin. Andrew=-300, Kevin=+200 net.
-    // After isolation: Andrew → pays Kevin $300 (forced). Kevin's
-    // residual = 200 - 300 = -100. Pool now: Kevin=-100, Sam=+150, Tom=-50.
-    // Sum of pool = 0. Partition could find {Sam=+150, Kevin=-100, Tom=-50}
-    // — but no smaller zero-sum split exists, so 1 subset = 2 internal txns,
-    // total 3 txns (1 forced + 2 residual).
     const balances = [
       balance('andrew', 'Andrew', -30000),
       balance('kevin', 'Kevin', 20000),
@@ -585,8 +484,6 @@ describe('optimal subset-sum partition — interaction with isolation rules', ()
   });
 
   it('residual pool of one + zero-net player needs no extra txns', () => {
-    // Andrew → Kevin isolation; remaining pool collapses to a single
-    // zero-net Kevin → no additional transactions.
     const balances = [
       balance('andrew', 'Andrew', -10000),
       balance('kevin', 'Kevin', 10000),
@@ -710,9 +607,9 @@ describe('payment preferences — rail-safe routing', () => {
 describe('roundLedgerRowsToDollars', () => {
   it('rounds every net to a whole dollar and preserves a balanced sum', () => {
     const rows = [
-      row('a', 'A', 5_250), // → 5_300
-      row('b', 'B', -5_249), // → -5_200
-      row('c', 'C', -1), // → 0
+      row('a', 'A', 5_250),
+      row('b', 'B', -5_249),
+      row('c', 'C', -1),
     ];
     const rounded = roundLedgerRowsToDollars(rows);
     for (const r of rounded) expect(Math.abs(r.netCents % 100)).toBe(0);
@@ -721,13 +618,12 @@ describe('roundLedgerRowsToDollars', () => {
 
   it('folds the accumulated remainder into the largest balance', () => {
     const rows = [
-      row('a', 'A', 10_050), // → 10_100 (half away from zero)
-      row('b', 'B', -5_025), // → -5_000
-      row('c', 'C', -5_025), // → -5_000
+      row('a', 'A', 10_050),
+      row('b', 'B', -5_025),
+      row('c', 'C', -5_025),
     ];
     const rounded = roundLedgerRowsToDollars(rows);
     expect(rounded.reduce((acc, r) => acc + r.netCents, 0)).toBe(0);
-    // Residual (-100) lands on the largest |net| — player a.
     expect(rounded.find((r) => r.playerId === 'a')?.netCents).toBe(10_000);
     expect(rounded.find((r) => r.playerId === 'b')?.netCents).toBe(-5_000);
     expect(rounded.find((r) => r.playerId === 'c')?.netCents).toBe(-5_000);

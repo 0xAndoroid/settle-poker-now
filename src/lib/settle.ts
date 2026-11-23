@@ -1,22 +1,3 @@
-/**
- * Settlement planner with per-player isolation rules.
- *
- * Pipeline:
- *   1. Apply user adjustments (already-paid transfers) to ledger nets.
- *   2. Resolve isolation rules into a hub-and-spoke topology:
- *      - For each isolated player I → counterpart C, I settles entirely with
- *        C (one forced txn) and folds I.net into C.net.
- *      - Chains collapse transitively (A → B → C is allowed; A folds into B
- *        first, then B (now carrying A's net) folds into C).
- *      - Cycles (A → B, B → A) are detected and the offending players are
- *        removed from settlement with a `cyclePlayerIds` flag — the UI
- *        surfaces the cycle clearly.
- *   3. Run the greedy max-creditor-meets-max-debtor heuristic on the
- *      remaining (non-isolated, non-cycle) players to settle the rest.
- *
- * All arithmetic is in integer cents. Ties between equal-magnitude balances
- * are broken by lexicographic playerId for full determinism.
- */
 
 import {
   type AliasRule,
@@ -142,7 +123,6 @@ export function applyAdjustments(
  */
 interface ChainResult {
   chain: string[];
-  /** True if the chain ends because the same node was revisited. */
   cycle: boolean;
 }
 
@@ -152,8 +132,6 @@ function walkChain(start: string, parent: Map<string, string>): ChainResult {
   let current: string | undefined = start;
   while (current !== undefined) {
     if (visited.has(current)) {
-      // Cycle detected. Return only the cycle nodes (everything from the
-      // first visit of `current` onward).
       const cycleStart = chain.indexOf(current);
       return { chain: chain.slice(cycleStart), cycle: true };
     }
@@ -194,20 +172,10 @@ function findCyclePlayerIds(
   return cycles;
 }
 
-/**
- * Resolve isolation rules into the (txns, residualBalances) pair.
- *
- * Key insight: chains can be processed terminal-first. If A → B → C, we want
- * A to fold into B first (B then carries A's net), then B folds into C. We
- * process leaves first by topological order on the parent graph.
- */
 interface IsolationResolution {
   forcedTxns: SettlementTxn[];
-  /** Players that survive into the open settlement pool. */
   remaining: EffectiveBalance[];
-  /** Players in cycles. */
   cyclePlayerIds: string[];
-  /** Rules whose effects were applied (no cycles). */
   appliedIsolations: IsolationRule[];
 }
 
@@ -218,22 +186,19 @@ function resolveIsolations(
   const validPlayerIds = new Set(balances.map((b) => b.playerId));
   const cycleIds = findCyclePlayerIds(rules, validPlayerIds);
 
-  // Build child → parent map for the non-cyclic rules.
   const parent = new Map<string, string>();
   const applied: IsolationRule[] = [];
   for (const rule of rules) {
     if (!validPlayerIds.has(rule.playerId)) continue;
     if (!validPlayerIds.has(rule.counterpartId)) continue;
     if (cycleIds.has(rule.playerId)) continue;
-    if (rule.playerId === rule.counterpartId) continue; // Defensive — already in cycleIds
+    if (rule.playerId === rule.counterpartId) continue;
     parent.set(rule.playerId, rule.counterpartId);
     applied.push(rule);
   }
 
-  // Mutable working balances.
   const balanceMap = new Map<string, EffectiveBalance>(balances.map((b) => [b.playerId, { ...b }]));
 
-  // Topological order: leaves (no children pointing at them) first.
   const childrenOf = new Map<string, string[]>();
   for (const [child, par] of parent) {
     if (!childrenOf.has(par)) childrenOf.set(par, []);
@@ -252,7 +217,6 @@ function resolveIsolations(
   for (const [id, deg] of inDegree) {
     if (deg === 0 && parent.has(id)) queue.push(id);
   }
-  // Determinism: sort once.
   queue.sort();
 
   const forcedTxns: SettlementTxn[] = [];
@@ -264,11 +228,8 @@ function resolveIsolations(
     const child = balanceMap.get(childId)!;
     const par = balanceMap.get(parentId)!;
 
-    // Settle child entirely with parent. The forced txn direction depends on
-    // the sign of child.net.
     if (child.effectiveNetCents !== 0) {
       if (child.effectiveNetCents < 0) {
-        // Child owes; child pays parent.
         forcedTxns.push({
           fromId: child.playerId,
           toId: par.playerId,
@@ -276,7 +237,6 @@ function resolveIsolations(
           forced: true,
         });
       } else {
-        // Child won; parent pays child.
         forcedTxns.push({
           fromId: par.playerId,
           toId: child.playerId,
@@ -292,12 +252,10 @@ function resolveIsolations(
     child.effectiveNetCents = 0;
     removed.add(childId);
 
-    // Parent may now be a leaf if all its children have been processed.
     const parentRemainingChildren = (inDegree.get(parentId) ?? 0) - 1;
     inDegree.set(parentId, parentRemainingChildren);
     if (parentRemainingChildren === 0 && parent.has(parentId)) {
       queue.push(parentId);
-      // Re-sort to keep determinism if multiple appear at once.
       queue.sort();
     }
   }
@@ -396,9 +354,6 @@ function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResul
   const FULL = (1 << N) - 1;
   const nets = sorted.map((b) => b.effectiveNetCents);
 
-  // sumOf[mask] = sum of nets for the bits set in mask. Computed
-  // incrementally: drop the lowest bit, look up the rest, add the
-  // dropped player's net.
   const sumOf = Array.from({ length: 1 << N }, () => 0);
   for (let mask = 1; mask <= FULL; mask++) {
     const low = mask & -mask;
@@ -445,13 +400,11 @@ function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResul
     return { partition: [balances], kind: 'greedy-fallback' };
   }
 
-  // Reconstruct partition by walking choice[].
   const subsetMasks: number[] = [];
   let cursor = FULL;
   while (cursor !== 0) {
     const S = choice[cursor]!;
     if (S === 0) {
-      // Should be unreachable when f[cursor] > 0; bail.
       return { partition: [balances], kind: 'greedy-fallback' };
     }
     subsetMasks.push(S);
@@ -480,10 +433,6 @@ function partitionOptimally(balances: EffectiveBalance[]): OptimalPartitionResul
   return { partition, kind: 'optimal' };
 }
 
-/**
- * Greedy max-creditor↔max-debtor settlement. Operates on a flat pool — all
- * isolation has already been resolved upstream.
- */
 function greedySettle(balances: EffectiveBalance[]): SettlementTxn[] {
   const debtors: { playerId: string; amount: number }[] = [];
   const creditors: { playerId: string; amount: number }[] = [];
@@ -780,8 +729,6 @@ export function buildSettlementPlan(
       cycleResidue += b.effectiveNetCents;
     }
   }
-  // Open-pool residue: greedy preserves the sum, so this is just the
-  // pool's running total.
   let openPoolResidue = 0;
   for (const b of resolution.remaining) {
     openPoolResidue += b.effectiveNetCents;

@@ -70,11 +70,6 @@ export function findIsolationCycles(rules: ReadonlyArray<IsolationRule>): string
   return Array.from(cycles).sort();
 }
 
-/**
- * Stable key for matching server payments across plan re-derivations. When
- * the algorithm produces the same (from, to, amount) tuple, completion
- * state should carry over. Mirrors the server-side helper in db.ts.
- */
 export function paymentKey(t: { fromId: string; toId: string; amountCents: number }): string {
   return `${t.fromId}|${t.toId}|${t.amountCents}`;
 }
@@ -141,10 +136,6 @@ export function projectPersistedSnapshot(snap: PersistedGameSnapshot): Persisted
   };
 }
 
-/**
- * Convert a raw persisted snapshot into a `SettlementPlan` view model.
- * Used by the persistent UI to feed the existing components.
- */
 export function projectSettlementPlan(snap: PersistedGameSnapshot): SettlementPlan {
   const txns: SettlementTxn[] = snap.payments.map((p) => ({
     fromId: p.fromPlayerId,

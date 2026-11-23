@@ -66,7 +66,6 @@ export function composeVenmoPayUrl({
     return `venmo://paycharge?${params.toString()}`;
   }
 
-  // Desktop universal — username in the path, encoded.
   const params = new URLSearchParams();
   params.set('txn', 'pay');
   params.set('amount', dollars);
@@ -74,11 +73,6 @@ export function composeVenmoPayUrl({
   return `https://venmo.com/u/${encodeURIComponent(username)}?${params.toString()}`;
 }
 
-/**
- * Pure UA predicate, lifted out of `detectMobilePlatform` so unit tests
- * can exercise both branches with sample strings instead of mocking
- * `navigator`. Spec regex per the PM brief.
- */
 export function isMobileUserAgent(userAgent: string): boolean {
   return /iPhone|iPad|iPod|Android/i.test(userAgent);
 }

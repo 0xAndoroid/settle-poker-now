@@ -1,12 +1,3 @@
-/**
- * POST /api/games/:id/isolation-rules
- *
- * Body: { playerId, counterpartId }
- *
- * Creates or updates the isolation rule for `playerId` (one rule per
- * player). The plan is re-derived; cycles are surfaced via the snapshot's
- * `cyclePlayerIds` array (not raised as an error here — the UI flags them).
- */
 
 import { loadGameRow, setIsolation } from '../../../lib/db';
 import {

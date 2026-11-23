@@ -3,13 +3,6 @@ import { RecentGamesPanel } from './RecentGamesPanel';
 import { extractGameId } from '@/lib/pokernow';
 
 interface EmptyStateProps {
-  /**
-   * Pre-finalize ephemeral analyze step. Pulls the ledger by id, hydrates
-   * the in-memory edit state, and lets the user add aliases / adjustments
-   * / private rules. Persistence happens later via the finalize button on
-   * the ephemeral view (this page has no shareable link CTA — see system
-   * rewire).
-   */
   onAnalyze: (gameId: string) => void;
   onStartLiveGame: () => void;
   loading?: boolean;
@@ -50,7 +43,6 @@ export function EmptyState({
 
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-20 stagger">
-      {/* Hero — solid sans display, no gradient clip, no glow. */}
       <div className="mb-10 sm:mb-12">
         <p className="ticker-label mb-4 flex items-center gap-3">
           <span aria-hidden="true" className="inline-block h-px w-7 bg-warn" />
@@ -67,7 +59,6 @@ export function EmptyState({
       </div>
 
       <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-        {/* URL input */}
         <form onSubmit={handleAnalyze} className="card flex h-full flex-col">
           <div className="flex flex-1 flex-col gap-4 p-5 sm:p-6">
             <span className="ticker-label-strong">paste game url</span>
@@ -145,7 +136,6 @@ export function EmptyState({
 
       <RecentGamesPanel onOpenLedger={onAnalyze} />
 
-      {/* Three-up feature row */}
       <div className="mt-8 grid sm:grid-cols-3 gap-3">
         {RULES.map((r, i) => (
           <div key={r.title} className="card p-5">

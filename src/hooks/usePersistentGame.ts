@@ -126,14 +126,12 @@ export function usePersistentGame(
     }
   }, [gameId]);
 
-  // Initial fetch.
   useEffect(() => {
     setState({ status: 'loading', game: null, error: null, errorStatus: null });
     lastMutationAtRef.current = 0;
     refresh();
   }, [refresh]);
 
-  // Poll while visible — but skip ticks that fire too close to a mutation.
   useEffect(() => {
     let timer: number | null = null;
     const tick = () => {
@@ -177,7 +175,6 @@ export function usePersistentGame(
     return message;
   }, []);
 
-  /* ────── Mutations ────── */
 
   const togglePayment = useCallback(
     async (paymentId: string, completed: boolean) => {
@@ -277,5 +274,4 @@ export function usePersistentGame(
   };
 }
 
-/** Exposed for tests so they can simulate the guard window. */
 export const __MUTATION_POLL_GUARD_MS = MUTATION_POLL_GUARD_MS;

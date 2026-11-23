@@ -39,7 +39,6 @@ const injectGameMeta: PagesFunction<Env> = async (ctx) => {
   const gameId = match[1]!;
   const snapshot = await loadGame(ctx.env.DB, gameId).catch(() => null);
 
-  // Always serve the same SPA shell — rewrite is purely additive metadata.
   const response = await ctx.next();
   if (!response.ok || !response.headers.get('Content-Type')?.includes('text/html')) {
     return response;
@@ -57,7 +56,6 @@ const injectGameMeta: PagesFunction<Env> = async (ctx) => {
 
 export const onRequest: PagesFunction<Env>[] = [recordUncaughtErrors, injectGameMeta];
 
-/* ──────── Meta builder ──────── */
 
 interface PageMeta {
   title: string;
@@ -106,7 +104,6 @@ function buildMeta(
   return { title, description, ogImage, ogUrl };
 }
 
-/* ──────── HTMLRewriter handlers ──────── */
 
 class TitleSetter {
   constructor(private title: string) {}

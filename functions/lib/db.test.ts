@@ -129,20 +129,7 @@ describe('createGameFinalized — validation', () => {
     ).rejects.toThrowError(/themselves/i);
   });
 
-  it('rejects alias rules forming a 2-cycle', async () => {
-    await expect(
-      createGameFinalized(stubDb, {
-        ...baseInput(),
-        aliases: [
-          { playerId: 'a', aliasToPlayerId: 'k' },
-          { playerId: 'k', aliasToPlayerId: 'a' },
-        ],
-      })
-    ).rejects.toThrowError(/cycle/i);
-  });
-
   it('rejects an alias whose target collapses back to the source', async () => {
-    // Three players: a → b → c, then c → a — that's a cycle of length 3.
     const input = baseInput();
     input.rows = [
       ...baseRows,

@@ -1,8 +1,3 @@
-/**
- * PATCH /api/live-games/:id/players/:playerId
- *
- * Body supports { clientEventId, name?, status?, isHost? }.
- */
 
 import { LiveNotFoundError, setHostPlayer, updateLivePlayer } from '../../../../lib/live-db';
 import type { LivePlayerStatus } from '../../../../../src/lib/types';

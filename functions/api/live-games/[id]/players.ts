@@ -1,8 +1,3 @@
-/**
- * POST /api/live-games/:id/players
- *
- * Body: { clientEventId, name, isHost? }
- */
 
 import { addLivePlayer, LiveNotFoundError } from '../../../lib/live-db';
 import {

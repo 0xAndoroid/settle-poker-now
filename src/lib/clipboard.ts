@@ -10,7 +10,6 @@ export async function copyText(text: string): Promise<boolean> {
       return true;
     }
   } catch {
-    // Fall through to legacy path.
   }
 
   if (typeof document === 'undefined') return false;

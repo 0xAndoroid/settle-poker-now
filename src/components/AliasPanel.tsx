@@ -5,7 +5,6 @@ import type { PersistedAlias, PersistedPlayer } from '@/lib/types';
 interface AliasPanelProps {
   /** Raw players from the snapshot (pre-collapse). */
   players: ReadonlyArray<PersistedPlayer>;
-  /** Current alias rules from the snapshot. */
   aliases: ReadonlyArray<PersistedAlias>;
   onAddAlias: (input: { playerId: string; aliasToPlayerId: string }) => Promise<void>;
   onRemoveAlias: (playerId: string) => Promise<void>;

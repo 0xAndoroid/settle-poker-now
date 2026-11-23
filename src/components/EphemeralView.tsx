@@ -74,7 +74,6 @@ export function EphemeralView({
   const [roundToDollars, setRoundToDollars] = useState(true);
   const [ledgerBalancing, setLedgerBalancing] = useState<LedgerBalancing>(DEFAULT_LEDGER_BALANCING);
 
-  // Hydrate from URL hash exactly once.
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
@@ -218,7 +217,6 @@ export function EphemeralView({
     };
   }, [parsedLedger, balancedLedger, adjustments, isolations, aliases, paymentPreferences, roundToDollars]);
 
-  // Push ticker upward on every settlement change.
   useEffect(() => {
     if (!parsedLedger) {
       onTickerChange(undefined);
@@ -462,7 +460,6 @@ export function EphemeralView({
     });
   }, [resetLedger]);
 
-  // Expose `reset` to the parent so the masthead's "new game" can use it.
   useEffect(() => {
     registerReset?.(reset);
   }, [registerReset, reset]);

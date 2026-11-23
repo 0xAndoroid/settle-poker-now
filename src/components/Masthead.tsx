@@ -1,14 +1,12 @@
 interface MastheadProps {
   onReset?: () => void;
   showReset?: boolean;
-  /** Optional ticker-tape items to display in the top sub-bar. */
   ticker?: TickerItem[];
 }
 
 export interface TickerItem {
   label: string;
   value: string;
-  /** Tone shifts the value color: gain (green) / loss (red) / accent (blue) / live (purple). */
   tone?: 'gain' | 'loss' | 'accent' | 'live';
 }
 
@@ -18,7 +16,6 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
       className="sticky top-0 z-30 border-b border-line bg-bg"
       style={{ viewTransitionName: 'masthead' }}
     >
-      {/* Row 1: brand + actions */}
       <div className={ticker && ticker.length > 0 ? 'border-b border-line' : undefined}>
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-[52px] flex items-center justify-between gap-4">
           <button
@@ -47,7 +44,6 @@ export function Masthead({ onReset, showReset, ticker }: MastheadProps) {
         </div>
       </div>
 
-      {/* Row 2: ticker tape (only when populated) */}
       {ticker && ticker.length > 0 && (
         <div>
           <div className="mx-auto max-w-6xl px-4 sm:px-6 h-9 flex items-center gap-5 sm:gap-7 overflow-x-auto scrollbar-none">

@@ -8,24 +8,24 @@
      * Flat night-indigo canvas + solid surface steps — DESIGN.md v2.
      * RGB triples (no `rgb(...)` wrapper) so Tailwind can compose with alpha.
      */
-    --bg: 13 15 22; /* #0d0f16 canvas */
-    --surface: 20 22 31; /* #14161f default panel */
-    --surface-2: 23 26 37; /* #171a25 hero / floating */
-    --surface-soft: 18 20 29; /* #12141d controls / chips */
-    --hairline: 255 255 255; /* hairline edges + thumb fills, always at low alpha */
-    --fg: 236 238 246; /* #eceef6 */
-    --fg-dim: 160 164 184; /* #a0a4b8 */
-    --fg-mute: 115 120 141; /* #73788d */
+    --bg: 13 15 22;
+    --surface: 20 22 31;
+    --surface-2: 23 26 37;
+    --surface-soft: 18 20 29;
+    --hairline: 255 255 255;
+    --fg: 236 238 246;
+    --fg-dim: 160 164 184;
+    --fg-mute: 115 120 141;
 
     /* Sonokai Andromeda accents — one meaning each, never decorative:
        green = money received · red = money paid · yellow = primary action / warning
        blue = interactive · purple = live/realtime · orange = forced rule */
-    --green: 158 208 114; /* #9ed072 */
-    --yellow: 231 198 100; /* #e7c664 */
-    --blue: 118 204 224; /* #76cce0 */
-    --purple: 179 157 243; /* #b39df3 */
-    --red: 252 93 124; /* #fc5d7c */
-    --orange: 243 150 96; /* #f39660 */
+    --green: 158 208 114;
+    --yellow: 231 198 100;
+    --blue: 118 204 224;
+    --purple: 179 157 243;
+    --red: 252 93 124;
+    --orange: 243 150 96;
 
     /* Type — one sans stack everywhere; mono is reserved for money, URLs
        and IDs, never prose. */
@@ -34,8 +34,6 @@
       'Segoe UI', sans-serif;
     --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-    /* Elevation — depth comes from surface steps + hairlines. The single
-       sanctioned shadow, for floating overlays only (toasts, dialogs). */
     --shadow-float: 0 12px 32px -12px rgb(3 5 12 / 0.6);
 
     /* Motion vocabulary. The spring is a sampled damped physical spring
@@ -165,8 +163,6 @@
     text-wrap: pretty;
   }
 
-  /* Money and counts always set in mono with tabular lining figures —
-     columns align, digits never jitter. */
   .num,
   td.num,
   span.num {
@@ -178,10 +174,6 @@
 }
 
 @layer components {
-  /* ---------------------------------------------------------------- card
-     Card primitive — the flat panel recipe: solid surface step above the
-     canvas, hairline edge, sharp radius. Depth from the step + hairline,
-     nothing else. */
   .card {
     position: relative;
     background: rgb(var(--surface));
@@ -190,7 +182,6 @@
     overflow: clip;
   }
 
-  /* Floating overlays (dialogs, toasts) get the one sanctioned shadow. */
   .card-float {
     background: rgb(var(--surface-2));
     border-radius: 10px;
@@ -206,9 +197,6 @@
     border-bottom: 1px solid rgb(var(--hairline) / 0.07);
   }
 
-  /* Kicker dash — the report system's section mark. The card's first
-     header label carries a short rule in the panel's meaning color
-     (set `--kc` on the card; defaults to a neutral hairline). */
   .card-header > .ticker-label-strong:first-child {
     display: inline-flex;
     align-items: center;
@@ -224,8 +212,6 @@
     background: var(--kc, rgb(var(--hairline) / 0.28));
   }
 
-  /* Panel meaning hues for the kicker dash. Applied on the card so the
-     header ::before inherits. Restrained: only semantically-hued panels. */
   .kc-yellow {
     --kc: rgb(var(--yellow));
   }
@@ -278,7 +264,6 @@
     color: rgb(var(--fg-dim));
   }
 
-  /* Panel prose — body voice, one sans stack. */
   .prose-panel {
     font-family: var(--sans);
     font-size: 14px;
@@ -286,10 +271,6 @@
     text-wrap: pretty;
   }
 
-  /* ---------------------------------------------------------------- btn
-     Buttons — flat fills, hairline edges, springy release. The single
-     primary action per view gets the solid yellow fill; everything else
-     stays quiet. */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -318,8 +299,6 @@
     background: rgb(var(--hairline) / 0.09);
     border-color: rgb(var(--hairline) / 0.18);
   }
-  /* Press must read instantly — fast transform on the way down; the
-     slower spring above handles the release. */
   .btn:active:not(:disabled) {
     transform: scale(0.96);
     transition-duration: 180ms, 180ms, 180ms, 180ms, 80ms;
@@ -340,8 +319,6 @@
     border-color: transparent;
     filter: brightness(1.06);
   }
-  /* A dimmed yellow reads as muddy brass — disabled primary falls back
-     to a quiet neutral fill instead. */
   .btn-fill:disabled {
     opacity: 1;
     background: rgb(var(--hairline) / 0.06);
@@ -376,9 +353,6 @@
     font-weight: 700;
   }
 
-  /* ---------------------------------------------------------------- field
-     Inputs — solid inset wells; focus answers with the interactive
-     accent border. */
   .field {
     display: block;
     width: 100%;
@@ -420,9 +394,6 @@
     appearance: none;
   }
 
-  /* ---------------------------------------------------------------- pill
-     Status badge — squared, accent-tinted: text = accent, fill = accent
-     @ .10, border = accent @ .32. Variants only ever carry meaning. */
   .pill {
     display: inline-flex;
     align-items: center;
@@ -471,9 +442,6 @@
     color: rgb(var(--orange));
   }
 
-  /* ---------------------------------------------------------------- checkbox
-     Custom checkbox. Green = payment landed; checking it should feel
-     like money arriving — a small spring pop. */
   .checkbox-poker {
     appearance: none;
     -webkit-appearance: none;
@@ -522,10 +490,6 @@
     }
   }
 
-  /* ---------------------------------------------------------------- switch
-     Sliding toggle — inset track, off-white knob. Same material language
-     as checkbox-poker but for persistent on/off settings (e.g.
-     round-to-dollars on the settlement panel). */
   .switch-poker {
     appearance: none;
     -webkit-appearance: none;
@@ -583,10 +547,6 @@
     flex-shrink: 0;
   }
 
-  /* Per-row Venmo / Zelle deep-link button. Tiny square — sits inside
-     `.payment-icons-slot` next to the recipient's amount. Tone shifts on
-     hover so the icon reads as actionable without competing visually
-     with the mark-as-settled checkbox. */
   .payment-icon {
     display: inline-flex;
     align-items: center;
@@ -628,8 +588,6 @@
     }
   }
 
-  /* Live blip — purple is the one realtime signal in the palette. Solid
-     dot, no glow. Static for users who request reduced motion. */
   .live-dot {
     display: inline-block;
     width: 6px;
@@ -644,7 +602,6 @@
     }
   }
 
-  /* Hairline horizontal rule, used between sections inside a card. */
   .hr {
     height: 1px;
     background: rgb(var(--hairline) / 0.07);
@@ -724,8 +681,6 @@
     animation: toast-in 420ms var(--spring) backwards;
   }
 
-  /* Subtle exit — a small upward drift + fade, shorter than the enter so it
-     cedes attention rather than competing for it. */
   @keyframes toast-out {
     to {
       opacity: 0;

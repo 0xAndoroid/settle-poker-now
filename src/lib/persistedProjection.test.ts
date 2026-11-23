@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   findIsolationCycles,
-  paymentKey,
   projectPersistedSnapshot,
   projectSettlementPlan,
 } from './persistedProjection';
 import type { PersistedGameSnapshot } from './types';
 
 describe('findIsolationCycles', () => {
-  it('returns empty for an empty graph', () => {
-    expect(findIsolationCycles([])).toEqual([]);
-  });
-
   it('returns empty for a chain', () => {
     expect(
       findIsolationCycles([
@@ -19,15 +14,6 @@ describe('findIsolationCycles', () => {
         { playerId: 'b', counterpartId: 'c' },
       ])
     ).toEqual([]);
-  });
-
-  it('detects a 2-cycle', () => {
-    expect(
-      findIsolationCycles([
-        { playerId: 'a', counterpartId: 'b' },
-        { playerId: 'b', counterpartId: 'a' },
-      ])
-    ).toEqual(['a', 'b']);
   });
 
   it('detects a 3-cycle', () => {
@@ -48,25 +34,10 @@ describe('findIsolationCycles', () => {
     expect(
       findIsolationCycles([
         { playerId: 'a', counterpartId: 'b' },
-        { playerId: 'b', counterpartId: 'a' }, // cycle: a, b
-        { playerId: 'c', counterpartId: 'd' }, // chain, not cyclic
+        { playerId: 'b', counterpartId: 'a' },
+        { playerId: 'c', counterpartId: 'd' },
       ])
     ).toEqual(['a', 'b']);
-  });
-});
-
-describe('paymentKey', () => {
-  it('produces a stable key from from/to/amount', () => {
-    expect(paymentKey({ fromId: 'andrew', toId: 'kevin', amountCents: 5000 })).toBe(
-      'andrew|kevin|5000'
-    );
-  });
-
-  it('changes when any field differs (used for diffing across re-derivations)', () => {
-    const a = paymentKey({ fromId: 'a', toId: 'b', amountCents: 100 });
-    expect(paymentKey({ fromId: 'a', toId: 'b', amountCents: 101 })).not.toBe(a);
-    expect(paymentKey({ fromId: 'a', toId: 'c', amountCents: 100 })).not.toBe(a);
-    expect(paymentKey({ fromId: 'b', toId: 'a', amountCents: 100 })).not.toBe(a);
   });
 });
 

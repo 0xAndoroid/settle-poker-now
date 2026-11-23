@@ -407,7 +407,6 @@ describe('liveProjection', () => {
       entry('e2', 'kevin', 'cash_out', 0, { isFinal: true }),
       entry('e3', 'host', 'buy_in', 10_000),
       entry('e4', 'host', 'cash_out', 20_000, { isFinal: true }),
-      // Kevin already venmo'd the host a cent-valued amount.
       entry('e5', 'kevin', 'prior_payment', 4_233, { toPlayerId: 'host' }),
     ]);
 
@@ -416,7 +415,6 @@ describe('liveProjection', () => {
       { id: 'e5', fromId: 'kevin', toId: 'host', amountCents: 4_200 },
     ]);
 
-    // Toggle off keeps the exact recorded amount.
     const exact = validateLiveFinalization(snap);
     expect(exact.adjustments[0]?.amountCents).toBe(4_233);
   });
@@ -481,7 +479,7 @@ describe('mid-game finalize preview', () => {
     // entire 96_500 still on the table).
     expect(sam?.netCents).toBe(3_500);
     expect(result.proportionalAdjustments).toEqual([]);
-    expect(result.ok).toBe(false); // missing finals still block finalization
+    expect(result.ok).toBe(false);
     expect(result.errors.some((error) => /final cashout/i.test(error))).toBe(true);
   });
 

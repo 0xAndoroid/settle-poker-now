@@ -45,7 +45,6 @@ function write(gameId: string, identity: GameIdentity | null): void {
       window.localStorage.setItem(key(gameId), JSON.stringify(identity));
     }
   } catch {
-    // ignore quota
   }
 }
 

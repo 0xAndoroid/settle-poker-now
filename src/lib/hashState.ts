@@ -175,7 +175,6 @@ export function writeHashToLocation(state: HashState): void {
   if (typeof window === 'undefined') return;
   const encoded = encodeHash(state);
   const next = encoded ? `#${encoded}` : '';
-  // replaceState keeps history clean and prevents back-button spam.
   const target = `${window.location.pathname}${window.location.search}${next}`;
   window.history.replaceState(null, '', target);
 }

@@ -13,7 +13,6 @@ export interface PaymentDetailsResult {
 interface PaymentDetailsModalProps {
   players: ReadonlyArray<PersistedPlayer>;
   paymentMethodsByPlayerId: ReadonlyMap<string, PersistedPaymentMethod>;
-  /** Current identity, if any — pre-selects the roster chip. */
   initialPlayerId: string | null;
   onCancel: () => void;
   onSave: (result: PaymentDetailsResult) => void;

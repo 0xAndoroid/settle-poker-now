@@ -1,7 +1,3 @@
-/**
- * Minimal className concatenator. Filters falsy values; collapses whitespace.
- * Avoids pulling in `clsx` + `tailwind-merge` for a UI of this size.
- */
 
 type ClassValue = string | number | false | null | undefined;
 

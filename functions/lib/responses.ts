@@ -1,9 +1,3 @@
-/**
- * Shared response helpers for Pages Functions. CORS is permissive because
- * the worker is consumed only by our own SPA at the same origin, but
- * leaving the doors open simplifies local dev (vite on :5173 hitting
- * wrangler on :4173).
- */
 
 export const CORS_HEADERS: HeadersInit = {
   'Access-Control-Allow-Origin': '*',

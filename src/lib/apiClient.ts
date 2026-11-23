@@ -1,10 +1,3 @@
-/**
- * Thin client for the persistent-game routes.
- *
- * Every method passes the user's chosen actor label (a player nickname,
- * stored in localStorage per-game) via the `X-Actor-Label` header so the
- * server records audit trail entries.
- */
 
 import type { LedgerBalancing, PaymentPreference, PersistedGameSnapshot } from './types';
 

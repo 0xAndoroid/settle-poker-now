@@ -28,21 +28,6 @@ interface PersistentGameViewProps {
   confirm: ConfirmFn;
 }
 
-/**
- * Post-finalize read-only view at /g/:id. Owns:
- *   - Server snapshot fetch + 8s polling (via `usePersistentGame`)
- *   - The "get paid" modal — picking your name from the roster and
- *     registering Venmo/Zelle handles. Identity (localStorage, per game)
- *     is a side effect of that pick, never a separate step.
- *   - Mark-payment-settled toggle (the only structural mutation allowed
- *     after finalize — the worker enforces a 423 lock on everything else)
- *   - Read-only display: original ledger, modifications applied at
- *     finalize, settlement plan, audit history.
- *   - Copy-link / share-link to push the canonical URL through chat.
- *
- * Legacy unfinalized games (created via the old POST /api/games before
- * finalize-on-create existed) render with a banner offering to lock them.
- */
 export function PersistentGameView({
   gameId,
   onTickerChange,
@@ -111,7 +96,6 @@ export function PersistentGameView({
     upsertRecentGame(getRecentGamesStorage(), entry);
   }, [state.game]);
 
-  // Push ticker updates upward whenever the snapshot changes.
   useEffect(() => {
     if (!projection || !state.game) {
       onTickerChange(undefined);
@@ -223,7 +207,6 @@ export function PersistentGameView({
 
   const isFinalized = state.game.game.finalizedAt !== null;
 
-  // Map current persisted plan ordering to txn list.
   const plan = projection.plan;
   const paymentIds: string[] = state.game.payments.map((p) => p.id);
   const completionByPaymentId = new Map<string, PaymentCompletion>(

@@ -93,18 +93,6 @@ function parseDate(value: string | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-/**
- * Heuristic unit detection. Examines all raw `buy_in`, `buy_out`, `stack`,
- * and `net` magnitudes; if any exceed {@link CENTS_INFERENCE_THRESHOLD},
- * the values are in cents (because dollars-mode at that magnitude would
- * imply a $2000+ home game). Otherwise the game is in dollars-mode.
- *
- * Edge cases:
- *   - All values zero → defaults to cents-mode (matches the
- *     longstanding default and is harmless: 0 × 100 = 0).
- *   - Returns the inferred unit only; the caller decides how to combine
- *     with any authoritative hint.
- */
 export function inferUnit(rawValues: readonly number[]): LedgerUnit {
   let maxAbs = 0;
   for (const v of rawValues) {
@@ -155,8 +143,6 @@ export function parseLedgerCsv(
   let earliestStart: number | null = null;
   let latestEnd: number | null = null;
 
-  // Collect every numeric magnitude we see, so the heuristic has a wide
-  // base to work with.
   const allMagnitudes: number[] = [];
 
   for (const row of result.data) {
@@ -219,7 +205,6 @@ export function parseLedgerCsv(
     buyOutCents: acc.buyOutRaw * multiplier,
   }));
 
-  // Sort by net desc, tiebreak by playerId asc for determinism.
   rows.sort((a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId));
 
   return {
