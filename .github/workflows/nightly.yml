@@ -32,7 +32,10 @@ jobs:
                -f "created=<$cutoff" -F per_page=30) &&
              previous=$(jq -r --arg cutoff "$cutoff" --argjson id "$GITHUB_RUN_ID" \
                --argjson number "$GITHUB_RUN_NUMBER" '
-                 [.workflow_runs[] | select(.id != $id and .run_number < $number and
+                 [.workflow_runs[] |
+                   if (.id | type) != "number" or (.run_number | type) != "number"
+                   then error("Invalid nightly run identity") else . end |
+                   select(.id != $id and .run_number < $number and
                    (.conclusion == "success" or .conclusion == "failure"))]
                  | max_by(.run_number)
                  | select((.updated_at | fromdateiso8601?) < ($cutoff | fromdateiso8601))
