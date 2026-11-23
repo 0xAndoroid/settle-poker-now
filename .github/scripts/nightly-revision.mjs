@@ -49,7 +49,7 @@ const earlier = history.filter((run) => {
       run.head_branch !== GITHUB_REF_NAME || run.event !== 'schedule' || run.status !== 'completed') {
     return false;
   }
-  if (!isId(run.id) || !isId(run.run_number) || !isId(run.run_attempt) || !isSha(run.head_sha)) {
+  if (!isId(run.id) || !isId(run.run_number) || !isSha(run.head_sha)) {
     throw new Error('Invalid scheduled run in Actions history');
   }
   return run.run_number < current.run_number && timestamp(run.created_at) < created &&
@@ -63,11 +63,13 @@ for (const run of earlier) {
     previous = run;
     break;
   }
-  const { jobs } = await actions(`runs/${run.id}/attempts/${run.run_attempt}/jobs`);
+  // A rerun that stops before testing does not erase earlier suite coverage.
+  const { jobs } = await actions(`runs/${run.id}/jobs`, { filter: 'all', per_page: '100' });
   if (!Array.isArray(jobs)) throw new Error('Invalid Actions jobs response');
-  const suite = jobs.find((job) => job.name === 'Full test suite' && job.status === 'completed');
-  const test = suite?.steps.find((step) => step.name === 'Run npm run test');
-  if (test?.status === 'completed' && ['success', 'failure'].includes(test.conclusion)) {
+  const finished = jobs.some((job) => job.name === 'Full test suite' && job.status === 'completed' &&
+    job.steps?.some((step) => step.name === 'Run npm run test' && step.status === 'completed' &&
+      ['success', 'failure'].includes(step.conclusion) && timestamp(step.completed_at) < created));
+  if (finished) {
     previous = run;
     break;
   }
